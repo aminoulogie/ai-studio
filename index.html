@@ -1,0 +1,1087 @@
+<title>AI Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+<style>
+:root {
+  --sidebar-bg:    #1c1917;
+  --sidebar-hover: #292524;
+  --sidebar-active:#2e2b28;
+  --sidebar-border:#292524;
+  --sidebar-fg:    #e7e5e4;
+  --sidebar-fg2:   #78716c;
+  --sidebar-fg3:   #57534e;
+  --main-bg:       #faf9f7;
+  --surface:       #ffffff;
+  --border:        #e7e5e4;
+  --border2:       #d6d3d1;
+  --fg:            #1c1917;
+  --fg2:           #57534e;
+  --fg3:           #a8a29e;
+  --accent2:       #ea580c;
+  --brand:         #7c3aed;
+  --brand-light:   #ede9fe;
+  --code-bg:       #f4f3f0;
+  --code-border:   #e7e5e4;
+  --user-bg:       #f0ede8;
+  --user-border:   #e7e5e4;
+  --green:         #16a34a;
+  --red:           #dc2626;
+  --gh:            #238636;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --main-bg:#1c1917;--surface:#292524;--border:#3c3836;--border2:#504c4a;
+    --fg:#f5f4f2;--fg2:#a8a29e;--fg3:#78716c;
+    --code-bg:#292524;--code-border:#3c3836;--user-bg:#292524;--user-border:#3c3836;
+    --brand-light:#2e1a5c;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"] {
+  --main-bg:#1c1917;--surface:#292524;--border:#3c3836;--border2:#504c4a;
+  --fg:#f5f4f2;--fg2:#a8a29e;--fg3:#78716c;
+  --code-bg:#292524;--code-border:#3c3836;--user-bg:#292524;--user-border:#3c3836;
+  --brand-light:#2e1a5c;
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);color:var(--fg);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.app{display:flex;height:100%;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{width:270px;flex-shrink:0;background:var(--sidebar-bg);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--sidebar-border);z-index:10}
+.sidebar-logo{padding:16px 14px 12px;display:flex;align-items:center;gap:8px}
+.app-mark{width:26px;height:26px;flex-shrink:0;border-radius:6px;background:var(--brand);display:flex;align-items:center;justify-content:center}
+.app-mark svg{width:16px;height:16px}
+.sidebar-brand{font-size:15px;font-weight:600;color:var(--sidebar-fg);letter-spacing:-.01em}
+.btn-new-chat{margin:0 10px 8px;padding:8px 12px;background:transparent;border:1px solid var(--sidebar-border);border-radius:8px;color:var(--sidebar-fg);font-family:var(--font-sans);font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .12s;width:calc(100% - 20px);text-align:left}
+.btn-new-chat:hover{background:var(--sidebar-hover)}
+.btn-new-chat svg{width:14px;height:14px;flex-shrink:0;opacity:.7}
+.sidebar-nav{padding:0 10px;display:flex;flex-direction:column;gap:1px;margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;color:var(--sidebar-fg2);font-size:13px;cursor:pointer;transition:background .1s,color .1s;border:none;background:transparent;font-family:var(--font-sans);width:100%;text-align:left}
+.nav-item:hover{background:var(--sidebar-hover);color:var(--sidebar-fg)}
+.nav-item.active{background:var(--sidebar-active);color:var(--sidebar-fg)}
+.nav-item svg{width:15px;height:15px;flex-shrink:0}
+.s-label{padding:10px 14px 4px;font-size:10px;font-weight:500;color:var(--sidebar-fg3);letter-spacing:.06em;text-transform:uppercase}
+.sidebar-convs{flex:1;overflow-y:auto;padding:0 10px}
+.conv-item{display:flex;align-items:center;padding:7px 10px;border-radius:6px;color:var(--sidebar-fg2);font-size:13px;cursor:pointer;transition:background .1s,color .1s;gap:8px;overflow:hidden}
+.conv-item:hover{background:var(--sidebar-hover);color:var(--sidebar-fg)}
+.conv-item.active{background:var(--sidebar-active);color:var(--sidebar-fg)}
+.conv-item svg{width:13px;height:13px;flex-shrink:0;opacity:.5}
+.conv-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar-bottom{padding:10px;border-top:1px solid var(--sidebar-border);display:flex;flex-direction:column;gap:2px}
+
+/* Provider section */
+.provider-section{padding:6px 10px 2px}
+.provider-label{font-size:10px;font-weight:500;color:var(--sidebar-fg3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px}
+.provider-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px}
+.provider-btn{padding:6px 8px;border:1px solid var(--sidebar-border);border-radius:7px;background:transparent;color:var(--sidebar-fg2);font-family:var(--font-sans);font-size:11px;cursor:pointer;text-align:center;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:5px;line-height:1.2}
+.provider-btn:hover{background:var(--sidebar-hover);color:var(--sidebar-fg);border-color:var(--sidebar-fg3)}
+.provider-btn.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.provider-btn .pb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+.api-section{padding:0 10px 6px}
+.api-label{font-size:10px;font-weight:500;color:var(--sidebar-fg3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}
+.api-label a{color:var(--sidebar-fg3);text-decoration:none;font-size:10px;letter-spacing:.02em;text-transform:none}
+.api-label a:hover{color:var(--sidebar-fg2)}
+.api-input-wrap{position:relative}
+.api-input-wrap input,.sidebar-input{width:100%;background:var(--sidebar-active);border:1px solid var(--sidebar-border);border-radius:6px;padding:7px 30px 7px 9px;font-family:var(--font-sans);font-size:12px;color:var(--sidebar-fg);outline:none;transition:border-color .15s}
+.sidebar-input{padding:7px 9px}
+.api-input-wrap input::placeholder,.sidebar-input::placeholder{color:var(--sidebar-fg3)}
+.api-input-wrap input:focus,.sidebar-input:focus{border-color:var(--brand)}
+.api-status-dot{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;background:var(--sidebar-fg3)}
+.api-status-dot.ok{background:#4ade80}
+.api-status-dot.err{background:#f87171}
+.model-select-wrap{padding:0 10px 6px}
+.model-select-wrap select{width:100%;background:var(--sidebar-active);border:1px solid var(--sidebar-border);border-radius:6px;padding:7px 28px 7px 9px;font-family:var(--font-sans);font-size:12px;color:var(--sidebar-fg);outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' viewBox='0 0 10 6'%3E%3Cpath stroke='%2378716c' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m1 1 4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.model-select-wrap select:focus{border-color:var(--brand)}
+.sys-prompt-row{padding:0 10px 8px}
+.sys-prompt-row input{width:100%;background:var(--sidebar-active);border:1px solid var(--sidebar-border);border-radius:6px;padding:7px 9px;font-family:var(--font-sans);font-size:12px;color:var(--sidebar-fg);outline:none}
+.sys-prompt-row input::placeholder{color:var(--sidebar-fg3)}
+.sys-prompt-row input:focus{border-color:var(--brand)}
+.openrouter-row{padding:0 10px 6px;display:none}
+.openrouter-row input{width:100%;background:var(--sidebar-active);border:1px solid var(--sidebar-border);border-radius:6px;padding:7px 9px;font-family:var(--font-sans);font-size:12px;color:var(--sidebar-fg);outline:none}
+.openrouter-row input::placeholder{color:var(--sidebar-fg3)}
+.openrouter-row input:focus{border-color:var(--brand)}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;background:var(--main-bg);overflow:hidden;min-width:0}
+.topbar{display:flex;align-items:center;padding:0 16px;height:48px;background:var(--main-bg);border-bottom:1px solid var(--border);flex-shrink:0;gap:8px}
+.btn-icon{width:32px;height:32px;border:none;background:transparent;border-radius:6px;color:var(--fg3);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s,color .1s}
+.btn-icon:hover{background:var(--user-bg);color:var(--fg2)}
+.btn-icon svg{width:16px;height:16px}
+.topbar-title{flex:1;font-size:14px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar-tokens{font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums}
+.provider-badge{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:500;background:var(--brand-light);color:var(--brand);flex-shrink:0}
+.provider-badge .pb-dot{width:5px;height:5px;border-radius:50%;background:var(--brand)}
+
+/* PANELS */
+.panel{flex:1;overflow:hidden;display:none;flex-direction:column}
+.panel.active{display:flex}
+
+/* CHAT */
+.messages{flex:1;overflow-y:auto;scroll-behavior:smooth}
+.messages-inner{max-width:720px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column}
+.welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 20px;gap:20px}
+.welcome-icon{width:56px;height:56px;border-radius:14px;background:var(--brand);display:flex;align-items:center;justify-content:center;margin-bottom:4px}
+.welcome-icon svg{width:28px;height:28px}
+.welcome h1{font-size:26px;font-weight:600;color:var(--fg);letter-spacing:-.02em;text-wrap:balance}
+.welcome p{font-size:14px;color:var(--fg2);max-width:360px;line-height:1.6}
+.quick-prompts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:480px;margin-top:4px}
+.quick-prompt{padding:8px 16px;border:1px solid var(--border2);border-radius:20px;font-size:13px;color:var(--fg2);cursor:pointer;background:var(--surface);transition:all .15s;font-family:var(--font-sans)}
+.quick-prompt:hover{border-color:var(--brand);color:var(--fg)}
+.msg-row{display:flex;flex-direction:column;padding:20px 0;gap:0}
+.msg-row.user{align-items:flex-end}
+.msg-row.user .msg-bubble{background:var(--user-bg);border:1px solid var(--user-border);border-radius:18px 18px 4px 18px;padding:12px 16px;font-size:14px;line-height:1.65;color:var(--fg);max-width:80%;word-break:break-word}
+.msg-row.assistant{align-items:flex-start}
+.msg-row.assistant .msg-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.msg-avatar-wrap{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700;color:#fff}
+.msg-row.assistant .msg-name{font-size:13px;font-weight:500;color:var(--fg2)}
+.msg-row.assistant .msg-bubble{font-size:14.5px;line-height:1.75;color:var(--fg);width:100%}
+.msg-bubble p{margin-bottom:.85em}
+.msg-bubble p:last-child{margin-bottom:0}
+.msg-bubble h1,.msg-bubble h2,.msg-bubble h3,.msg-bubble h4{font-weight:600;margin:1.2em 0 .4em;text-wrap:balance;line-height:1.3;color:var(--fg)}
+.msg-bubble h1{font-size:1.25em}.msg-bubble h2{font-size:1.1em}.msg-bubble h3{font-size:1em}.msg-bubble h4{font-size:.95em;color:var(--fg2)}
+.msg-bubble ul,.msg-bubble ol{padding-left:1.5em;margin-bottom:.85em}
+.msg-bubble li{margin-bottom:.3em}
+.msg-bubble strong{font-weight:600}.msg-bubble em{font-style:italic}
+.msg-bubble a{color:var(--accent2);text-decoration:underline;text-decoration-color:transparent;transition:text-decoration-color .12s}
+.msg-bubble a:hover{text-decoration-color:var(--accent2)}
+.msg-bubble hr{border:none;border-top:1px solid var(--border);margin:1em 0}
+.msg-bubble :not(pre)>code{font-family:var(--font-mono);font-size:.85em;background:var(--code-bg);border:1px solid var(--code-border);padding:1px 5px;border-radius:4px;color:var(--fg)}
+.code-block{margin:.85em 0;border-radius:10px;overflow:hidden;border:1px solid var(--code-border);background:var(--code-bg)}
+.code-block-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--code-border)}
+.code-lang{font-family:var(--font-mono);font-size:11px;color:var(--fg3)}
+.btn-copy-code{display:flex;align-items:center;gap:5px;font-family:var(--font-sans);font-size:11px;padding:3px 8px;border:1px solid var(--code-border);border-radius:5px;background:var(--surface);color:var(--fg3);cursor:pointer;transition:all .1s}
+.btn-copy-code:hover{border-color:var(--border2);color:var(--fg2)}
+.btn-copy-code.copied{color:var(--green);border-color:var(--green)}
+.code-block pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--font-mono);font-size:13px;line-height:1.6}
+.code-block pre code{font-family:var(--font-mono);background:transparent!important;padding:0;border:none;border-radius:0}
+.msg-bubble blockquote{border-left:3px solid var(--border2);margin:.85em 0;padding:.4em .85em;color:var(--fg2)}
+.typing{display:flex;gap:4px;align-items:center;height:22px}
+.typing span{width:5px;height:5px;background:var(--fg3);border-radius:50%;animation:pulse 1.4s ease-in-out infinite}
+.typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,60%,100%{opacity:.3;transform:scale(.8)}30%{opacity:1;transform:scale(1)}}
+.msg-actions{display:flex;gap:4px;margin-top:8px;opacity:0;transition:opacity .15s}
+.msg-row:hover .msg-actions,.msg-row:focus-within .msg-actions{opacity:1}
+.msg-row.user .msg-actions{justify-content:flex-end}
+.msg-act{display:flex;align-items:center;gap:4px;padding:4px 8px;border:none;background:transparent;border-radius:5px;color:var(--fg3);cursor:pointer;font-family:var(--font-sans);font-size:11px;transition:background .1s,color .1s}
+.msg-act:hover{background:var(--user-bg);color:var(--fg2)}
+.msg-act svg{width:12px;height:12px}
+.input-area{padding:16px max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:var(--main-bg);flex-shrink:0}
+.input-container{max-width:720px;margin:0 auto}
+.input-box{background:var(--surface);border:1px solid var(--border2);border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:box-shadow .15s;overflow:hidden}
+.input-box:focus-within{box-shadow:0 2px 12px rgba(0,0,0,.1)}
+.input-main{display:flex;align-items:flex-end;padding:12px 12px 12px 16px;gap:8px}
+#userInput{flex:1;border:none;background:transparent;font-family:var(--font-sans);font-size:15px;color:var(--fg);resize:none;outline:none;max-height:200px;min-height:26px;line-height:1.55;padding:0}
+#userInput::placeholder{color:var(--fg3)}
+.btn-send{width:34px;height:34px;background:var(--brand);border:none;border-radius:10px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
+.btn-send:hover:not(:disabled){opacity:.85}
+.btn-send:disabled{opacity:.3;cursor:not-allowed}
+.btn-send svg{width:15px;height:15px}
+.input-footer{display:flex;align-items:center;justify-content:space-between;padding:6px 4px 0;font-size:11px;color:var(--fg3)}
+.error-strip{max-width:720px;margin:0 auto 10px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;color:var(--red);font-size:13px;display:none}
+
+/* GITHUB PANEL */
+.gh-layout{flex:1;display:flex;overflow:hidden}
+.gh-tree{width:240px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;overflow:hidden}
+.gh-tree-header{padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:500;color:var(--fg2);display:flex;align-items:center;gap:6px;flex-shrink:0}
+.gh-tree-header svg{width:14px;height:14px;color:var(--fg3)}
+.gh-tree-body{flex:1;overflow-y:auto;padding:4px 0}
+.tree-item{display:flex;align-items:center;gap:6px;padding:5px 12px;cursor:pointer;font-size:12.5px;color:var(--fg2);transition:background .1s,color .1s;user-select:none}
+.tree-item:hover{background:var(--user-bg);color:var(--fg)}
+.tree-item.active{background:var(--user-bg);color:var(--brand)}
+.tree-item svg{width:14px;height:14px;flex-shrink:0}
+.tree-item .item-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tree-loading{padding:12px;font-size:12px;color:var(--fg3);text-align:center}
+.gh-editor-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.gh-editor-topbar{padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.gh-breadcrumb{flex:1;font-size:12px;color:var(--fg3);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gh-breadcrumb span{color:var(--brand)}
+.gh-btn{padding:5px 12px;border-radius:6px;font-size:12px;font-family:var(--font-sans);cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;border:1px solid var(--border2);background:var(--surface);color:var(--fg2)}
+.gh-btn:hover{border-color:var(--fg3);color:var(--fg)}
+.gh-btn.primary{background:var(--gh);border-color:var(--gh);color:#fff}
+.gh-btn.primary:hover{opacity:.88}
+.gh-btn.danger{border-color:var(--red);color:var(--red)}
+.gh-btn.danger:hover{background:#fef2f2}
+.gh-btn svg{width:12px;height:12px}
+.gh-editor{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.gh-editor textarea{flex:1;border:none;outline:none;background:var(--main-bg);color:var(--fg);font-family:var(--font-mono);font-size:13px;line-height:1.6;padding:16px;resize:none;width:100%;tab-size:2}
+.gh-viewer{flex:1;overflow:auto;padding:16px;background:var(--main-bg)}
+.gh-viewer pre{font-family:var(--font-mono);font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:var(--fg)}
+.gh-viewer pre code{background:transparent!important}
+.gh-connect{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:20px;text-align:center}
+.gh-connect h2{font-size:20px;font-weight:500;color:var(--fg)}
+.gh-connect p{font-size:13px;color:var(--fg2);max-width:340px;line-height:1.6}
+.gh-connect-form{display:flex;flex-direction:column;gap:10px;width:100%;max-width:360px}
+.gh-connect-form input{padding:10px 12px;border:1px solid var(--border2);border-radius:8px;font-family:var(--font-sans);font-size:13px;background:var(--surface);color:var(--fg);outline:none}
+.gh-connect-form input:focus{border-color:var(--brand)}
+.gh-connect-form input::placeholder{color:var(--fg3)}
+.btn-gh-connect{padding:10px 20px;background:#24292f;color:#fff;border:none;border-radius:8px;font-family:var(--font-sans);font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .15s}
+.btn-gh-connect:hover{opacity:.88}
+.gh-repobar{padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.gh-repobar select{background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:5px 24px 5px 9px;font-size:12px;font-family:var(--font-sans);color:var(--fg2);outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' viewBox='0 0 10 6'%3E%3Cpath stroke='%2378716c' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m1 1 4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.gh-repobar select:focus{border-color:var(--brand)}
+.gh-status{font-size:11px;color:var(--fg3);margin-left:auto}
+.gh-status.ok{color:var(--green)}
+.gh-status.err{color:var(--red)}
+
+/* Modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--surface);border-radius:12px;padding:24px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal h3{font-size:15px;font-weight:600;color:var(--fg)}
+.modal input,.modal textarea{border:1px solid var(--border2);border-radius:8px;padding:9px 12px;font-family:var(--font-sans);font-size:13px;background:var(--surface);color:var(--fg);outline:none;width:100%}
+.modal input:focus,.modal textarea:focus{border-color:var(--brand)}
+.modal textarea{resize:vertical;min-height:60px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+
+/* Scrollbars */
+.messages::-webkit-scrollbar,.gh-tree-body::-webkit-scrollbar,.gh-viewer::-webkit-scrollbar{width:6px}
+.messages::-webkit-scrollbar-track,.gh-tree-body::-webkit-scrollbar-track,.gh-viewer::-webkit-scrollbar-track{background:transparent}
+.messages::-webkit-scrollbar-thumb,.gh-tree-body::-webkit-scrollbar-thumb,.gh-viewer::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.sidebar-convs::-webkit-scrollbar{width:4px}
+.sidebar-convs::-webkit-scrollbar-track{background:transparent}
+.sidebar-convs::-webkit-scrollbar-thumb{background:var(--sidebar-border);border-radius:2px}
+
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--fg);color:var(--main-bg);padding:8px 16px;border-radius:8px;font-size:12px;opacity:0;pointer-events:none;z-index:300;transition:opacity .18s,transform .18s;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.hljs{background:transparent!important}
+.spin{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:680px){
+  .sidebar{position:fixed;top:0;left:0;height:100%;z-index:10;transition:transform .22s ease}
+  .sidebar.hidden{transform:translateX(-100%)}
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9}
+  .overlay.show{display:block}
+  .gh-tree{width:200px}
+  .provider-grid{grid-template-columns:1fr}
+}
+</style>
+
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="app-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      </div>
+      <span class="sidebar-brand">AI Studio</span>
+    </div>
+
+    <button class="btn-new-chat" onclick="newChat()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New chat
+    </button>
+
+    <div class="sidebar-nav">
+      <button class="nav-item active" id="navChat" onclick="switchTab('chat')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Chats
+      </button>
+      <button class="nav-item" id="navGh" onclick="switchTab('github')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </button>
+    </div>
+
+    <!-- PROVIDER SELECTOR -->
+    <div class="s-label">Provider</div>
+    <div class="provider-section">
+      <div class="provider-grid" id="providerGrid">
+        <button class="provider-btn active" data-p="anthropic" onclick="selectProvider('anthropic')">
+          <span class="pb-dot" style="background:#cc785c"></span>Anthropic
+        </button>
+        <button class="provider-btn" data-p="openai" onclick="selectProvider('openai')">
+          <span class="pb-dot" style="background:#10a37f"></span>OpenAI
+        </button>
+        <button class="provider-btn" data-p="gemini" onclick="selectProvider('gemini')">
+          <span class="pb-dot" style="background:#4285f4"></span>Gemini
+        </button>
+        <button class="provider-btn" data-p="mistral" onclick="selectProvider('mistral')">
+          <span class="pb-dot" style="background:#ff7000"></span>Mistral
+        </button>
+        <button class="provider-btn" data-p="groq" onclick="selectProvider('groq')">
+          <span class="pb-dot" style="background:#f55036"></span>Groq
+        </button>
+        <button class="provider-btn" data-p="openrouter" onclick="selectProvider('openrouter')">
+          <span class="pb-dot" style="background:#6366f1"></span>OpenRouter
+        </button>
+      </div>
+    </div>
+
+    <!-- API KEY -->
+    <div class="api-section">
+      <div class="api-label">
+        <span id="apiKeyLabel">API Key</span>
+        <a id="apiKeyLink" href="#" target="_blank">Get ↗</a>
+      </div>
+      <div class="api-input-wrap">
+        <input type="password" id="apiKey" placeholder="Paste your API key…" oninput="onKeyInput()" autocomplete="off" spellcheck="false">
+        <span class="api-status-dot" id="statusDot"></span>
+      </div>
+    </div>
+
+    <!-- OpenRouter custom model field -->
+    <div class="openrouter-row" id="orModelRow">
+      <div class="api-label" style="margin-bottom:5px;font-size:10px;font-weight:500;color:var(--sidebar-fg3);letter-spacing:.05em;text-transform:uppercase">Custom Model ID</div>
+      <input type="text" id="orModelInput" placeholder="e.g. meta-llama/llama-3.3-70b-instruct" oninput="saveSettings()" spellcheck="false">
+    </div>
+
+    <!-- MODEL -->
+    <div class="s-label">Model</div>
+    <div class="model-select-wrap">
+      <select id="modelSelect" onchange="saveSettings()"></select>
+    </div>
+
+    <!-- SYSTEM PROMPT -->
+    <div class="s-label">System prompt</div>
+    <div class="sys-prompt-row">
+      <input type="text" id="sysPrompt" placeholder="Optional instructions…" oninput="saveSettings()">
+    </div>
+
+    <div class="s-label" id="recentLabel">Recents</div>
+    <div class="sidebar-convs" id="convList"></div>
+
+    <div class="sidebar-bottom">
+      <button class="nav-item" onclick="setTheme()">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <span id="themeLabel">Light mode</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <button class="btn-icon" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="topbar-title" id="topbarTitle">AI Studio</span>
+      <div class="provider-badge" id="providerBadge"><span class="pb-dot"></span><span id="providerBadgeName">Anthropic</span></div>
+      <span class="topbar-tokens" id="tokenCounter"></span>
+      <button class="btn-icon" onclick="clearChat()" title="Clear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.36"/></svg>
+      </button>
+    </div>
+
+    <!-- Chat panel -->
+    <div class="panel active" id="panelChat">
+      <div class="messages" id="messages">
+        <div class="messages-inner" id="messagesInner"></div>
+      </div>
+      <div class="input-area">
+        <div class="input-container">
+          <div class="error-strip" id="errorStrip"></div>
+          <div class="input-box">
+            <div class="input-main">
+              <textarea id="userInput" rows="1" placeholder="Message…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+              <button class="btn-send" id="sendBtn" onclick="handleSend()">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="input-footer">
+            <span id="modelLabel"></span>
+            <span>Enter to send · Shift+Enter for newline</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GitHub panel -->
+    <div class="panel" id="panelGithub">
+      <div class="gh-connect" id="ghConnect">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="var(--fg2)"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        <h2>Connect to GitHub</h2>
+        <p>Enter a personal access token with <strong>repo</strong> scope to browse, edit, and commit files.</p>
+        <div class="gh-connect-form">
+          <input type="password" id="ghTokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" spellcheck="false">
+          <button class="btn-gh-connect" onclick="connectGh()">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/></svg>
+            Connect GitHub
+          </button>
+          <p style="font-size:11px;color:var(--fg3)">Token stored only in your browser. <a href="https://github.com/settings/tokens/new?scopes=repo&description=AI+Studio" target="_blank" style="color:var(--brand)">Create token ↗</a></p>
+        </div>
+      </div>
+      <div id="ghBrowser" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+        <div class="gh-repobar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--fg3)"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          <select id="repoSelect" onchange="onRepoChange()" style="min-width:140px;max-width:200px"><option>Loading…</option></select>
+          <select id="branchSelect" onchange="onBranchChange()" style="min-width:100px"><option>main</option></select>
+          <button class="gh-btn" onclick="newFilePrompt()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New file
+          </button>
+          <span class="gh-status" id="ghStatus">Connected</span>
+          <button class="gh-btn danger" onclick="disconnectGh()" style="margin-left:4px">Disconnect</button>
+        </div>
+        <div class="gh-layout">
+          <div class="gh-tree">
+            <div class="gh-tree-header">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Files
+            </div>
+            <div class="gh-tree-body" id="ghTreeBody"><div class="tree-loading">Select a repo</div></div>
+          </div>
+          <div class="gh-editor-area">
+            <div class="gh-editor-topbar">
+              <span class="gh-breadcrumb" id="ghBreadcrumb">No file open</span>
+              <button class="gh-btn" id="ghEditToggle" onclick="toggleEdit()" style="display:none">Edit</button>
+              <button class="gh-btn primary" id="ghCommitBtn" onclick="showCommitModal()" style="display:none">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Commit
+              </button>
+              <button class="gh-btn" id="ghAskBtn" onclick="askAboutFile()" style="display:none">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Ask AI
+              </button>
+            </div>
+            <div class="gh-editor" id="ghEditor">
+              <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--fg3);font-size:13px">Open a file from the tree</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Commit modal -->
+<div class="modal-backdrop" id="commitModal" style="display:none" onclick="if(event.target===this)closeCommitModal()">
+  <div class="modal">
+    <h3>Commit changes</h3>
+    <input type="text" id="commitMsg" placeholder="Commit message" value="Update via AI Studio">
+    <textarea id="commitDesc" placeholder="Extended description (optional)" rows="2"></textarea>
+    <div style="font-size:12px;color:var(--fg3)" id="commitFilePath"></div>
+    <div class="modal-btns">
+      <button class="gh-btn" onclick="closeCommitModal()">Cancel</button>
+      <button class="gh-btn primary" onclick="doCommit()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Commit &amp; push
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== PROVIDERS ===================== */
+const PROVIDERS = {
+  anthropic: {
+    name: 'Anthropic',
+    color: '#cc785c',
+    placeholder: 'sk-ant-api03-…',
+    link: 'https://console.anthropic.com/account/keys',
+    models: [
+      {v:'claude-opus-4-5',   l:'Claude Opus 4.5'},
+      {v:'claude-sonnet-4-5', l:'Claude Sonnet 4.5'},
+      {v:'claude-haiku-4-5',  l:'Claude Haiku 4.5'},
+      {v:'claude-sonnet-4-6', l:'Claude Sonnet 4.6'},
+      {v:'claude-opus-5-5',   l:'Claude Opus 5.5'},
+      {v:'claude-sonnet-5-5', l:'Claude Sonnet 5.5'},
+      {v:'claude-haiku-5-5',  l:'Claude Haiku 5.5'},
+    ],
+    defaultModel: 'claude-sonnet-4-5'
+  },
+  openai: {
+    name: 'OpenAI',
+    color: '#10a37f',
+    placeholder: 'sk-…',
+    link: 'https://platform.openai.com/api-keys',
+    models: [
+      {v:'o3',           l:'o3'},
+      {v:'o4-mini',      l:'o4-mini'},
+      {v:'gpt-4o',       l:'GPT-4o'},
+      {v:'gpt-4o-mini',  l:'GPT-4o mini'},
+      {v:'gpt-4-turbo',  l:'GPT-4 Turbo'},
+      {v:'gpt-4',        l:'GPT-4'},
+      {v:'gpt-3.5-turbo',l:'GPT-3.5 Turbo'},
+    ],
+    defaultModel: 'gpt-4o'
+  },
+  gemini: {
+    name: 'Gemini',
+    color: '#4285f4',
+    placeholder: 'AIza…',
+    link: 'https://aistudio.google.com/app/apikey',
+    models: [
+      {v:'gemini-2.5-pro-preview-05-06',   l:'Gemini 2.5 Pro Preview'},
+      {v:'gemini-2.5-flash-preview-04-17', l:'Gemini 2.5 Flash Preview'},
+      {v:'gemini-2.0-flash',               l:'Gemini 2.0 Flash'},
+      {v:'gemini-2.0-flash-lite',          l:'Gemini 2.0 Flash Lite'},
+      {v:'gemini-1.5-pro',                 l:'Gemini 1.5 Pro'},
+      {v:'gemini-1.5-flash',               l:'Gemini 1.5 Flash'},
+    ],
+    defaultModel: 'gemini-2.0-flash'
+  },
+  mistral: {
+    name: 'Mistral',
+    color: '#ff7000',
+    placeholder: 'Enter Mistral API key…',
+    link: 'https://console.mistral.ai/api-keys',
+    models: [
+      {v:'mistral-large-latest',   l:'Mistral Large'},
+      {v:'mistral-medium-latest',  l:'Mistral Medium'},
+      {v:'mistral-small-latest',   l:'Mistral Small'},
+      {v:'codestral-latest',       l:'Codestral'},
+      {v:'open-mistral-nemo',      l:'Mistral Nemo'},
+      {v:'open-mixtral-8x22b',     l:'Mixtral 8x22B'},
+    ],
+    defaultModel: 'mistral-large-latest'
+  },
+  groq: {
+    name: 'Groq',
+    color: '#f55036',
+    placeholder: 'gsk_…',
+    link: 'https://console.groq.com/keys',
+    models: [
+      {v:'llama-3.3-70b-versatile',      l:'Llama 3.3 70B'},
+      {v:'llama-3.1-70b-versatile',      l:'Llama 3.1 70B'},
+      {v:'llama-3.1-8b-instant',         l:'Llama 3.1 8B'},
+      {v:'llama3-70b-8192',              l:'Llama 3 70B'},
+      {v:'llama3-8b-8192',               l:'Llama 3 8B'},
+      {v:'mixtral-8x7b-32768',           l:'Mixtral 8x7B'},
+      {v:'gemma2-9b-it',                 l:'Gemma 2 9B'},
+      {v:'deepseek-r1-distill-llama-70b',l:'DeepSeek R1 70B'},
+      {v:'qwen-qwq-32b',                 l:'Qwen QwQ 32B'},
+    ],
+    defaultModel: 'llama-3.3-70b-versatile'
+  },
+  openrouter: {
+    name: 'OpenRouter',
+    color: '#6366f1',
+    placeholder: 'sk-or-v1-…',
+    link: 'https://openrouter.ai/keys',
+    models: [
+      {v:'meta-llama/llama-3.3-70b-instruct',        l:'Llama 3.3 70B'},
+      {v:'meta-llama/llama-3.1-405b-instruct',       l:'Llama 3.1 405B'},
+      {v:'deepseek/deepseek-chat',                   l:'DeepSeek V3'},
+      {v:'deepseek/deepseek-r1',                     l:'DeepSeek R1'},
+      {v:'google/gemma-3-27b-it',                    l:'Gemma 3 27B'},
+      {v:'qwen/qwen-2.5-72b-instruct',               l:'Qwen 2.5 72B'},
+      {v:'microsoft/phi-4',                          l:'Phi-4'},
+      {v:'x-ai/grok-3-beta',                         l:'Grok-3 Beta'},
+      {v:'cohere/command-r-plus',                    l:'Command R+'},
+      {v:'custom',                                   l:'Custom model ID…'},
+    ],
+    defaultModel: 'meta-llama/llama-3.3-70b-instruct'
+  }
+};
+
+/* ===================== STATE ===================== */
+let convs={}, curId=null, streaming=false, abort=null, inTok=0, outTok=0, isDark=false;
+let curProvider='anthropic';
+let ghToken='', ghUser='', ghRepos=[], ghCurRepo='', ghCurBranch='main', ghBranches=[];
+let ghOpenFile=null;
+let activeTab='chat';
+
+/* ===================== INIT ===================== */
+function init(){
+  loadPrefs();
+  convs=lsj('cl_convs')||{};
+  renderConvList();
+  const last=ls('cl_last');
+  if(last&&convs[last]){curId=last;renderMessages();}else{newChat();}
+  updateTokenCounter();
+  ghToken=ls('gh_token')||'';
+  if(ghToken) initGhConnected();
+  switchTab('chat');
+}
+
+/* ===================== LOCAL STORAGE ===================== */
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch{}}
+function lsj(k){try{return JSON.parse(ls(k));}catch{return null;}}
+
+/* ===================== PREFS ===================== */
+function loadPrefs(){
+  curProvider=ls('ai_provider')||'anthropic';
+  renderProviderUI();
+  const key=ls('ai_key_'+curProvider)||'';
+  document.getElementById('apiKey').value=key;
+  document.getElementById('sysPrompt').value=ls('cl_sys')||'';
+  updateDot(key);
+  const dark=ls('cl_dark')==='1'; isDark=dark; applyTheme(dark);
+  updateModelLabel();
+}
+
+function selectProvider(p){
+  // Save current key for old provider
+  curProvider=p;
+  ls('ai_provider',p);
+  renderProviderUI();
+  // Load saved key for new provider
+  const key=ls('ai_key_'+p)||'';
+  document.getElementById('apiKey').value=key;
+  updateDot(key);
+  updateModelLabel();
+}
+
+function renderProviderUI(){
+  const p=PROVIDERS[curProvider];
+  // Provider buttons
+  document.querySelectorAll('.provider-btn').forEach(btn=>{
+    btn.classList.toggle('active',btn.dataset.p===curProvider);
+  });
+  // Badge
+  document.getElementById('providerBadgeName').textContent=p.name;
+  document.querySelector('#providerBadge .pb-dot').style.background=p.color;
+  // API key label/link/placeholder
+  document.getElementById('apiKeyLabel').textContent=p.name+' API Key';
+  document.getElementById('apiKeyLink').href=p.link;
+  document.getElementById('apiKey').placeholder=p.placeholder;
+  // Models
+  const sel=document.getElementById('modelSelect');
+  const saved=ls('ai_model_'+curProvider)||p.defaultModel;
+  sel.innerHTML=p.models.map(m=>`<option value="${esc(m.v)}" ${m.v===saved?'selected':''}>${esc(m.l)}</option>`).join('');
+  sel.value=saved;
+  // OpenRouter custom model field
+  const orRow=document.getElementById('orModelRow');
+  orRow.style.display=curProvider==='openrouter'?'block':'none';
+  if(curProvider==='openrouter'){
+    document.getElementById('orModelInput').value=ls('ai_or_custom')||'';
+    sel.addEventListener('change',()=>{
+      const show=sel.value==='custom';
+      orRow.style.display=show?'block':'none';
+      saveSettings();
+    },{once:true});
+    orRow.style.display=sel.value==='custom'?'block':'none';
+  }
+  updateModelLabel();
+}
+
+function onKeyInput(){
+  const k=document.getElementById('apiKey').value.trim();
+  ls('ai_key_'+curProvider,k);
+  updateDot(k);
+}
+
+function saveSettings(){
+  const sel=document.getElementById('modelSelect');
+  ls('ai_model_'+curProvider,sel.value);
+  ls('cl_sys',document.getElementById('sysPrompt').value);
+  if(curProvider==='openrouter') ls('ai_or_custom',document.getElementById('orModelInput').value);
+  updateModelLabel();
+  // Show/hide custom model row
+  if(curProvider==='openrouter'){
+    document.getElementById('orModelRow').style.display=sel.value==='custom'?'block':'none';
+  }
+}
+
+function updateDot(k){
+  const d=document.getElementById('statusDot');
+  const p=PROVIDERS[curProvider];
+  const valid=k.length>8;
+  d.className='api-status-dot'+(k?valid?'ok':'err':'');
+  // For Anthropic we can check prefix
+  if(curProvider==='anthropic'&&k) d.className='api-status-dot'+(k.startsWith('sk-ant-')?'ok':'err');
+  if(curProvider==='openai'&&k) d.className='api-status-dot'+(k.startsWith('sk-')?'ok':'err');
+  if(curProvider==='groq'&&k) d.className='api-status-dot'+(k.startsWith('gsk_')?'ok':'err');
+  if(curProvider==='openrouter'&&k) d.className='api-status-dot'+(k.startsWith('sk-or-')?'ok':'err');
+  if(!k) d.className='api-status-dot';
+}
+
+function updateModelLabel(){
+  const sel=document.getElementById('modelSelect');
+  const p=PROVIDERS[curProvider];
+  let label=sel.options[sel.selectedIndex]?.text||'';
+  if(curProvider==='openrouter'&&sel.value==='custom'){
+    const custom=document.getElementById('orModelInput').value.trim();
+    if(custom) label=custom;
+  }
+  document.getElementById('modelLabel').textContent=p.name+' · '+label;
+}
+
+function setTheme(){isDark=!isDark;ls('cl_dark',isDark?'1':'0');applyTheme(isDark);}
+function applyTheme(dark){
+  if(dark){document.documentElement.setAttribute('data-theme','dark');document.getElementById('themeLabel').textContent='Dark mode';document.getElementById('themeIcon').innerHTML=`<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;}
+  else{document.documentElement.removeAttribute('data-theme');document.getElementById('themeLabel').textContent='Light mode';document.getElementById('themeIcon').innerHTML=`<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`;}
+}
+
+/* ===================== TABS ===================== */
+function switchTab(tab){
+  activeTab=tab;
+  document.getElementById('panelChat').classList.toggle('active',tab==='chat');
+  document.getElementById('panelGithub').classList.toggle('active',tab==='github');
+  document.getElementById('navChat').classList.toggle('active',tab==='chat');
+  document.getElementById('navGh').classList.toggle('active',tab==='github');
+  document.getElementById('recentLabel').style.display=tab==='chat'?'':'none';
+  document.getElementById('convList').style.display=tab==='chat'?'':'none';
+  document.getElementById('topbarTitle').textContent=tab==='chat'?(convs[curId]?.title||'AI Studio'):'GitHub';
+}
+
+/* ===================== SIDEBAR ===================== */
+function toggleSidebar(){const sb=document.getElementById('sidebar');const ov=document.getElementById('overlay');if(window.innerWidth<=680){sb.classList.toggle('hidden');ov.classList.toggle('show',!sb.classList.contains('hidden'));}}
+function closeSidebar(){document.getElementById('sidebar').classList.add('hidden');document.getElementById('overlay').classList.remove('show');}
+
+/* ===================== CONVERSATIONS ===================== */
+function newChat(){const id='c'+Date.now();convs[id]={title:'New chat',msgs:[],ts:Date.now()};curId=id;ls('cl_last',id);inTok=0;outTok=0;saveConvs();renderConvList();renderMessages();updateTokenCounter();switchTab('chat');if(window.innerWidth<=680)closeSidebar();}
+function openConv(id){curId=id;ls('cl_last',id);inTok=0;outTok=0;renderConvList();renderMessages();updateTokenCounter();switchTab('chat');if(window.innerWidth<=680)closeSidebar();}
+function clearChat(){if(!curId)return;convs[curId].msgs=[];convs[curId].title='New chat';inTok=0;outTok=0;saveConvs();renderConvList();renderMessages();updateTokenCounter();}
+function saveConvs(){ls('cl_convs',convs);}
+function renderConvList(){
+  const el=document.getElementById('convList');
+  const sorted=Object.entries(convs).sort((a,b)=>b[1].ts-a[1].ts).slice(0,40);
+  if(!sorted.length){el.innerHTML=`<div style="padding:8px 14px;font-size:12px;color:var(--sidebar-fg3)">No conversations yet</div>`;return;}
+  el.innerHTML=sorted.map(([id,c])=>`<div class="conv-item ${id===curId?'active':''}" onclick="openConv('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="conv-title">${esc(c.title)}</span></div>`).join('');
+}
+
+/* ===================== MESSAGES ===================== */
+function providerAvatar(p){
+  const col=PROVIDERS[p||curProvider]?.color||'#7c3aed';
+  const initials={anthropic:'A',openai:'G',gemini:'G',mistral:'M',groq:'Q',openrouter:'OR'}[p||curProvider]||'AI';
+  return`<div class="msg-avatar-wrap" style="background:${col}">${initials}</div>`;
+}
+
+function renderMessages(){
+  const el=document.getElementById('messagesInner');
+  const conv=convs[curId];
+  document.getElementById('topbarTitle').textContent=conv?conv.title:'AI Studio';
+  if(!conv||!conv.msgs.length){
+    const p=PROVIDERS[curProvider];
+    el.innerHTML=`<div class="welcome">
+      <div class="welcome-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <h1>What can I help with?</h1>
+      <p>Connected to <strong>${p.name}</strong>. Paste your API key in the sidebar to start.</p>
+      <div class="quick-prompts">
+        <button class="quick-prompt" onclick="qs(this)">Explain async/await in JavaScript</button>
+        <button class="quick-prompt" onclick="qs(this)">Write a Python web scraper</button>
+        <button class="quick-prompt" onclick="qs(this)">Debug my code</button>
+        <button class="quick-prompt" onclick="qs(this)">Help me write a README</button>
+      </div>
+    </div>`;
+    return;
+  }
+  el.innerHTML=conv.msgs.map((m,i)=>msgHtml(m,i,conv.provider)).join('');
+  doHighlight();
+}
+
+function msgHtml(m,i,prov){
+  if(m.role==='user')return`<div class="msg-row user" data-i="${i}"><div class="msg-bubble">${esc(m.content).replace(/\n/g,'<br>')}</div><div class="msg-actions"><button class="msg-act" onclick="copyMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button class="msg-act" onclick="editMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button></div></div>`;
+  const provName=PROVIDERS[prov||curProvider]?.name||'AI';
+  return`<div class="msg-row assistant" data-i="${i}"><div class="msg-header">${providerAvatar(prov||curProvider)}<span class="msg-name">${esc(provName)}</span></div><div class="msg-bubble">${md(m.content)}</div><div class="msg-actions"><button class="msg-act" onclick="copyMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div></div>`;
+}
+function doHighlight(){document.querySelectorAll('pre code:not([data-hl])').forEach(el=>{hljs.highlightElement(el);el.dataset.hl='1';});}
+
+/* ===================== MARKDOWN ===================== */
+function md(text){
+  let o=text.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>{const uid='c'+Math.random().toString(36).slice(2,8);const l=lang||'plaintext';return`<div class="code-block"><div class="code-block-header"><span class="code-lang">${esc(l)}</span><button class="btn-copy-code" id="b${uid}" onclick="cpCode('${uid}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div><pre><code id="${uid}" class="language-${esc(l)}">${esc(code.trimEnd())}</code></pre></div>`;});
+  o=o.replace(/`([^`\n]+)`/g,'<code>$1</code>');
+  o=o.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
+  o=o.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  o=o.replace(/\*([^*\n]+)\*/g,'<em>$1</em>');
+  o=o.replace(/^#### (.+)$/gm,'<h4>$1</h4>');
+  o=o.replace(/^### (.+)$/gm,'<h3>$1</h3>');
+  o=o.replace(/^## (.+)$/gm,'<h2>$1</h2>');
+  o=o.replace(/^# (.+)$/gm,'<h1>$1</h1>');
+  o=o.replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>');
+  o=o.replace(/^---+$/gm,'<hr>');
+  o=o.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  o=o.replace(/(^(\s*[-*+] .+\n?)+)/gm,m=>{const items=m.trim().split('\n').filter(Boolean).map(l=>`<li>${l.replace(/^\s*[-*+] /,'')}</li>`).join('');return`<ul>${items}</ul>`;});
+  o=o.replace(/(^(\s*\d+\. .+\n?)+)/gm,m=>{const items=m.trim().split('\n').filter(Boolean).map(l=>`<li>${l.replace(/^\s*\d+\. /,'')}</li>`).join('');return`<ol>${items}</ol>`;});
+  o=o.split(/\n{2,}/).map(p=>{p=p.trim();if(!p)return'';if(/^<(h[1-6]|ul|ol|blockquote|hr|div|pre)/.test(p))return p;return`<p>${p.replace(/\n/g,'<br>')}</p>`;}).join('');
+  return o;
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ===================== SEND ===================== */
+async function handleSend(){if(streaming){if(abort)abort.abort();return;}await send();}
+async function send(){
+  const inp=document.getElementById('userInput');
+  const text=inp.value.trim();
+  if(!text)return;
+  const apiKey=document.getElementById('apiKey').value.trim();
+  if(!apiKey){showErr('Add your API key in the sidebar to start chatting.');return;}
+  hideErr();
+  const conv=convs[curId];if(!conv)return;
+  conv.msgs.push({role:'user',content:text});conv.ts=Date.now();conv.provider=curProvider;
+  if(conv.msgs.filter(m=>m.role==='user').length===1)conv.title=text.length>45?text.slice(0,43)+'…':text;
+  document.getElementById('topbarTitle').textContent=conv.title;
+  inp.value='';autoResize(inp);
+  const inner=document.getElementById('messagesInner');
+  const es=inner.querySelector('.welcome');if(es)es.remove();
+  const idx=conv.msgs.length-1;
+  const uel=document.createElement('div');uel.innerHTML=msgHtml({role:'user',content:text},idx,curProvider);inner.appendChild(uel.firstElementChild);scrollDown();
+  const trow=document.createElement('div');trow.className='msg-row assistant';
+  const provName=PROVIDERS[curProvider]?.name||'AI';
+  trow.innerHTML=`<div class="msg-header">${providerAvatar(curProvider)}<span class="msg-name">${esc(provName)}</span></div><div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  inner.appendChild(trow);scrollDown();
+  streaming=true;abort=new AbortController();setSend(true);
+  try{
+    const prov=curProvider;
+    const full=await callAPI(prov,apiKey,conv,trow,abort);
+    conv.msgs.push({role:'assistant',content:full});conv.ts=Date.now();
+    saveConvs();renderConvList();renderMessages();updateTokenCounter();
+  }catch(err){
+    trow.remove();
+    if(err.name!=='AbortError'){conv.msgs.pop();saveConvs();renderMessages();showErr(err.message);}
+    else{const partial=trow.querySelector('.msg-bubble')?.innerText?.trim();if(partial){conv.msgs.push({role:'assistant',content:partial});saveConvs();}renderMessages();}
+  }finally{streaming=false;abort=null;setSend(false);}
+}
+
+/* ===================== API ADAPTERS ===================== */
+async function callAPI(prov,apiKey,conv,trow,abortCtrl){
+  const sel=document.getElementById('modelSelect');
+  let model=sel.value;
+  if(prov==='openrouter'&&model==='custom') model=document.getElementById('orModelInput').value.trim()||'meta-llama/llama-3.3-70b-instruct';
+  const sys=document.getElementById('sysPrompt').value.trim();
+  const msgs=conv.msgs.map(m=>({role:m.role,content:m.content}));
+  const bubble=trow.querySelector('.msg-bubble');
+
+  if(prov==='anthropic') return callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl);
+  if(prov==='gemini')    return callGemini(apiKey,model,sys,msgs,bubble,abortCtrl);
+  // OpenAI-compatible: openai, mistral, groq, openrouter
+  return callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl);
+}
+
+async function callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl){
+  const body={model,max_tokens:8192,stream:true,messages:msgs};
+  if(sys)body.system=sys;
+  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-allow-browser':'true'},body:JSON.stringify(body),signal:abortCtrl.signal});
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`Anthropic error ${res.status}`);}
+  bubble.innerHTML='';
+  const reader=res.body.getReader();const dec=new TextDecoder();let full='';
+  while(true){const{done,value}=await reader.read();if(done)break;
+    for(const line of dec.decode(value,{stream:true}).split('\n')){
+      if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(d==='[DONE]')continue;
+      try{const ev=JSON.parse(d);if(ev.type==='content_block_delta'&&ev.delta?.type==='text_delta'){full+=ev.delta.text;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
+    }
+  }
+  return full;
+}
+
+async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
+  const ENDPOINTS={
+    openai:'https://api.openai.com/v1/chat/completions',
+    mistral:'https://api.mistral.ai/v1/chat/completions',
+    groq:'https://api.groq.com/openai/v1/chat/completions',
+    openrouter:'https://openrouter.ai/api/v1/chat/completions'
+  };
+  const url=ENDPOINTS[prov];
+  const messages=sys?[{role:'system',content:sys},...msgs]:[...msgs];
+  const extraHeaders=prov==='openrouter'?{'HTTP-Referer':'https://ai-studio.local','X-Title':'AI Studio'}:{};
+  const body={model,messages,stream:true,max_tokens:8192};
+  const res=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json',...extraHeaders},body:JSON.stringify(body),signal:abortCtrl.signal});
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`${prov} error ${res.status}`);}
+  bubble.innerHTML='';
+  const reader=res.body.getReader();const dec=new TextDecoder();let full='';
+  while(true){const{done,value}=await reader.read();if(done)break;
+    for(const line of dec.decode(value,{stream:true}).split('\n')){
+      if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(d==='[DONE]')continue;
+      try{const ev=JSON.parse(d);const delta=ev.choices?.[0]?.delta?.content;if(delta){full+=delta;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
+    }
+  }
+  return full;
+}
+
+async function callGemini(apiKey,model,sys,msgs,bubble,abortCtrl){
+  // Gemini uses a different format
+  const contents=msgs.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
+  const body={contents,generationConfig:{maxOutputTokens:8192}};
+  if(sys) body.systemInstruction={parts:[{text:sys}]};
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`;
+  const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:abortCtrl.signal});
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`Gemini error ${res.status}`);}
+  bubble.innerHTML='';
+  const reader=res.body.getReader();const dec=new TextDecoder();let full='';
+  while(true){const{done,value}=await reader.read();if(done)break;
+    for(const line of dec.decode(value,{stream:true}).split('\n')){
+      if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();
+      try{const ev=JSON.parse(d);const text=ev.candidates?.[0]?.content?.parts?.[0]?.text;if(text){full+=text;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
+    }
+  }
+  return full;
+}
+
+function setSend(on){const btn=document.getElementById('sendBtn');btn.innerHTML=on?`<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`:`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`;}
+function copyMsg(i){const m=convs[curId]?.msgs?.[i];if(!m)return;navigator.clipboard.writeText(m.content).then(()=>toast('Copied')).catch(()=>toast('Copy failed'));}
+function editMsg(i){const conv=convs[curId];if(!conv||streaming)return;const m=conv.msgs[i];if(!m||m.role!=='user')return;const txt=m.content;conv.msgs=conv.msgs.slice(0,i);saveConvs();renderMessages();const inp=document.getElementById('userInput');inp.value=txt;autoResize(inp);inp.focus();}
+function cpCode(id){const el=document.getElementById(id);if(!el)return;navigator.clipboard.writeText(el.textContent).then(()=>{const btn=document.getElementById('b'+id);if(btn){btn.classList.add('copied');btn.innerHTML=`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied`;setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy`;},2000);}}).catch(()=>toast('Copy failed'));}
+function qs(btn){document.getElementById('userInput').value=btn.textContent;send();}
+
+/* ===================== GITHUB ===================== */
+async function ghFetch(path,opts={}){
+  const headers={'Authorization':`Bearer ${ghToken}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(opts.headers||{})};
+  const res=await fetch(`https://api.github.com${path}`,{...opts,headers});
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||`GitHub ${res.status}`);}
+  return res.json();
+}
+async function connectGh(){
+  const tok=document.getElementById('ghTokenInput').value.trim();
+  if(!tok){toast('Enter a token first');return;}
+  setGhStatus('Connecting…','');
+  try{
+    const user=await ghFetch('/user',{headers:{'Authorization':`Bearer ${tok}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});
+    ghToken=tok;ghUser=user.login;ls('gh_token',tok);
+    initGhConnected();
+  }catch(e){setGhStatus('Error: '+e.message,'err');}
+}
+async function initGhConnected(){
+  document.getElementById('ghConnect').style.display='none';
+  const br=document.getElementById('ghBrowser');br.style.display='flex';br.style.flexDirection='column';
+  setGhStatus('Loading repos…','');
+  try{
+    ghRepos=await ghFetch('/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member');
+    const sel=document.getElementById('repoSelect');
+    sel.innerHTML=ghRepos.map(r=>`<option value="${esc(r.full_name)}">${esc(r.full_name)}</option>`).join('');
+    setGhStatus(`Connected as ${ghUser}`,'ok');
+    if(ghRepos.length){ghCurRepo=ghRepos[0].full_name;await loadBranches();await loadTree('');}
+  }catch(e){setGhStatus('Error: '+e.message,'err');}
+}
+async function onRepoChange(){ghCurRepo=document.getElementById('repoSelect').value;ghOpenFile=null;clearEditor();await loadBranches();await loadTree('');}
+async function loadBranches(){
+  try{
+    const branches=await ghFetch(`/repos/${ghCurRepo}/branches?per_page=50`);
+    ghBranches=branches;
+    const sel=document.getElementById('branchSelect');
+    sel.innerHTML=branches.map(b=>`<option value="${esc(b.name)}" ${b.name==='main'||b.name==='master'?'selected':''}>${esc(b.name)}</option>`).join('');
+    ghCurBranch=sel.value;
+  }catch{}
+}
+async function onBranchChange(){ghCurBranch=document.getElementById('branchSelect').value;ghOpenFile=null;clearEditor();await loadTree('');}
+async function loadTree(path){
+  const body=document.getElementById('ghTreeBody');
+  body.innerHTML=`<div class="tree-loading"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Loading…</div>`;
+  try{
+    const items=await ghFetch(`/repos/${ghCurRepo}/contents/${path}?ref=${ghCurBranch}`);
+    renderTree(Array.isArray(items)?items:[items],path,body);
+  }catch(e){body.innerHTML=`<div class="tree-loading" style="color:var(--red)">${esc(e.message)}</div>`;}
+}
+function renderTree(items,parentPath,container){
+  items.sort((a,b)=>{if(a.type===b.type)return a.name.localeCompare(b.name);return a.type==='dir'?-1:1;});
+  container.innerHTML='';
+  if(parentPath){
+    const back=document.createElement('div');back.className='tree-item';
+    back.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg><span class="item-name">…</span>`;
+    back.onclick=()=>loadTree(parentPath.split('/').slice(0,-1).join('/'));
+    container.appendChild(back);
+  }
+  items.forEach(item=>{
+    const el=document.createElement('div');el.className='tree-item';
+    const isDir=item.type==='dir';
+    el.innerHTML=`${isDir?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>`}<span class="item-name">${esc(item.name)}</span>`;
+    if(isDir){el.onclick=()=>loadTree(item.path);}else{el.onclick=()=>openFile(item);}
+    if(ghOpenFile&&ghOpenFile.path===item.path)el.classList.add('active');
+    container.appendChild(el);
+  });
+}
+async function openFile(item){
+  setGhStatus('Loading…','');
+  try{
+    const data=await ghFetch(`/repos/${ghCurRepo}/contents/${item.path}?ref=${ghCurBranch}`);
+    const content=atob(data.content.replace(/\s/g,''));
+    ghOpenFile={path:item.path,content,sha:data.sha,editing:false};
+    showViewer(content,item.path);
+    setGhStatus('','ok');
+    document.querySelectorAll('.tree-item').forEach(el=>{el.classList.toggle('active',el.querySelector('.item-name')?.textContent===item.name);});
+  }catch(e){setGhStatus('Error: '+e.message,'err');}
+}
+function showViewer(content,path){
+  const editor=document.getElementById('ghEditor');
+  const ext=path.split('.').pop().toLowerCase();
+  const langs={js:'javascript',ts:'typescript',py:'python',rb:'ruby',java:'java',go:'go',rs:'rust',cpp:'cpp',c:'c',cs:'csharp',php:'php',html:'html',css:'css',scss:'scss',json:'json',yaml:'yaml',yml:'yaml',md:'markdown',sh:'bash',sql:'sql',xml:'xml'};
+  const lang=langs[ext]||'plaintext';
+  const uid='gh_'+Math.random().toString(36).slice(2,8);
+  editor.innerHTML=`<div class="gh-viewer"><pre><code id="${uid}" class="language-${esc(lang)}">${esc(content)}</code></pre></div>`;
+  try{hljs.highlightElement(document.getElementById(uid));}catch{}
+  document.getElementById('ghBreadcrumb').innerHTML=`<span>${esc(ghCurRepo)}</span> / ${esc(path)}`;
+  document.getElementById('ghEditToggle').style.display='';
+  document.getElementById('ghEditToggle').textContent='Edit';
+  document.getElementById('ghCommitBtn').style.display='none';
+  document.getElementById('ghAskBtn').style.display='';
+  document.getElementById('commitFilePath').textContent=path;
+}
+function toggleEdit(){
+  if(!ghOpenFile)return;
+  if(!ghOpenFile.editing){
+    const editor=document.getElementById('ghEditor');
+    const ta=document.createElement('textarea');ta.value=ghOpenFile.content;ta.id='ghTextarea';
+    ta.oninput=()=>{ghOpenFile.content=ta.value;};
+    editor.innerHTML='';editor.appendChild(ta);ta.focus();
+    ghOpenFile.editing=true;
+    document.getElementById('ghEditToggle').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview`;
+    document.getElementById('ghCommitBtn').style.display='';
+  }else{showViewer(ghOpenFile.content,ghOpenFile.path);ghOpenFile.editing=false;}
+}
+function clearEditor(){
+  document.getElementById('ghEditor').innerHTML=`<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--fg3);font-size:13px">Open a file from the tree</div>`;
+  document.getElementById('ghBreadcrumb').textContent='No file open';
+  document.getElementById('ghEditToggle').style.display='none';
+  document.getElementById('ghCommitBtn').style.display='none';
+  document.getElementById('ghAskBtn').style.display='none';
+}
+async function newFilePrompt(){
+  if(!ghCurRepo){toast('Select a repo first');return;}
+  const name=prompt('New file path (e.g. src/hello.js):');
+  if(!name)return;
+  ghOpenFile={path:name,content:'',sha:null,editing:true};
+  const editor=document.getElementById('ghEditor');
+  const ta=document.createElement('textarea');ta.value='';ta.id='ghTextarea';
+  ta.oninput=()=>{ghOpenFile.content=ta.value;};
+  editor.innerHTML='';editor.appendChild(ta);ta.focus();
+  document.getElementById('ghBreadcrumb').innerHTML=`<span>${esc(ghCurRepo)}</span> / ${esc(name)} (new)`;
+  document.getElementById('ghEditToggle').style.display='none';
+  document.getElementById('ghCommitBtn').style.display='';
+  document.getElementById('ghAskBtn').style.display='';
+  document.getElementById('commitFilePath').textContent=name;
+}
+function showCommitModal(){if(!ghOpenFile)return;document.getElementById('commitModal').style.display='flex';}
+function closeCommitModal(){document.getElementById('commitModal').style.display='none';}
+async function doCommit(){
+  if(!ghOpenFile)return;
+  const msg=document.getElementById('commitMsg').value.trim();
+  if(!msg){toast('Add a commit message');return;}
+  const desc=document.getElementById('commitDesc').value.trim();
+  const fullMsg=desc?msg+'\n\n'+desc:msg;
+  setGhStatus('Committing…','');closeCommitModal();
+  try{
+    const content=btoa(unescape(encodeURIComponent(ghOpenFile.content)));
+    const body={message:fullMsg,content,branch:ghCurBranch};
+    if(ghOpenFile.sha)body.sha=ghOpenFile.sha;
+    const res=await ghFetch(`/repos/${ghCurRepo}/contents/${ghOpenFile.path}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    ghOpenFile.sha=res.content.sha;ghOpenFile.editing=false;
+    showViewer(ghOpenFile.content,ghOpenFile.path);
+    setGhStatus('Committed ✓','ok');toast('Committed successfully!');
+    await loadTree(ghOpenFile.path.split('/').slice(0,-1).join('/'));
+  }catch(e){setGhStatus('Error: '+e.message,'err');toast('Commit failed: '+e.message);}
+}
+function askAboutFile(){
+  if(!ghOpenFile)return;
+  switchTab('chat');
+  const lang=ghOpenFile.path.split('.').pop();
+  const p=`Here is the file \`${ghOpenFile.path}\`:\n\n\`\`\`${lang}\n${ghOpenFile.content}\n\`\`\`\n\nPlease review this code and suggest improvements.`;
+  document.getElementById('userInput').value=p;
+  autoResize(document.getElementById('userInput'));
+  document.getElementById('userInput').focus();
+}
+function setGhStatus(msg,cls){const el=document.getElementById('ghStatus');el.textContent=msg;el.className='gh-status'+(cls?' '+cls:'');}
+function disconnectGh(){ghToken='';ls('gh_token',null);document.getElementById('ghConnect').style.display='';document.getElementById('ghBrowser').style.display='none';document.getElementById('ghTokenInput').value='';ghOpenFile=null;clearEditor();}
+
+/* ===================== UTILS ===================== */
+function updateTokenCounter(){const el=document.getElementById('tokenCounter');el.textContent=(inTok||outTok)?`${inTok.toLocaleString()} in · ${outTok.toLocaleString()} out`:'';}
+function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend();}}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,200)+'px';}
+function scrollDown(){const m=document.getElementById('messages');m.scrollTop=m.scrollHeight;}
+function showErr(msg){const el=document.getElementById('errorStrip');el.textContent=msg;el.style.display='block';}
+function hideErr(){document.getElementById('errorStrip').style.display='none';}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+init();
+</script>
