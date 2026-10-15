@@ -3,6 +3,7 @@
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://js.puter.com/v2/"></script>
 
 <style>
 :root {
@@ -318,6 +319,9 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
         <button class="provider-btn" data-p="openrouter" onclick="selectProvider('openrouter')">
           <span class="pb-dot" style="background:#6366f1"></span>OpenRouter
         </button>
+        <button class="provider-btn" data-p="puter" onclick="selectProvider('puter')">
+          <span class="pb-dot" style="background:#06b6d4"></span>Puter (free)
+        </button>
       </div>
     </div>
 
@@ -583,6 +587,24 @@ const PROVIDERS = {
       {v:'custom',                                   l:'Custom model ID…'},
     ],
     defaultModel: 'meta-llama/llama-3.3-70b-instruct'
+  },
+  puter: {
+    name: 'Puter',
+    color: '#06b6d4',
+    placeholder: '— no API key needed —',
+    link: 'https://puter.com',
+    models: [
+      {v:'claude-sonnet-5-5', l:'Claude Sonnet 5.5'},
+      {v:'claude-opus-5-5',   l:'Claude Opus 5.5'},
+      {v:'claude-haiku-5-5',  l:'Claude Haiku 5.5'},
+      {v:'claude-fable-5-1',  l:'Claude Fable 5.1'},
+      {v:'claude-sonnet-4-6', l:'Claude Sonnet 4.6'},
+      {v:'claude-opus-5',     l:'Claude Opus 5'},
+      {v:'gpt-4o',            l:'GPT-4o'},
+      {v:'gpt-4o-mini',       l:'GPT-4o mini'},
+      {v:'gemini-2.0-flash',  l:'Gemini 2.0 Flash'},
+    ],
+    defaultModel: 'claude-sonnet-5-5'
   }
 };
 
@@ -643,6 +665,9 @@ function renderProviderUI(){
   // Badge
   document.getElementById('providerBadgeName').textContent=p.name;
   document.querySelector('#providerBadge .pb-dot').style.background=p.color;
+  // API key section — hide for Puter (no key needed)
+  const apiSection=document.querySelector('.api-section');
+  if(apiSection) apiSection.style.display=curProvider==='puter'?'none':'block';
   // API key label/link/placeholder
   document.getElementById('apiKeyLabel').textContent=p.name+' API Key';
   document.getElementById('apiKeyLink').href=p.link;
@@ -808,7 +833,7 @@ async function send(){
   const text=inp.value.trim();
   if(!text)return;
   const apiKey=document.getElementById('apiKey').value.trim();
-  if(!apiKey){showErr('Add your API key in the sidebar to start chatting.');return;}
+  if(!apiKey&&curProvider!=='puter'){showErr('Add your API key in the sidebar to start chatting.');return;}
   hideErr();
   const conv=convs[curId];if(!conv)return;
   conv.msgs.push({role:'user',content:text});conv.ts=Date.now();conv.provider=curProvider;
@@ -847,6 +872,7 @@ async function callAPI(prov,apiKey,conv,trow,abortCtrl){
 
   if(prov==='anthropic') return callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl);
   if(prov==='gemini')    return callGemini(apiKey,model,sys,msgs,bubble,abortCtrl);
+  if(prov==='puter')     return callPuter(model,sys,msgs,bubble,abortCtrl);
   // OpenAI-compatible: openai, mistral, groq, openrouter
   return callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl);
 }
@@ -887,6 +913,22 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
       if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(d==='[DONE]')continue;
       try{const ev=JSON.parse(d);const delta=ev.choices?.[0]?.delta?.content;if(delta){full+=delta;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
     }
+  }
+  return full;
+}
+
+async function callPuter(model,sys,msgs,bubble,abortCtrl){
+  if(typeof puter==='undefined') throw new Error('Puter.js not loaded. Serve this page over HTTP (not file://).');
+  const puterMsgs=sys
+    ?[{role:'system',content:sys},...msgs.map(m=>({role:m.role,content:m.content}))]
+    :msgs.map(m=>({role:m.role,content:m.content}));
+  bubble.innerHTML='';
+  let full='';
+  const response=await puter.ai.chat(puterMsgs,{model,stream:true});
+  for await(const part of response){
+    if(abortCtrl.signal.aborted) throw Object.assign(new Error('AbortError'),{name:'AbortError'});
+    const text=part?.text||'';
+    if(text){full+=text;bubble.innerHTML=md(full);doHighlight();scrollDown();}
   }
   return full;
 }
