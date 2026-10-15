@@ -3,6 +3,7 @@
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://js.puter.com/v2/"></script>
 
 <style>
@@ -251,6 +252,32 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
 .sidebar-convs::-webkit-scrollbar-track{background:transparent}
 .sidebar-convs::-webkit-scrollbar-thumb{background:var(--sidebar-border);border-radius:2px}
 
+/* Folder browser */
+.btn-folder{width:100%;padding:7px 10px;background:var(--sidebar-hover);border:1px solid var(--sidebar-border);border-radius:8px;color:var(--sidebar-fg);font-family:var(--font-sans);font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:7px;transition:background .15s}
+.btn-folder:hover{background:var(--sidebar-active)}
+.folder-item{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:11px;color:var(--sidebar-fg2);cursor:pointer;user-select:none;transition:background .1s}
+.folder-item:hover{background:var(--sidebar-hover);color:var(--sidebar-fg)}
+.folder-item.dir{font-weight:500;color:var(--sidebar-fg)}
+.folder-item.dir::before{content:'▶';font-size:8px;color:var(--sidebar-fg3);flex-shrink:0}
+.folder-item.dir.open::before{content:'▼'}
+.folder-item .fi-icon{font-size:12px;flex-shrink:0}
+.folder-children{padding-left:14px;border-left:1px solid var(--sidebar-border);margin-left:10px}
+.folder-item.file:hover{color:var(--brand)}
+
+/* File attachments */
+.attach-bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 0;min-height:0}
+.attach-bar:empty{display:none}
+.attach-chip{display:flex;align-items:center;gap:6px;background:var(--brand-light);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:500;color:var(--brand);max-width:200px;cursor:default}
+.attach-chip img{width:18px;height:18px;border-radius:3px;object-fit:cover;flex-shrink:0}
+.attach-chip .chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attach-chip .chip-rm{background:none;border:none;cursor:pointer;padding:0;color:var(--brand);opacity:.6;line-height:1;font-size:13px;flex-shrink:0}
+.attach-chip .chip-rm:hover{opacity:1}
+.btn-attach{background:none;border:none;cursor:pointer;padding:6px;color:var(--fg3);border-radius:6px;display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s;flex-shrink:0}
+.btn-attach:hover{color:var(--brand);background:var(--brand-light)}
+.input-actions{display:flex;align-items:flex-end;gap:4px;padding:6px 8px 6px 4px}
+.input-main{display:flex;align-items:flex-end}
+.attach-processing{font-size:11px;color:var(--fg3);padding:0 12px 4px;font-style:italic}
+
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--fg);color:var(--main-bg);padding:8px 16px;border-radius:8px;font-size:12px;opacity:0;pointer-events:none;z-index:300;transition:opacity .18s,transform .18s;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .hljs{background:transparent!important}
@@ -343,6 +370,17 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
       <input type="text" id="orModelInput" placeholder="e.g. meta-llama/llama-3.3-70b-instruct" oninput="saveSettings()" spellcheck="false">
     </div>
 
+    <!-- LOCAL FILES -->
+    <div class="s-label">Local Files</div>
+    <div style="padding:0 4px 8px">
+      <button class="btn-folder" id="btnConnectFolder" onclick="connectFolder()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Connect folder
+      </button>
+      <div id="folderTree" style="display:none;margin-top:6px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface)"></div>
+      <div id="folderName" style="display:none;font-size:10px;color:var(--fg3);margin-top:4px;padding:0 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    </div>
+
     <!-- MODEL -->
     <div class="s-label">Model</div>
     <div class="model-select-wrap">
@@ -394,11 +432,19 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
         <div class="input-container">
           <div class="error-strip" id="errorStrip"></div>
           <div class="input-box">
+            <div class="attach-bar" id="attachBar"></div>
+            <div id="attachProcessing" class="attach-processing" style="display:none">Reading file…</div>
             <div class="input-main">
               <textarea id="userInput" rows="1" placeholder="Message…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-              <button class="btn-send" id="sendBtn" onclick="handleSend()">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-              </button>
+              <div class="input-actions">
+                <button class="btn-attach" onclick="document.getElementById('fileInput').click()" title="Attach file">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                </button>
+                <input type="file" id="fileInput" style="display:none" multiple accept=".txt,.md,.csv,.json,.py,.js,.ts,.html,.css,.pdf,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.docx,.dwg,.dxf,.ifc,.xml,.rfa" onchange="handleFiles(this.files)">
+                <button class="btn-send" id="sendBtn" onclick="handleSend()">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+              </div>
             </div>
           </div>
           <div class="input-footer">
@@ -611,6 +657,7 @@ const PROVIDERS = {
 /* ===================== STATE ===================== */
 let convs={}, curId=null, streaming=false, abort=null, inTok=0, outTok=0, isDark=false;
 let curProvider='anthropic';
+let attachments=[]; // [{name, type, content, dataUrl, isImage}]
 let ghToken='', ghUser='', ghRepos=[], ghCurRepo='', ghCurBranch='main', ghBranches=[];
 let ghOpenFile=null;
 let activeTab='chat';
@@ -826,6 +873,147 @@ function md(text){
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
+/* ===================== FILE ATTACHMENTS ===================== */
+let folderHandle=null;
+
+// Icon by extension
+function fileIcon(name){
+  const ext=name.split('.').pop().toLowerCase();
+  const map={pdf:'📄',png:'🖼️',jpg:'🖼️',jpeg:'🖼️',gif:'🖼️',webp:'🖼️',
+    xlsx:'📊',csv:'📊',xls:'📊',docx:'📝',doc:'📝',
+    dwg:'📐',dxf:'📐',ifc:'🏗️',rfa:'🏗️',rvt:'🏗️',
+    py:'🐍',js:'📜',ts:'📜',html:'🌐',css:'🎨',json:'{}',
+    txt:'📃',md:'📃',xml:'📃'};
+  return map[ext]||'📎';
+}
+
+function isImage(name){return /\.(png|jpe?g|gif|webp)$/i.test(name);}
+function isPDF(name){return /\.pdf$/i.test(name);}
+
+async function handleFiles(files){
+  for(const file of files){
+    await readAndAttach(file);
+  }
+  document.getElementById('fileInput').value='';
+}
+
+async function readAndAttach(file){
+  const proc=document.getElementById('attachProcessing');
+  proc.style.display='block';proc.textContent='Reading '+file.name+'…';
+  try{
+    if(isImage(file.name)){
+      const dataUrl=await readAsDataURL(file);
+      pushAttachment({name:file.name,type:'image',dataUrl,isImage:true});
+    } else if(isPDF(file.name)){
+      const text=await extractPDF(file);
+      pushAttachment({name:file.name,type:'pdf',content:text,isImage:false});
+    } else {
+      const text=await readAsText(file);
+      pushAttachment({name:file.name,type:'text',content:text,isImage:false});
+    }
+  }catch(e){toast('Could not read '+file.name);}
+  proc.style.display='none';
+  renderAttachBar();
+}
+
+function readAsText(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(file);});}
+function readAsDataURL(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(file);});}
+
+async function extractPDF(file){
+  if(typeof pdfjsLib==='undefined') throw new Error('pdf.js not loaded');
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let out='';
+  for(let i=1;i<=pdf.numPages;i++){
+    const page=await pdf.getPage(i);
+    const tc=await page.getTextContent();
+    out+=tc.items.map(it=>it.str).join(' ')+'\n';
+  }
+  return out.trim()||'[PDF contained no extractable text — may be a scanned image]';
+}
+
+function pushAttachment(att){
+  attachments.push(att);
+}
+
+function removeAttachment(i){
+  attachments.splice(i,1);
+  renderAttachBar();
+}
+
+function renderAttachBar(){
+  const bar=document.getElementById('attachBar');
+  bar.innerHTML='';
+  attachments.forEach((a,i)=>{
+    const chip=document.createElement('div');
+    chip.className='attach-chip';
+    if(a.isImage){
+      chip.innerHTML=`<img src="${a.dataUrl}" alt="${esc(a.name)}"><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i})">×</button>`;
+    } else {
+      chip.innerHTML=`<span>${fileIcon(a.name)}</span><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i})">×</button>`;
+    }
+    bar.appendChild(chip);
+  });
+}
+
+/* ===================== FOLDER BROWSER ===================== */
+async function connectFolder(){
+  if(!('showDirectoryPicker' in window)){
+    toast('Folder access not supported in this browser — use Chrome or Edge');return;
+  }
+  try{
+    folderHandle=await window.showDirectoryPicker({mode:'read'});
+    document.getElementById('folderName').textContent='📁 '+folderHandle.name;
+    document.getElementById('folderName').style.display='block';
+    document.getElementById('btnConnectFolder').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Change folder`;
+    await renderFolderTree(folderHandle, document.getElementById('folderTree'));
+    document.getElementById('folderTree').style.display='block';
+  }catch(e){if(e.name!=='AbortError')toast('Could not access folder');}
+}
+
+async function renderFolderTree(dirHandle, container, depth=0){
+  container.innerHTML='';
+  const entries=[];
+  for await(const [name,handle] of dirHandle.entries()) entries.push({name,handle});
+  entries.sort((a,b)=>{
+    if(a.handle.kind!==b.handle.kind) return a.handle.kind==='directory'?-1:1;
+    return a.name.localeCompare(b.name);
+  });
+  // Skip hidden files
+  const visible=entries.filter(e=>!e.name.startsWith('.'));
+  for(const {name,handle} of visible){
+    const item=document.createElement('div');
+    item.className='folder-item '+(handle.kind==='directory'?'dir':'file');
+    item.innerHTML=`<span class="fi-icon">${handle.kind==='directory'?'':fileIcon(name)}</span><span>${esc(name)}</span>`;
+    container.appendChild(item);
+    if(handle.kind==='directory'){
+      const children=document.createElement('div');
+      children.className='folder-children';
+      children.style.display='none';
+      container.appendChild(children);
+      item.addEventListener('click',async()=>{
+        const open=item.classList.toggle('open');
+        children.style.display=open?'block':'none';
+        if(open&&!children.dataset.loaded){
+          children.dataset.loaded='1';
+          await renderFolderTree(handle,children,depth+1);
+        }
+      });
+    } else {
+      item.addEventListener('click',async()=>{
+        try{
+          document.getElementById('attachProcessing').style.display='block';
+          document.getElementById('attachProcessing').textContent='Reading '+name+'…';
+          const file=await handle.getFile();
+          await readAndAttach(file);
+        }catch(e){toast('Could not read '+name);}
+      });
+    }
+  }
+  if(visible.length===0) container.innerHTML='<div class="folder-item" style="color:var(--fg3);cursor:default">Empty folder</div>';
+}
+
 /* ===================== SEND ===================== */
 async function handleSend(){if(streaming){if(abort)abort.abort();return;}await send();}
 async function send(){
@@ -836,7 +1024,16 @@ async function send(){
   if(!apiKey&&curProvider!=='puter'){showErr('Add your API key in the sidebar to start chatting.');return;}
   hideErr();
   const conv=convs[curId];if(!conv)return;
-  conv.msgs.push({role:'user',content:text});conv.ts=Date.now();conv.provider=curProvider;
+  // Build content with any attachments
+  let userContent=text;
+  let userAttachments=[...attachments];
+  if(userAttachments.length){
+    const textParts=userAttachments.filter(a=>!a.isImage).map(a=>`\n\n--- File: ${a.name} ---\n${a.content}`).join('');
+    if(textParts) userContent=text+textParts;
+  }
+  conv.msgs.push({role:'user',content:userContent,attachments:userAttachments.filter(a=>a.isImage)});
+  attachments=[];renderAttachBar();
+  conv.ts=Date.now();conv.provider=curProvider;
   if(conv.msgs.filter(m=>m.role==='user').length===1)conv.title=text.length>45?text.slice(0,43)+'…':text;
   document.getElementById('topbarTitle').textContent=conv.title;
   inp.value='';autoResize(inp);
@@ -867,7 +1064,11 @@ async function callAPI(prov,apiKey,conv,trow,abortCtrl){
   let model=sel.value;
   if(prov==='openrouter'&&model==='custom') model=document.getElementById('orModelInput').value.trim()||'meta-llama/llama-3.3-70b-instruct';
   const sys=document.getElementById('sysPrompt').value.trim();
-  const msgs=conv.msgs.map(m=>({role:m.role,content:m.content}));
+  // Build messages — inline images where supported
+  const msgs=conv.msgs.map(m=>{
+    if(!m.attachments||!m.attachments.length) return {role:m.role,content:m.content};
+    return {role:m.role,content:m.content,images:m.attachments.map(a=>a.dataUrl)};
+  });
   const bubble=trow.querySelector('.msg-bubble');
 
   if(prov==='anthropic') return callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl);
@@ -878,7 +1079,18 @@ async function callAPI(prov,apiKey,conv,trow,abortCtrl){
 }
 
 async function callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl){
-  const body={model,max_tokens:8192,stream:true,messages:msgs};
+  // Convert messages with images to Anthropic content array format
+  const anthropicMsgs=msgs.map(m=>{
+    if(!m.images||!m.images.length) return {role:m.role,content:m.content};
+    const parts=m.images.map(dataUrl=>{
+      const [header,data]=dataUrl.split(',');
+      const mt=header.match(/:(.*?);/)[1];
+      return {type:'image',source:{type:'base64',media_type:mt,data}};
+    });
+    parts.push({type:'text',text:m.content});
+    return {role:m.role,content:parts};
+  });
+  const body={model,max_tokens:8192,stream:true,messages:anthropicMsgs};
   if(sys)body.system=sys;
   const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-allow-browser':'true'},body:JSON.stringify(body),signal:abortCtrl.signal});
   if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`Anthropic error ${res.status}`);}
@@ -901,7 +1113,13 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
     openrouter:'https://openrouter.ai/api/v1/chat/completions'
   };
   const url=ENDPOINTS[prov];
-  const messages=sys?[{role:'system',content:sys},...msgs]:[...msgs];
+  // Convert messages with images to OpenAI content array format
+  const oaiMsgs=msgs.map(m=>{
+    if(!m.images||!m.images.length) return {role:m.role,content:m.content};
+    const parts=[{type:'text',text:m.content},...m.images.map(url=>({type:'image_url',image_url:{url}}))];
+    return {role:m.role,content:parts};
+  });
+  const messages=sys?[{role:'system',content:sys},...oaiMsgs]:[...oaiMsgs];
   const extraHeaders=prov==='openrouter'?{'HTTP-Referer':'https://ai-studio.local','X-Title':'AI Studio'}:{};
   const body={model,messages,stream:true,max_tokens:8192};
   const res=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json',...extraHeaders},body:JSON.stringify(body),signal:abortCtrl.signal});
