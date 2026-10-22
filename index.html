@@ -638,7 +638,15 @@ body{overscroll-behavior:none}
         <div class="code-changes" id="codeChanges" style="display:none"></div>
         <div class="code-input">
           <textarea id="codeTask" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&window.innerWidth>680){event.preventDefault();codeRun();}" placeholder="Tell me what you want…" oninput="autoResize(this)"></textarea>
-          <button id="codeRunBtn" onclick="codeRun()">Send</button>
+          <div class="input-actions" style="gap:4px;padding:0">
+            <button class="btn-attach" onclick="codePlus(event)" title="More">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="20" height="20"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button class="btn-attach" id="codeOptBtn" onclick="codeOptimizePrompt(event)" title="Improve my prompt">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5"/></svg>
+            </button>
+            <button id="codeRunBtn" onclick="codeRun()">Send</button>
+          </div>
         </div>
       </div>
     </div>
