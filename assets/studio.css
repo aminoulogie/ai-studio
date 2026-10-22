@@ -72,7 +72,7 @@ button:disabled{opacity:.5;cursor:wait}
 .msg-row.assistant .msg-bubble{line-height:1.75}.msg-header{margin-bottom:12px}
 .msg-act{min-height:36px;padding:7px 9px;border-radius:10px}
 .code-block{border-radius:16px;overflow:hidden;border:1px solid var(--border)}
-.studio-tabs{display:flex;flex-shrink:0;justify-content:center;gap:5px;padding:8px 18px max(10px,env(safe-area-inset-bottom));background:var(--glass);border-top:1px solid var(--border);backdrop-filter:blur(25px);-webkit-backdrop-filter:blur(25px);z-index:4}
+.studio-tabs{display:flex;flex-shrink:0;justify-content:center;gap:5px;padding:8px 18px max(10px,env(safe-area-inset-bottom));background:var(--glass);border-top:1px solid var(--border);backdrop-filter:blur(25px);-webkit-backdrop-filter:blur(25px);z-index:13;position:relative}
 .studio-tab{flex:1;max-width:160px;display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:8px 12px;background:none;border:0;border-radius:16px;color:var(--fg2);font-size:12px;font-weight:500;cursor:pointer}
 .studio-tab svg{width:21px;height:21px;flex-shrink:0}.studio-tab.active{background:var(--brand-light);color:var(--brand)}
 .code-wrap{background:transparent;min-height:0}.code-head{flex-wrap:wrap;padding:20px 24px 14px;background:transparent;gap:10px}
