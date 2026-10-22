@@ -288,6 +288,8 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
 @keyframes spin{to{transform:rotate(360deg)}}
 
 html{-webkit-text-size-adjust:100%}
+.conn-status{font-size:12px;line-height:1.4;padding:6px 2px 0;display:none}
+.conn-status.ok{display:block;color:#22c55e}.conn-status.bad{display:block;color:#f87171}.conn-status.wait{display:block;color:var(--sidebar-fg2)}
 .saver-row{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 10px}
 .saver-row button{padding:7px 2px;border:1px solid var(--sidebar-border);border-radius:7px;background:transparent;color:var(--sidebar-fg2);font-size:11px;font-family:var(--font-sans);cursor:pointer}
 .saver-row button.active{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -418,6 +420,7 @@ body{overscroll-behavior:none}
         <input type="password" id="apiKey" placeholder="Paste your API key…" oninput="onKeyInput()" autocomplete="off" spellcheck="false">
         <span class="api-status-dot" id="statusDot"></span>
       </div>
+      <div class="conn-status" id="connStatus"></div>
     </div>
 
     <!-- Own server (Ollama / vLLM / LM Studio on a cloud GPU) -->
@@ -929,7 +932,7 @@ function selectProvider(p){
   document.getElementById('apiKey').value=key;
   updateDot(key);
   updateModelLabel();
-  if(p==='vnaipro'&&key)loadVnaiModels(key);
+  if(p==='vnaipro'&&key)loadVnaiModels(key);else connStatus('','');
   if(p==='pollinations')loadModels(p);
 }
 
@@ -1010,23 +1013,54 @@ async function loadModels(prov,loud){
 
 /* Fetch the models your vnaipro key's group can use, so the picker always matches */
 let vnaiTimer=null;
+function connStatus(cls,msg){const el=document.getElementById('connStatus');el.className='conn-status '+cls;el.textContent=msg;}
+// Explain vnaipro/New API errors in plain words
+function explainVnai(m,model){
+  const g=(m.match(/group\s+(\S+)/i)||[])[1];
+  if(/no available channel/i.test(m))return `Your key's group${g?' "'+g+'"':''} has no ${model||'such'} model. On apikey.vnaipro.app → API Keys → edit this key → Group → pick "claude" → Save changes, then tap Reload.`;
+  if(/invalid|无效|令牌|unauthor/i.test(m))return 'Key not accepted — copy it again from apikey.vnaipro.app (API Keys → copy icon).';
+  if(/quota|额度|余额|credit|insufficient/i.test(m))return 'Out of credit on vnaipro — top up, or turn on auto-switch below.';
+  if(/no access|not allowed|无权/i.test(m))return `This key isn't allowed to use ${model}. Pick another model or allow it in the key's Model Limits.`;
+  return m;
+}
+// Tiny 1-token request to prove a model really answers
+async function testModel(k,model){
+  const r=await fetch(VNAI_BASE+'/chat/completions',{method:'POST',headers:{'Authorization':`Bearer ${k}`,'Content-Type':'application/json'},body:JSON.stringify({model,messages:[{role:'user',content:'hi'}],max_tokens:1})});
+  if(r.ok)return null;
+  const e=await r.json().catch(()=>({}));return e.error?.message||e.message||('HTTP '+r.status);
+}
+let vnaiChecking=0;
 async function loadVnaiModels(k,loud){
-  if(!k||k.length<10){if(loud)showErr('Paste your vnaipro key first.');return;}
+  if(!k||k.length<10){connStatus(k?'bad':'', k?'✗ That key looks too short.':'');if(loud)showErr('Paste your vnaipro key first.');return;}
+  const run=++vnaiChecking;
+  connStatus('wait','Checking key…');
+  let ids=[];
   try{
     const res=await fetch(VNAI_BASE+'/models',{headers:{'Authorization':`Bearer ${k}`}});
-    if(!res.ok){const e=await res.json().catch(()=>({}));const m=e.error?.message||e.message||('HTTP '+res.status);if(loud)showErr('Could not load models: '+m);else toast('Could not load models');return;}
-    const ids=((await res.json()).data||[]).map(m=>m.id).sort();
-    if(!ids.length)return;
-    const models=ids.map(id=>({v:id,l:id}));
-    PROVIDERS.vnaipro.models=models;ls('vnai_models',models);
-    const cur=ls('ai_model_vnaipro');
-    if(!cur||!ids.includes(cur)){
-      const pick=ids.find(i=>/claude.*sonnet/i.test(i))||ids.find(i=>/claude/i.test(i))||ids[0];
-      ls('ai_model_vnaipro',pick);
+    if(run!==vnaiChecking)return;
+    if(!res.ok){const e=await res.json().catch(()=>({}));connStatus('bad','✗ '+(res.status===401?'Key not accepted — copy it again from apikey.vnaipro.app.':explainVnai(e.error?.message||e.message||('HTTP '+res.status))));return;}
+    ids=((await res.json()).data||[]).map(m=>m.id).sort();
+  }catch(e){if(run===vnaiChecking)connStatus('bad','✗ Can\'t reach apikey.vnaipro.app — check your internet ('+e.message+').');return;}
+  if(!ids.length){connStatus('bad','✗ Key works but has no models. On apikey.vnaipro.app edit the key → Group → "claude" → Save.');return;}
+  PROVIDERS.vnaipro.models=ids.map(id=>({v:id,l:id}));ls('vnai_models',PROVIDERS.vnaipro.models);
+  // Try the current model first, then Claude models (cheapest first), until one answers
+  const rank=i=>(/sonnet/i.test(i)?0:/haiku/i.test(i)?1:/opus/i.test(i)?2:/claude/i.test(i)?3:4);
+  const cur=ls('ai_model_vnaipro');
+  const order=[...new Set([cur,...[...ids].sort((a,b)=>rank(a)-rank(b))].filter(x=>x&&ids.includes(x)))].slice(0,6);
+  let firstErr='';
+  for(const m of order){
+    connStatus('wait',`Key OK · ${ids.length} models · testing ${m}…`);
+    let err;try{err=await testModel(k,m);}catch(e){err=e.message;}
+    if(run!==vnaiChecking)return;
+    if(!err){
+      ls('ai_model_vnaipro',m);if(curProvider==='vnaipro')renderProviderUI();
+      connStatus('ok',`✓ Connected · ${ids.length} models · using ${m}`);hideErr();toast('Connected');return;
     }
-    if(curProvider==='vnaipro')renderProviderUI();
-    toast('Connected · '+ids.length+' models');
-  }catch(e){if(loud)showErr('Network error loading models: '+e.message);else toast('Network error loading models');}
+    if(!firstErr)firstErr=explainVnai(err,m);
+    if(/invalid|unauthor|quota|额度|余额|credit|insufficient/i.test(err))break; // other models won't help
+  }
+  if(curProvider==='vnaipro')renderProviderUI();
+  connStatus('bad','✗ '+firstErr);
 }
 
 function saveSettings(){
@@ -1443,7 +1477,7 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
   const body={model,messages,stream:true,max_tokens:maxOut()};
   if(['vnaipro','openai','openrouter','groq','custom','cerebras','huggingface','sambanova','github'].includes(prov))body.stream_options={include_usage:true};
   const res=await fetch(url,{method:'POST',headers:{...(apiKey?{'Authorization':`Bearer ${apiKey}`}:{}),'Content-Type':'application/json',...extraHeaders},body:JSON.stringify(body),signal:abortCtrl.signal});
-  if(!res.ok){const e=await res.json().catch(()=>({}));let m=e.error?.message||`${prov} error ${res.status}`;if(prov==='vnaipro'&&/access|model/i.test(m)&&!/quota|credit/i.test(m))m+=' — pick another model in the sidebar or tap "Reload my models".';throw httpErr(m,res.status);}
+  if(!res.ok){const e=await res.json().catch(()=>({}));let m=e.error?.message||`${prov} error ${res.status}`;if(prov==='vnaipro')m=explainVnai(m,model);throw httpErr(m,res.status);}
   bubble.innerHTML='';
   const reader=res.body.getReader();const dec=new TextDecoder();let full='';
   while(true){const{done,value}=await reader.read();if(done)break;
