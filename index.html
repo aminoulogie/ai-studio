@@ -296,6 +296,17 @@ html{-webkit-text-size-adjust:100%}
 .input-container{position:relative}
 .plus-menu{display:none;position:absolute;bottom:calc(100% - 28px);left:0;z-index:50;background:var(--surface);border:1px solid var(--border2);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.25);padding:6px;min-width:260px}
 .plus-menu.show{display:block}
+.opt-menu{left:auto;right:0}
+.plus-menu button span{flex:1;display:flex;flex-direction:column}.plus-menu button small{font-size:11px;color:var(--fg3)}
+.opt-title{padding:8px 12px 4px;font-size:13px;font-weight:600;color:var(--fg)}.opt-title small{display:block;font-weight:400;font-size:11px;color:var(--fg3)}
+.btn-attach.lit{color:#fff;background:var(--brand)}
+.btn-attach.busy svg{animation:spin 1s linear infinite}
+.iv-box{display:flex;flex-direction:column;gap:10px;margin:4px 0 8px;padding:12px;border:1px solid var(--border2);border-radius:14px;background:var(--surface)}
+.iv-q{font-size:13px;font-weight:500;color:var(--fg)}
+.iv-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.iv-opts button{padding:7px 11px;border-radius:16px;border:1px solid var(--border2);background:none;color:var(--fg);font-size:13px;font-family:var(--font-sans);text-align:left;cursor:pointer}
+.iv-opts button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.iv-send{align-self:flex-end;padding:8px 16px;border:none;border-radius:10px;background:var(--brand);color:#fff;font-size:14px;font-weight:500}
 .plus-menu button,.plus-toggle{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:none;background:none;border-radius:9px;color:var(--fg);font-size:15px;font-family:var(--font-sans);text-align:left;cursor:pointer}
 .plus-menu button:hover,.plus-toggle:hover{background:var(--surface2,rgba(127,127,127,.1))}
 .plus-toggle span{flex:1;display:flex;flex-direction:column}.plus-toggle small{font-size:11px;color:var(--fg3)}
@@ -556,6 +567,14 @@ body{overscroll-behavior:none}
       <div class="input-area">
         <div class="input-container">
           <div class="error-strip" id="errorStrip"></div>
+          <div class="plus-menu opt-menu" id="optMenu">
+            <div class="opt-title">✨ Improve my prompt <small>free AI · rewrites your message</small></div>
+            <button onclick="optimizePrompt('clear')">✍️ <span>Clearer<small>Fix wording, make the goal obvious</small></span></button>
+            <button onclick="optimizePrompt('detailed')">🎯 <span>Detailed<small>Add context, steps and the answer format you want</small></span></button>
+            <button onclick="optimizePrompt('short')">⚡ <span>Shorter<small>Same meaning, fewer tokens (cheaper)</small></span></button>
+            <button onclick="optimizePrompt('code')">💻 <span>For coding<small>Precise request an AI coder can act on</small></span></button>
+            <button id="optUndo" style="display:none" onclick="undoOptimize()">↩️ <span>Undo<small>Bring back what I wrote</small></span></button>
+          </div>
           <div class="plus-menu" id="plusMenu">
             <button onclick="closePlus();document.getElementById('fileInput').click()">📎 <span>Upload file or photo</span></button>
             <button onclick="closePlus();openDrive()">📁 <span>Google Drive</span></button>
@@ -575,6 +594,12 @@ body{overscroll-behavior:none}
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="20" height="20"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
                 <input type="file" id="fileInput" style="display:none" multiple accept="image/*,.txt,.md,.csv,.json,.py,.js,.ts,.html,.css,.pdf,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.docx,.dwg,.dxf,.ifc,.xml,.rfa" onchange="handleFiles(this.files)">
+                <button class="btn-attach" id="optBtn" onclick="toggleOpt(event)" title="Improve my prompt">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5"/></svg>
+                </button>
+                <button class="btn-attach" id="askBtn" onclick="toggleInterview()" title="Ask me questions">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </button>
                 <button class="btn-send" id="sendBtn" onclick="handleSend()">
                   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                 </button>
@@ -888,8 +913,8 @@ function renderSaver(){
 }
 function shorten(t,n){t=t.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n');return t.length<=n?t:t.slice(0,n*0.7)+'\n…[trimmed]…\n'+t.slice(-n*0.3);}
 // Filters applied to what is sent (the chat on screen is untouched)
-function compactMsgs(msgs){
-  const S=SAVER[saverMode()];
+function compactMsgs(msgs,interview){
+  const S=interview?{...SAVER[saverMode()],keep:Math.max(SAVER[saverMode()].keep,80),trim:Math.max(SAVER[saverMode()].trim,2500)}:SAVER[saverMode()];
   let out=msgs.slice(-S.keep);
   while(out.length>1&&out[0].role!=='user')out=out.slice(1);
   const last=out.length-1;
@@ -979,7 +1004,7 @@ function normModel(m){return (m||'').toLowerCase().replace(/^.*\//,'').replace(/
 function ctxWindow(model){const m=normModel(model);if(/claude-haiku-4/.test(m))return 200000;if(/claude|gpt-4\.1|gpt-5|gemini/.test(m))return 1000000;return 128000;}
 const estTok=t=>Math.ceil((t||'').length/4);
 function historyFor(conv){
-  const tail=compactMsgs(conv.msgs.slice(conv.sumUpto||0));
+  const tail=compactMsgs(conv.msgs.slice(conv.sumUpto||0),conv.interview);
   if(!conv.summary)return tail;
   return [{role:'user',content:'Summary of our earlier conversation (context only):\n'+conv.summary},{role:'assistant',content:'Got it — continuing from there.'},...tail];
 }
@@ -994,10 +1019,99 @@ function updateCtx(){
   document.getElementById('infBadge').classList.toggle('on',infinityOn());
 }
 
+/* ===================== PROMPT OPTIMIZER (free AI) ===================== */
+const OPT_GOALS={
+  clear:'Rewrite it so it is clear and unambiguous: fix grammar, state the goal plainly, keep the original intent and length roughly the same.',
+  detailed:'Turn it into an excellent, detailed prompt: state the goal, relevant context, constraints, step-by-step expectations, and exactly what the answer should look like (format, length, tone). Fill reasonable gaps but never invent facts about the user.',
+  short:'Make it as short as possible while keeping every requirement — remove filler, politeness and repetition so it costs fewer tokens.',
+  code:'Turn it into a precise request for an AI coding assistant: what to change, where (if known), expected behaviour, edge cases, and how to verify it works. Plain language, no code unless the user wrote some.'
+};
+let optPrev=null;
+function toggleOpt(e){e.stopPropagation();closePlus();document.getElementById('optUndo').style.display=optPrev!==null?'':'none';document.getElementById('optMenu').classList.toggle('show');}
+// Free providers only: Puter (Claude, free for you) → Pollinations as backup
+async function freeComplete(prompt){
+  try{
+    await ensurePuter();
+    const r=await puter.ai.chat(prompt,{model:'claude-sonnet-5-5'});
+    const c=r?.message?.content??r;
+    const t=Array.isArray(c)?c.map(b=>b.text||'').join(''):String(c||'');
+    if(t.trim())return t;
+  }catch(e){}
+  const r=await fetch('https://text.pollinations.ai/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',messages:[{role:'user',content:prompt}]})});
+  if(!r.ok)throw new Error('Free AI unavailable ('+r.status+')');
+  return (await r.json()).choices?.[0]?.message?.content||'';
+}
+async function optimizePrompt(kind){
+  document.getElementById('optMenu').classList.remove('show');
+  const inp=document.getElementById('userInput'), text=inp.value.trim();
+  if(!text){toast('Type your message first, then tap ✨');return;}
+  const btn=document.getElementById('optBtn');btn.classList.add('busy');
+  try{
+    const out=await freeComplete(`You improve prompts that a person will send to an AI assistant. ${OPT_GOALS[kind]}
+Write it in the same language as the original, from the user's point of view ("I want…"). Return ONLY the improved prompt — no intro, no quotes, no explanation.
+
+ORIGINAL PROMPT:
+${text}`);
+    if(!out.trim())throw new Error('Empty result');
+    optPrev=inp.value;inp.value=out.trim().replace(/^["“]|["”]$/g,'');autoResize(inp);updateCtx();
+    toast('✨ Prompt improved — tap ✨ → Undo to go back');
+  }catch(e){showErr('Prompt optimizer: '+e.message);}
+  finally{btn.classList.remove('busy');}
+}
+function undoOptimize(){document.getElementById('optMenu').classList.remove('show');if(optPrev===null)return;const inp=document.getElementById('userInput');inp.value=optPrev;optPrev=null;autoResize(inp);}
+
+/* ===================== INTERVIEW MODE (rounds of 4 questions) ===================== */
+const INTERVIEW_SYS=`QUESTION MODE is on. Help the user reach a clear, specific answer to what they're exploring by interviewing them, like a great coach.
+- Ask exactly 4 questions per round, numbered 1. to 4. Under each, give 4 short answer options on their own lines as "a) …", "b) …", "c) …", "d) …" (the user may also answer in their own words).
+- Start each round with "**Round N of 8**" and one short line on what you've learned so far.
+- Use every previous answer to pick sharper next questions that narrow the possibilities. Never repeat a question.
+- Up to 30 questions in total (about 8 rounds). Stop early if you're already confident.
+- At the end (or if the user asks), give your conclusion: the best-fit answer, 2 runner-ups with why, and 3 concrete next steps.
+- Keep wording simple and friendly. Reply in the user's language.`;
+function toggleInterview(){
+  const conv=convs[curId];if(!conv)return;
+  conv.interview=!conv.interview;saveConvs();syncInterviewBtn();
+  toast(conv.interview?'❓ Question mode on — tell me what you are thinking about':'Question mode off');
+  if(conv.interview&&!document.getElementById('userInput').value.trim())document.getElementById('userInput').placeholder='What should I help you figure out? (e.g. a new goal in my life)';
+}
+function syncInterviewBtn(){
+  const on=!!convs[curId]?.interview;
+  document.getElementById('askBtn').classList.toggle('lit',on);
+  document.getElementById('userInput').placeholder=on?'Answer, or tap the options above…':'Message…';
+}
+// Turn the latest round into tappable options
+function renderInterview(conv){
+  syncInterviewBtn();
+  const last=conv.msgs.at(-1);
+  if(!conv.interview||!last||last.role!=='assistant')return;
+  const qs=[];let q=null;
+  for(const line of last.content.split('\n')){
+    const mq=line.match(/^\s*(?:\*\*)?(\d{1,2})[.)]\s*(?:\*\*)?\s*(.+?)(?:\*\*)?\s*$/);
+    const mo=line.match(/^\s*[-*•]?\s*\(?([a-dA-D])[).]\s+(.+)$/);
+    if(mo&&q){q.opts.push(mo[2].replace(/\*\*/g,'').trim());}
+    else if(mq){q={n:mq[1],t:mq[2].replace(/\*\*/g,'').trim(),opts:[]};qs.push(q);}
+  }
+  const use=qs.filter(x=>x.opts.length>=2);
+  if(!use.length)return;
+  window._ivPick={};window._ivQs=use;
+  const box=document.createElement('div');box.className='iv-box';
+  box.innerHTML=use.map((x,i)=>`<div><div class="iv-q">${esc(x.n)}. ${esc(x.t)}</div><div class="iv-opts">${x.opts.map((o,j)=>`<button onclick="ivPick(${i},${j},this)">${esc(o)}</button>`).join('')}</div></div>`).join('')+
+    `<button class="iv-send" onclick="ivSend()">Send answers</button>`;
+  document.getElementById('messagesInner').appendChild(box);scrollDown();
+}
+function ivPick(i,j,b){_ivPick[i]=j;b.parentElement.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));}
+function ivSend(){
+  const typed=document.getElementById('userInput').value.trim();
+  const lines=_ivQs.map((x,i)=>_ivPick[i]!==undefined?`${x.n}. ${x.t} → ${x.opts[_ivPick[i]]}`:null).filter(Boolean);
+  if(!lines.length&&!typed){toast('Tap an option for each question');return;}
+  document.getElementById('userInput').value=lines.join('\n')+(typed?'\n'+typed:'');
+  handleSend();
+}
+
 /* ===================== PLUS MENU / SHEETS ===================== */
 function togglePlus(e){e.stopPropagation();const m=document.getElementById('plusMenu');m.classList.toggle('show');document.getElementById('infToggle').checked=infinityOn();}
 function closePlus(){document.getElementById('plusMenu').classList.remove('show');}
-document.addEventListener('click',e=>{if(!e.target.closest('#plusMenu'))closePlus();});
+document.addEventListener('click',e=>{if(!e.target.closest('#plusMenu'))closePlus();if(!e.target.closest('#optMenu,#optBtn'))document.getElementById('optMenu').classList.remove('show');});
 function openSheet(html){document.getElementById('sheetBody').innerHTML=html;document.getElementById('sheet').style.display='flex';}
 function closeSheet(){document.getElementById('sheet').style.display='none';sheetCancel=true;}
 let sheetCancel=false;
@@ -1661,8 +1775,8 @@ function toggleSidebar(){const sb=document.getElementById('sidebar');const ov=do
 function closeSidebar(){document.getElementById('sidebar').classList.add('hidden');document.getElementById('overlay').classList.remove('show');}
 
 /* ===================== CONVERSATIONS ===================== */
-function newChat(){const id='c'+Date.now();convs[id]={title:'New chat',msgs:[],ts:Date.now()};curId=id;ls('cl_last',id);inTok=0;outTok=0;saveConvs();renderConvList();renderMessages();updateTokenCounter();switchTab('chat');if(window.innerWidth<=680)closeSidebar();}
-function openConv(id){curId=id;ls('cl_last',id);inTok=0;outTok=0;renderConvList();renderMessages();updateTokenCounter();switchTab('chat');if(window.innerWidth<=680)closeSidebar();}
+function newChat(){setTimeout(syncInterviewBtn);const id='c'+Date.now();convs[id]={title:'New chat',msgs:[],ts:Date.now()};curId=id;ls('cl_last',id);inTok=0;outTok=0;saveConvs();renderConvList();renderMessages();updateTokenCounter();switchTab('chat');if(window.innerWidth<=680)closeSidebar();}
+function openConv(id){setTimeout(syncInterviewBtn);curId=id;ls('cl_last',id);inTok=0;outTok=0;renderConvList();renderMessages();updateTokenCounter();switchTab('chat');if(window.innerWidth<=680)closeSidebar();}
 function clearChat(){if(!curId)return;convs[curId].msgs=[];convs[curId].title='New chat';inTok=0;outTok=0;saveConvs();renderConvList();renderMessages();updateTokenCounter();}
 function saveConvs(){ls('cl_convs',convs);}
 function renderConvList(){
@@ -1700,7 +1814,7 @@ function renderMessages(){
     return;
   }
   el.innerHTML=conv.msgs.map((m,i)=>msgHtml(m,i,conv.provider)).join('');
-  doHighlight();
+  doHighlight();renderInterview(conv);
 }
 
 function msgHtml(m,i,prov){
@@ -1943,7 +2057,7 @@ async function callAPI(prov,apiKey,conv,trow,abortCtrl,modelOverride){
   if(prov==='custom') model=ls('ai_custom_model')||'';
   if(prov==='custom'&&(!model||!customBase())) throw new Error('Set your server URL and model ID in the sidebar.');
   if(prov==='openrouter'&&model==='custom') model=document.getElementById('orModelInput').value.trim()||'meta-llama/llama-3.3-70b-instruct';
-  const sys=[document.getElementById('sysPrompt').value.trim(),SAVER[saverMode()].sys].filter(Boolean).join('\n');
+  const sys=[document.getElementById('sysPrompt').value.trim(),conv.interview?INTERVIEW_SYS:SAVER[saverMode()].sys].filter(Boolean).join('\n');
   // Build messages — inline images where supported; token saver filters history
   const msgs=historyFor(conv).map(m=>{
     if(!m.attachments||!m.attachments.length) return {role:m.role,content:m.content};
