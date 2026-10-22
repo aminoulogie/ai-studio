@@ -1,10 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>AI Studio</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://js.puter.com/v2/"></script>
 
 <style>
 :root {
@@ -284,13 +287,27 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
 .spin{animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+html{-webkit-text-size-adjust:100%}
+body{overscroll-behavior:none}
+.topbar{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+.sidebar{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+.msg-img{display:block;max-width:220px;max-height:220px;border-radius:12px;margin:0 0 6px auto;object-fit:cover}
 @media(max-width:680px){
-  .sidebar{position:fixed;top:0;left:0;height:100%;z-index:10;transition:transform .22s ease}
-  .sidebar.hidden{transform:translateX(-100%)}
+  .app{padding-top:env(safe-area-inset-top);height:100dvh}
+  .sidebar{position:fixed;top:0;left:0;height:100%;width:min(300px,85vw);z-index:10;transition:transform .22s ease;box-shadow:0 0 40px rgba(0,0,0,.4);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .sidebar .sidebar-convs{flex:none;overflow:visible}
+  .sidebar .nav-item,.sidebar .conv-item,.btn-new-chat{min-height:42px;font-size:15px}
+  .provider-btn{padding:9px 8px;font-size:13px}
+  #userInput,input,select,textarea{font-size:16px!important}
+  .topbar{height:52px}
+  .msg-row.user .msg-bubble{max-width:88%}
+  .quick-prompts{flex-direction:column;align-items:stretch}
+  .welcome p{padding:0 12px}
+  .sidebar.hidden{transform:translateX(-100%);box-shadow:none}
   .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9}
   .overlay.show{display:block}
   .gh-tree{width:200px}
-  .provider-grid{grid-template-columns:1fr}
+  .provider-grid{grid-template-columns:1fr 1fr}
 }
 </style>
 
@@ -389,6 +406,7 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
     <div class="model-select-wrap">
       <select id="modelSelect" onchange="saveSettings()"></select>
     </div>
+    <button class="btn-new-chat" id="vnaiRefresh" style="margin-top:6px" onclick="loadVnaiModels(document.getElementById('apiKey').value.trim(),true)">↻ Reload my models</button>
 
     <!-- SYSTEM PROMPT -->
     <div class="s-label">System prompt</div>
@@ -443,7 +461,7 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
                 <button class="btn-attach" onclick="document.getElementById('fileInput').click()" title="Attach file">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                 </button>
-                <input type="file" id="fileInput" style="display:none" multiple accept=".txt,.md,.csv,.json,.py,.js,.ts,.html,.css,.pdf,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.docx,.dwg,.dxf,.ifc,.xml,.rfa" onchange="handleFiles(this.files)">
+                <input type="file" id="fileInput" style="display:none" multiple accept="image/*,.txt,.md,.csv,.json,.py,.js,.ts,.html,.css,.pdf,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.docx,.dwg,.dxf,.ifc,.xml,.rfa" onchange="handleFiles(this.files)">
                 <button class="btn-send" id="sendBtn" onclick="handleSend()">
                   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                 </button>
@@ -544,12 +562,8 @@ const PROVIDERS = {
     color: '#3b82f6',
     placeholder: 'sk-… (paste your vnaipro key)',
     link: 'https://apikey.vnaipro.app/dashboard/overview',
-    models: lsj('vnai_models')||[
-      {v:'claude-sonnet-4-5', l:'claude-sonnet-4-5'},
-      {v:'claude-opus-4-5',   l:'claude-opus-4-5'},
-      {v:'claude-haiku-4-5',  l:'claude-haiku-4-5'},
-    ],
-    defaultModel: 'claude-sonnet-4-5'
+    models: lsj('vnai_models')||['claude-sonnet-5','claude-opus-5-5','claude-opus-5','claude-fable-5-1','claude-fable-5','claude-opus-4-8','claude-opus-4-7','claude-opus-4-6','claude-sonnet-4-6'].map(v=>({v,l:v})),
+    defaultModel: 'claude-sonnet-5'
   },
   anthropic: {
     name: 'Anthropic',
@@ -689,6 +703,7 @@ function init(){
   ghToken=ls('gh_token')||'';
   if(ghToken) initGhConnected();
   switchTab('chat');
+  if(window.innerWidth<=680)closeSidebar();
 }
 
 /* ===================== LOCAL STORAGE ===================== */
@@ -733,6 +748,7 @@ function renderProviderUI(){
   // API key section — hide for Puter (no key needed)
   const apiSection=document.querySelector('.api-section');
   if(apiSection) apiSection.style.display=curProvider==='puter'?'none':'block';
+  document.getElementById('vnaiRefresh').style.display=curProvider==='vnaipro'?'':'none';
   // API key label/link/placeholder
   document.getElementById('apiKeyLabel').textContent=p.name+' API Key';
   document.getElementById('apiKeyLink').href=p.link;
@@ -766,11 +782,11 @@ function onKeyInput(){
 
 /* Fetch the models your vnaipro key's group can use, so the picker always matches */
 let vnaiTimer=null;
-async function loadVnaiModels(k){
-  if(!k||k.length<10)return;
+async function loadVnaiModels(k,loud){
+  if(!k||k.length<10){if(loud)showErr('Paste your vnaipro key first.');return;}
   try{
     const res=await fetch(VNAI_BASE+'/models',{headers:{'Authorization':`Bearer ${k}`}});
-    if(!res.ok){toast(res.status===401?'Key rejected by vnaipro':'Could not load models ('+res.status+')');return;}
+    if(!res.ok){const e=await res.json().catch(()=>({}));const m=e.error?.message||e.message||('HTTP '+res.status);if(loud)showErr('Could not load models: '+m);else toast('Could not load models');return;}
     const ids=((await res.json()).data||[]).map(m=>m.id).sort();
     if(!ids.length)return;
     const models=ids.map(id=>({v:id,l:id}));
@@ -782,7 +798,7 @@ async function loadVnaiModels(k){
     }
     if(curProvider==='vnaipro')renderProviderUI();
     toast('Connected · '+ids.length+' models');
-  }catch(e){toast('Network error loading models');}
+  }catch(e){if(loud)showErr('Network error loading models: '+e.message);else toast('Network error loading models');}
 }
 
 function saveSettings(){
@@ -886,7 +902,7 @@ function renderMessages(){
 }
 
 function msgHtml(m,i,prov){
-  if(m.role==='user')return`<div class="msg-row user" data-i="${i}"><div class="msg-bubble">${esc(m.content).replace(/\n/g,'<br>')}</div><div class="msg-actions"><button class="msg-act" onclick="copyMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button class="msg-act" onclick="editMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button></div></div>`;
+  if(m.role==='user')return`<div class="msg-row user" data-i="${i}">${(m.attachments||[]).map(a=>`<img class="msg-img" src="${a.dataUrl}" alt="">`).join('')}<div class="msg-bubble">${esc(m.content).replace(/\n/g,'<br>')}</div><div class="msg-actions"><button class="msg-act" onclick="copyMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button class="msg-act" onclick="editMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button></div></div>`;
   const provName=PROVIDERS[prov||curProvider]?.name||'AI';
   return`<div class="msg-row assistant" data-i="${i}"><div class="msg-header">${providerAvatar(prov||curProvider)}<span class="msg-name">${esc(provName)}</span></div><div class="msg-bubble">${md(m.content)}</div><div class="msg-actions"><button class="msg-act" onclick="copyMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div></div>`;
 }
@@ -927,7 +943,8 @@ function fileIcon(name){
   return map[ext]||'📎';
 }
 
-function isImage(name){return /\.(png|jpe?g|gif|webp)$/i.test(name);}
+function isImage(name,type){return /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(name)||/^image\//.test(type||'');}
+document.addEventListener('paste',e=>{for(const it of e.clipboardData?.items||[]){if(it.type.startsWith('image/')){const f=it.getAsFile();if(f){e.preventDefault();readAndAttach(new File([f],'pasted.png',{type:f.type}));}}}});
 function isPDF(name){return /\.pdf$/i.test(name);}
 
 async function handleFiles(files){
@@ -941,8 +958,8 @@ async function readAndAttach(file){
   const proc=document.getElementById('attachProcessing');
   proc.style.display='block';proc.textContent='Reading '+file.name+'…';
   try{
-    if(isImage(file.name)){
-      const dataUrl=await readAsDataURL(file);
+    if(isImage(file.name,file.type)){
+      const dataUrl=await shrinkImage(file);
       pushAttachment({name:file.name,type:'image',dataUrl,isImage:true});
     } else if(isPDF(file.name)){
       const text=await extractPDF(file);
@@ -956,6 +973,10 @@ async function readAndAttach(file){
   renderAttachBar();
 }
 
+// Re-encode photos as JPEG ≤1568px: converts HEIC and keeps requests small
+function shrinkImage(file){return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const img=new Image();
+  img.onload=()=>{const k=Math.min(1,1568/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',.85));};
+  img.onerror=()=>{URL.revokeObjectURL(url);readAsDataURL(file).then(res,rej);};img.src=url;});}
 function readAsText(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(file);});}
 function readAsDataURL(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(file);});}
 
@@ -1080,7 +1101,7 @@ async function send(){
   const inner=document.getElementById('messagesInner');
   const es=inner.querySelector('.welcome');if(es)es.remove();
   const idx=conv.msgs.length-1;
-  const uel=document.createElement('div');uel.innerHTML=msgHtml({role:'user',content:text},idx,curProvider);inner.appendChild(uel.firstElementChild);scrollDown();
+  const uel=document.createElement('div');uel.innerHTML=msgHtml({role:'user',content:text,attachments:conv.msgs[idx].attachments},idx,curProvider);inner.appendChild(uel.firstElementChild);scrollDown();
   const trow=document.createElement('div');trow.className='msg-row assistant';
   const provName=PROVIDERS[curProvider]?.name||'AI';
   trow.innerHTML=`<div class="msg-header">${providerAvatar(curProvider)}<span class="msg-name">${esc(provName)}</span></div><div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
@@ -1164,7 +1185,7 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
   const extraHeaders=prov==='openrouter'?{'HTTP-Referer':'https://ai-studio.local','X-Title':'AI Studio'}:{};
   const body={model,messages,stream:true,max_tokens:8192};
   const res=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json',...extraHeaders},body:JSON.stringify(body),signal:abortCtrl.signal});
-  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`${prov} error ${res.status}`);}
+  if(!res.ok){const e=await res.json().catch(()=>({}));let m=e.error?.message||`${prov} error ${res.status}`;if(prov==='vnaipro'&&/access|model/i.test(m))m+=' — pick another model in the sidebar or tap "Reload my models".';throw new Error(m);}
   bubble.innerHTML='';
   const reader=res.body.getReader();const dec=new TextDecoder();let full='';
   while(true){const{done,value}=await reader.read();if(done)break;
@@ -1177,6 +1198,7 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
 }
 
 async function callPuter(model,sys,msgs,bubble,abortCtrl){
+  if(typeof puter==='undefined') await new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://js.puter.com/v2/';sc.onload=res;sc.onerror=()=>rej(new Error('Could not load Puter.js'));document.head.appendChild(sc);});
   if(typeof puter==='undefined') throw new Error('Puter.js not loaded. Serve this page over HTTP (not file://).');
   const puterMsgs=sys
     ?[{role:'system',content:sys},...msgs.map(m=>({role:m.role,content:m.content}))]

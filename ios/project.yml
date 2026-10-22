@@ -22,6 +22,8 @@ targets:
         UIRequiresFullScreen: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         ITSAppUsesNonExemptEncryption: false
+        NSPhotoLibraryUsageDescription: Attach photos to your chats.
+        NSCameraUsageDescription: Take a photo to send in a chat.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.aistudio.vnai
