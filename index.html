@@ -1284,10 +1284,10 @@ async function codeTool(name,a){
 async function codeRun(){
   if(codeState.busy){codeState.stop=true;return;}
   const task=document.getElementById('codeTask').value.trim();if(!task)return;
-  if(!ghToken){openConnectors();return;}
+  if(!ghToken){codeLog('step','Connect GitHub first: + → Connectors.');openConnectors();return;}
   const prov=curProvider, key=document.getElementById('apiKey').value.trim(), model=curModel();
-  if(!OPENAI_COMPAT(prov)){showErr('Code works with OpenAI (incl. Codex), VNAIPro, OpenRouter, Vercel and other OpenAI-style providers.');return;}
-  const useResp=prov==='openai';
+  if(!OPENAI_COMPAT(prov)&&prov!=='puter'){codeLog('step','⚠️ The Code tab works with Puter, OpenAI (incl. Codex), VNAIPro, OpenRouter, Vercel and other OpenAI-style providers — tap the model at the top to switch.');return;}
+  const useResp=prov==='openai', usePuter=prov==='puter';
   document.getElementById('codeTask').value='';
   codeLog('user',esc(task));
   if(!codeState.msgs.length)codeState.msgs.push({role:'system',content:`You are a careful coding agent editing the GitHub repo ${codeState.repo} (branch ${codeState.branch}). Use list_files and read_file to understand the code, then write_file the complete new contents of each file you change. Keep changes minimal and consistent with the existing style. Don't rewrite files you don't need to change. When done, call finish with a 1-3 sentence summary. ${SAVER[saverMode()].sys}`});
@@ -1297,6 +1297,21 @@ async function codeRun(){
   try{
     for(let step=0;step<30&&!codeState.stop;step++){
       const thinking=codeLog('step','…');
+      let msg;
+      if(usePuter){
+        await ensurePuter();
+        const resp=await puter.ai.chat(codeState.msgs,{model,tools:CODE_TOOLS});
+        thinking.remove();
+        const m=resp?.message||resp||{};
+        let content=m.content, calls=[...(m.tool_calls||[])];
+        if(Array.isArray(content)){
+          content.filter(b=>b.type==='tool_use').forEach(b=>calls.push({id:b.id,function:{name:b.name,arguments:b.input}}));
+          content=content.filter(b=>b.type==='text').map(b=>b.text).join('');
+        }
+        calls=calls.map(c=>({id:c.id,type:'function',function:{name:c.function.name,arguments:typeof c.function.arguments==='string'?c.function.arguments:JSON.stringify(c.function.arguments||{})}}));
+        msg={content:content||'',tool_calls:calls};
+        recordUsage(prov,model,JSON.stringify(codeState.msgs).length,msg.content);updateTokenCounter();
+      }else{
       const r=useResp
         ?await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'},
           body:JSON.stringify({model,instructions:codeState.msgs[0].content,input:codeState.pending,tools:CODE_TOOLS.map(t=>({type:'function',...t.function})),max_output_tokens:16000,...(codeState.respId?{previous_response_id:codeState.respId}:{})})})
@@ -1305,13 +1320,13 @@ async function codeRun(){
       const j=await r.json().catch(()=>({}));thinking.remove();
       if(!r.ok)throw new Error(prov==='vnaipro'?explainVnai(j.error?.message||String(r.status),model):(j.error?.message||'HTTP '+r.status));
       if(j.usage)lastUsage={in:j.usage.prompt_tokens??j.usage.input_tokens??0,out:j.usage.completion_tokens??j.usage.output_tokens??0};recordUsage(prov,model,0,'');updateTokenCounter();
-      let msg;
       if(useResp){
         codeState.respId=j.id;codeState.pending=[];
         const out=j.output||[];
         msg={content:out.filter(o=>o.type==='message').flatMap(o=>o.content||[]).map(c=>c.text||'').join(''),
              tool_calls:out.filter(o=>o.type==='function_call').map(o=>({id:o.call_id,function:{name:o.name,arguments:o.arguments}}))};
       }else msg=j.choices?.[0]?.message;
+      }
       if(!msg)throw new Error('Empty response');
       codeState.msgs.push({role:'assistant',content:msg.content||'',...(msg.tool_calls?.length?{tool_calls:msg.tool_calls}:{})});
       if(msg.content)codeLog('step',md(msg.content));
@@ -1328,7 +1343,7 @@ async function codeRun(){
       }
       if(done)break;
     }
-  }catch(e){codeLog('step','⚠️ '+esc(e.message));}
+  }catch(e){document.querySelectorAll('#codeLog .code-step').forEach(el=>{if(el.textContent==='…')el.remove();});codeLog('step','⚠️ '+esc(e?.message||e?.error?.message||JSON.stringify(e)));}
   finally{codeState.busy=false;document.getElementById('codeRunBtn').textContent='Run';renderCodeChanges();}
 }
 // Line diff (LCS); falls back to a plain listing for very large files
@@ -1971,6 +1986,9 @@ async function callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl){
   return full;
 }
 
+async function ensurePuter(){
+  if(typeof puter==='undefined') await new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://js.puter.com/v2/';sc.onload=res;sc.onerror=()=>rej(new Error('Could not load Puter.js'));document.head.appendChild(sc);});
+}
 // Codex models only speak OpenAI's Responses API
 function usesResponses(model){return /codex/i.test(model||'');}
 async function callResponses(apiKey,model,sys,msgs,bubble,abortCtrl){
@@ -2019,7 +2037,7 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
 }
 
 async function callPuter(model,sys,msgs,bubble,abortCtrl){
-  if(typeof puter==='undefined') await new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://js.puter.com/v2/';sc.onload=res;sc.onerror=()=>rej(new Error('Could not load Puter.js'));document.head.appendChild(sc);});
+  await ensurePuter();
   if(typeof puter==='undefined') throw new Error('Puter.js not loaded. Serve this page over HTTP (not file://).');
   const puterMsgs=sys
     ?[{role:'system',content:sys},...msgs.map(m=>({role:m.role,content:m.content}))]
