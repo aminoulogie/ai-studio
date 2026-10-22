@@ -599,8 +599,8 @@ body{overscroll-behavior:none}
         <div class="code-log" id="codeLog"></div>
         <div class="code-changes" id="codeChanges" style="display:none"></div>
         <div class="code-input">
-          <textarea id="codeTask" rows="1" placeholder="Describe a change…" oninput="autoResize(this)"></textarea>
-          <button id="codeRunBtn" onclick="codeRun()">Run</button>
+          <textarea id="codeTask" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&window.innerWidth>680){event.preventDefault();codeRun();}" placeholder="Tell me what you want…" oninput="autoResize(this)"></textarea>
+          <button id="codeRunBtn" onclick="codeRun()">Send</button>
         </div>
       </div>
     </div>
@@ -1239,8 +1239,9 @@ async function codeOpen(){
   if(!ghRepos.length){try{ghRepos=await ghFetch('/user/repos?per_page=100&sort=updated');}catch(e){log.innerHTML=`<div class="code-step">${esc(e.message)}</div>`;return;}}
   const sel=document.getElementById('codeRepo');
   if(!sel.options.length){sel.innerHTML=ghRepos.map(r=>`<option>${esc(r.full_name)}</option>`).join('');sel.value=ls('code_repo')||ghRepos[0]?.full_name||'';await codeRepoChange();}
-  if(!log.children.length)codeLog('step','Pick a repo, then describe what to change. The AI reads files and proposes edits; nothing is pushed until you tap Commit.');
+  if(!log.children.length)codeLog('step',`👋 Just tell me what you want, in your own words — like talking to a person. For example:<br>• <a href="#" onclick="codeAsk(this);return false">What does this app do?</a><br>• <a href="#" onclick="codeAsk(this);return false">Make the send button bigger</a><br>• <a href="#" onclick="codeAsk(this);return false">Add a button to clear all chats</a><br><br>I'll show you what I changed. Nothing is saved until you tap <b>Commit</b>.`);
 }
+function codeAsk(a){document.getElementById('codeTask').value=a.textContent;codeRun();}
 async function codeRepoChange(){
   codeState.repo=document.getElementById('codeRepo').value;ls('code_repo',codeState.repo);
   try{
@@ -1290,7 +1291,13 @@ async function codeRun(){
   const useResp=prov==='openai', usePuter=prov==='puter';
   document.getElementById('codeTask').value='';
   codeLog('user',esc(task));
-  if(!codeState.msgs.length)codeState.msgs.push({role:'system',content:`You are a careful coding agent editing the GitHub repo ${codeState.repo} (branch ${codeState.branch}). Use list_files and read_file to understand the code, then write_file the complete new contents of each file you change. Keep changes minimal and consistent with the existing style. Don't rewrite files you don't need to change. When done, call finish with a 1-3 sentence summary. ${SAVER[saverMode()].sys}`});
+  if(!codeState.msgs.length)codeState.msgs.push({role:'system',content:`You are a friendly assistant who builds and fixes the user's app for them. The app's code is in the GitHub repo ${codeState.repo} (branch ${codeState.branch}).
+The user is NOT a programmer. Talk like a helpful person: short, simple, everyday words — no jargon, no code, no file names unless they ask.
+- If they greet you or ask a question, just answer in plain words (you may peek at the code with list_files/read_file to answer accurately). Don't edit anything.
+- If they describe something they want (even vaguely, like "make it look nicer" or "the button is broken"), figure out what they mean, and if it's unclear ask ONE simple question first.
+- When making a change: read the relevant files, then write_file the complete new contents of each file you change. Keep changes small and safe; don't touch unrelated things.
+- When done, call finish with a summary in plain words of what will be different for them (e.g. "The send button is now bigger and easier to tap."), then remind them to tap Commit to save it.
+Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
   codeState.msgs.push({role:'user',content:task});
   codeState.pending=[{role:'user',content:task}];
   codeState.busy=true;codeState.stop=false;document.getElementById('codeRunBtn').textContent='Stop';
@@ -1335,7 +1342,8 @@ async function codeRun(){
       for(const c of msg.tool_calls){
         let args={};try{args=JSON.parse(c.function.arguments||'{}');}catch{}
         const nm=c.function.name;
-        codeLog('tool',nm==='finish'?'✅ '+esc(args.summary||'Done'):`${nm==='write_file'?'✏️':'📄'} ${esc(nm)} ${esc(args.path||'')}`);
+        if(nm==='finish')codeLog('step','✅ '+md(args.summary||'Done')+(Object.keys(codeState.staged).length?'<br><small>Tap <b>Commit</b> below to save it, or ✕ to undo.</small>':''));
+        else codeLog('tool',nm==='write_file'?`✏️ Changing ${esc(args.path||'')}`:nm==='read_file'?`👀 Reading ${esc(args.path||'')}`:'🗂️ Looking at the project');
         let out;try{out=await codeTool(nm,args);}catch(e){out='ERROR: '+e.message;}
         codeState.msgs.push({role:'tool',tool_call_id:c.id,content:out});
         if(useResp)codeState.pending.push({type:'function_call_output',call_id:c.id,output:out});
@@ -1344,7 +1352,7 @@ async function codeRun(){
       if(done)break;
     }
   }catch(e){document.querySelectorAll('#codeLog .code-step').forEach(el=>{if(el.textContent==='…')el.remove();});codeLog('step','⚠️ '+esc(e?.message||e?.error?.message||JSON.stringify(e)));}
-  finally{codeState.busy=false;document.getElementById('codeRunBtn').textContent='Run';renderCodeChanges();}
+  finally{codeState.busy=false;document.getElementById('codeRunBtn').textContent='Send';renderCodeChanges();}
 }
 // Line diff (LCS); falls back to a plain listing for very large files
 function lineDiff(a,b){
@@ -1363,9 +1371,9 @@ function lineDiff(a,b){
 function renderCodeChanges(){
   const el=document.getElementById('codeChanges'), files=Object.keys(codeState.staged);
   el.style.display=files.length?'':'none';if(!files.length){el.innerHTML='';return;}
-  el.innerHTML=`<div style="font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:4px">${files.length} changed file${files.length>1?'s':''}</div>`+
-    files.map((f,i)=>`<div class="code-file"><span class="grow">${esc(f)}</span><button class="gh-btn" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display?'':'none'">Diff</button><button class="gh-btn" onclick="delete codeState.staged['${esc(f).replace(/'/g,"\\'")}'];renderCodeChanges()">✕</button></div><div class="diff" style="display:none">${lineDiff(codeState.orig[f]||'',codeState.staged[f])}</div>`).join('')+
-    `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Commit message" value="AI: ${esc((codeState.msgs.filter(m=>m.role==='user').pop()?.content||'update').slice(0,60))}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit</button></div>`;
+  el.innerHTML=`<div style="font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:4px">📝 ${files.length} file${files.length>1?'s':''} changed — not saved yet</div>`+
+    files.map((f,i)=>`<div class="code-file"><span class="grow">${esc(f)}</span><button class="gh-btn" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display?'':'none'">Details</button><button class="gh-btn" onclick="delete codeState.staged['${esc(f).replace(/'/g,"\\'")}'];renderCodeChanges()">✕</button></div><div class="diff" style="display:none">${lineDiff(codeState.orig[f]||'',codeState.staged[f])}</div>`).join('')+
+    `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="AI: ${esc((codeState.msgs.filter(m=>m.role==='user').pop()?.content||'update').slice(0,60))}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
 }
 async function codeCommit(){
   const files=Object.keys(codeState.staged);if(!files.length)return;
