@@ -288,6 +288,21 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
 @keyframes spin{to{transform:rotate(360deg)}}
 
 html{-webkit-text-size-adjust:100%}
+.saver-row{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 10px}
+.saver-row button{padding:7px 2px;border:1px solid var(--sidebar-border);border-radius:7px;background:transparent;color:var(--sidebar-fg2);font-size:11px;font-family:var(--font-sans);cursor:pointer}
+.saver-row button.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.saver-hint{padding:5px 14px 2px;font-size:11px;color:var(--sidebar-fg3);line-height:1.4}
+.fb-row{display:flex;gap:8px;align-items:flex-start;padding:8px 14px;font-size:12px;color:var(--sidebar-fg2);line-height:1.35}
+.fb-row input{margin-top:2px;accent-color:var(--brand)}
+.usage-big{font-size:28px;font-weight:600;color:var(--fg)}
+.usage-bar{height:8px;border-radius:4px;background:var(--border);overflow:hidden}
+.usage-bar div{height:100%;background:var(--brand)}
+.usage-tbl{width:100%;font-size:12px;border-collapse:collapse;color:var(--fg2)}
+.usage-tbl td{padding:4px 2px;border-bottom:1px solid var(--border)}
+.usage-tbl td:last-child,.usage-tbl td:nth-child(2){text-align:right;font-variant-numeric:tabular-nums}
+.usage-set{display:flex;gap:8px;font-size:12px;color:var(--fg2)}
+.usage-set label{flex:1;display:flex;flex-direction:column;gap:4px}
+#tokenCounter{cursor:pointer}
 body{overscroll-behavior:none}
 .topbar{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
 .sidebar{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
@@ -372,6 +387,21 @@ body{overscroll-behavior:none}
         <button class="provider-btn" data-p="pollinations" onclick="selectProvider('pollinations')">
           <span class="pb-dot" style="background:#22c55e"></span>Pollinations (free)
         </button>
+        <button class="provider-btn" data-p="cerebras" onclick="selectProvider('cerebras')">
+          <span class="pb-dot" style="background:#f97316"></span>Cerebras (free)
+        </button>
+        <button class="provider-btn" data-p="huggingface" onclick="selectProvider('huggingface')">
+          <span class="pb-dot" style="background:#facc15"></span>HuggingFace (free)
+        </button>
+        <button class="provider-btn" data-p="sambanova" onclick="selectProvider('sambanova')">
+          <span class="pb-dot" style="background:#ef4444"></span>SambaNova (free)
+        </button>
+        <button class="provider-btn" data-p="github" onclick="selectProvider('github')">
+          <span class="pb-dot" style="background:#a3a3a3"></span>GitHub Models (free)
+        </button>
+        <button class="provider-btn" data-p="cohere" onclick="selectProvider('cohere')">
+          <span class="pb-dot" style="background:#14b8a6"></span>Cohere (free)
+        </button>
         <button class="provider-btn" data-p="custom" onclick="selectProvider('custom')">
           <span class="pb-dot" style="background:#eab308"></span>Own server
         </button>
@@ -427,6 +457,18 @@ body{overscroll-behavior:none}
     <div class="sys-prompt-row">
       <input type="text" id="sysPrompt" placeholder="Optional instructions…" oninput="saveSettings()">
     </div>
+
+    <!-- TOKEN SAVER -->
+    <div class="s-label">Token saver</div>
+    <div class="saver-row" id="saverRow">
+      <button data-m="off" onclick="setSaver('off')">Off</button>
+      <button data-m="light" onclick="setSaver('light')">Light</button>
+      <button data-m="moderate" onclick="setSaver('moderate')">Moderate</button>
+      <button data-m="severe" onclick="setSaver('severe')">Severe</button>
+    </div>
+    <div class="saver-hint" id="saverHint"></div>
+    <label class="fb-row"><input type="checkbox" id="fallbackToggle" onchange="ls('ai_fallback',this.checked?'1':'0')"> Auto-switch to a free provider when out of credit</label>
+    <button class="btn-new-chat" onclick="openUsage()">💰 Usage &amp; cost</button>
 
     <div class="s-label" id="recentLabel">Recents</div>
     <div class="sidebar-convs" id="convList"></div>
@@ -565,6 +607,11 @@ body{overscroll-behavior:none}
   </div>
 </div>
 
+<!-- Usage modal -->
+<div class="modal-backdrop" id="usageModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" id="usageBody" style="max-height:85vh;overflow-y:auto"></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -686,6 +733,26 @@ const PROVIDERS = {
     models: lsj('ai_models_pollinations')||[{v:'openai',l:'openai'},{v:'openai-fast',l:'openai-fast'},{v:'mistral',l:'mistral'}],
     defaultModel: 'openai'
   },
+  cerebras: {
+    name: 'Cerebras', color: '#f97316', placeholder: 'csk-… (free key)', link: 'https://cloud.cerebras.ai',
+    models: lsj('ai_models_cerebras')||[{v:'gpt-oss-120b',l:'gpt-oss-120b'},{v:'llama-3.3-70b',l:'llama-3.3-70b'},{v:'qwen-3-32b',l:'qwen-3-32b'}], defaultModel: 'gpt-oss-120b'
+  },
+  huggingface: {
+    name: 'HuggingFace', color: '#facc15', placeholder: 'hf_… (free token)', link: 'https://huggingface.co/settings/tokens',
+    models: lsj('ai_models_huggingface')||[{v:'meta-llama/Llama-3.3-70B-Instruct',l:'meta-llama/Llama-3.3-70B-Instruct'},{v:'deepseek-ai/DeepSeek-V3-0324',l:'deepseek-ai/DeepSeek-V3-0324'},{v:'Qwen/Qwen3-32B',l:'Qwen/Qwen3-32B'}], defaultModel: 'meta-llama/Llama-3.3-70B-Instruct'
+  },
+  sambanova: {
+    name: 'SambaNova', color: '#ef4444', placeholder: 'free SambaNova key', link: 'https://cloud.sambanova.ai/apis',
+    models: lsj('ai_models_sambanova')||[{v:'Meta-Llama-3.3-70B-Instruct',l:'Meta-Llama-3.3-70B-Instruct'},{v:'DeepSeek-V3-0324',l:'DeepSeek-V3-0324'},{v:'Llama-4-Maverick-17B-128E-Instruct',l:'Llama-4-Maverick-17B-128E-Instruct'}], defaultModel: 'Meta-Llama-3.3-70B-Instruct'
+  },
+  github: {
+    name: 'GitHub Models', color: '#a3a3a3', placeholder: 'github_pat_… (models:read)', link: 'https://github.com/settings/personal-access-tokens/new',
+    models: lsj('ai_models_github')||[{v:'openai/gpt-4.1-mini',l:'openai/gpt-4.1-mini'},{v:'openai/gpt-4.1',l:'openai/gpt-4.1'},{v:'meta/Llama-3.3-70B-Instruct',l:'meta/Llama-3.3-70B-Instruct'},{v:'deepseek/DeepSeek-V3-0324',l:'deepseek/DeepSeek-V3-0324'}], defaultModel: 'openai/gpt-4.1-mini'
+  },
+  cohere: {
+    name: 'Cohere', color: '#14b8a6', placeholder: 'free trial key', link: 'https://dashboard.cohere.com/api-keys',
+    models: [{v:'command-a-03-2025',l:'command-a-03-2025'},{v:'command-r-plus-08-2024',l:'command-r-plus-08-2024'},{v:'command-r7b-12-2024',l:'command-r7b-12-2024'}], defaultModel: 'command-a-03-2025'
+  },
   custom: {
     name: 'Own server',
     color: '#eab308',
@@ -714,6 +781,104 @@ const PROVIDERS = {
   }
 };
 
+/* ===================== TOKEN SAVER ===================== */
+// keep: messages of history sent · trim: max chars per older message · out: max reply tokens
+const SAVER={
+  off:     {keep:1e9,trim:1e9,out:8192,sys:'',hint:'Full history, no limits.'},
+  light:   {keep:20, trim:4000,out:8192,sys:'Be concise.',hint:'Last 20 messages; long old messages shortened.'},
+  moderate:{keep:10, trim:1200,out:4096,sys:'Be concise: no preamble or repetition. When editing code, show only the changed parts.',hint:'Last 10 messages; old code removed; replies capped at 4k tokens.'},
+  severe:  {keep:4,  trim:300, out:1500,sys:'Answer as briefly as possible. No greetings, no restating the question, no closing summary. For code, show only the minimal changed lines.',hint:'Last 4 messages only; very short answers. Cheapest.'}
+};
+function saverMode(){return ls('ai_saver')||'moderate';}
+function setSaver(m){ls('ai_saver',m);renderSaver();}
+function renderSaver(){
+  const m=saverMode();
+  document.querySelectorAll('#saverRow button').forEach(b=>b.classList.toggle('active',b.dataset.m===m));
+  document.getElementById('saverHint').textContent=SAVER[m].hint;
+  document.getElementById('fallbackToggle').checked=ls('ai_fallback')!=='0';
+}
+function shorten(t,n){t=t.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n');return t.length<=n?t:t.slice(0,n*0.7)+'\n…[trimmed]…\n'+t.slice(-n*0.3);}
+// Filters applied to what is sent (the chat on screen is untouched)
+function compactMsgs(msgs){
+  const S=SAVER[saverMode()];
+  let out=msgs.slice(-S.keep);
+  while(out.length>1&&out[0].role!=='user')out=out.slice(1);
+  const last=out.length-1;
+  return out.map((m,i)=>{
+    if(i>=last-1)return m; // newest exchange stays intact
+    let c=m.content;
+    if(S.trim<=1200)c=c.replace(/```[\s\S]*?```/g,b=>b.length>400?'[code omitted]':b);
+    return {role:m.role,content:shorten(c,S.trim)}; // older images dropped
+  });
+}
+function maxOut(){return SAVER[saverMode()].out;}
+
+/* ===================== USAGE & COST ===================== */
+// $ per 1M tokens [input, output] — Anthropic list prices; matched by model-name prefix
+const PRICES=[
+  ['claude-fable-5',10,50],['claude-mythos-5',10,50],['claude-opus-5-5',4,20],['claude-opus-5',5,25],['claude-opus-4-8',5,25],
+  ['claude-opus-4-7',5,25],['claude-opus-4-6',5,25],['claude-opus-4-5',5,25],['claude-opus-4',15,75],['claude-sonnet-5',2,10],
+  ['claude-sonnet-4',3,15],['claude-haiku-5',0.1,0.5],['claude-haiku-4',1,5],
+  ['gpt-5',1.25,10],['gpt-4.1-mini',0.4,1.6],['gpt-4.1',2,8],['gpt-4o-mini',0.15,0.6],['gpt-4o',2.5,10],['o3',2,8],
+  ['gemini-2.5-pro',1.25,10],['gemini-2.5-flash',0.3,2.5],['gemini',0.1,0.4],['grok',3,15],['mistral-large',2,6]
+];
+const FREE_PROVS=['puter','pollinations','custom','cerebras','huggingface','sambanova','github','cohere','groq'];
+function priceOf(prov,model){
+  if(FREE_PROVS.includes(prov))return [0,0];
+  const m=(model||'').toLowerCase().replace(/^.*\//,'');
+  const hit=PRICES.find(([k])=>m.startsWith(k));
+  return hit?[hit[1],hit[2]]:null;
+}
+function priceLabel(prov,model){const p=priceOf(prov,model);return p&&(p[0]||p[1])?` · $${p[0]}/$${p[1]}`:'';}
+let lastUsage=null; // set by adapters from the API's own usage numbers
+function recordUsage(prov,model,sentChars,full){
+  const est=!lastUsage;
+  const inT=lastUsage?.in??Math.ceil(sentChars/4), outT=lastUsage?.out??Math.ceil(full.length/4);
+  const p=priceOf(prov,model), mult=parseFloat(ls('ai_price_mult')||'1')||1;
+  const cost=p?(inT*p[0]+outT*p[1])/1e6*mult:0;
+  const log=lsj('ai_usage')||[];
+  log.push({t:Date.now(),p:prov,m:model,i:inT,o:outT,c:+cost.toFixed(6),e:est?1:0});
+  ls('ai_usage',log.slice(-3000));
+  inTok+=inT;outTok+=outT;lastUsage=null;
+}
+function usageTotals(){
+  const log=lsj('ai_usage')||[], day=new Date().toDateString();
+  let total=0,today=0;const per={};
+  for(const r of log){total+=r.c;if(new Date(r.t).toDateString()===day)today+=r.c;
+    const k=r.m||r.p;per[k]=per[k]||{n:0,i:0,o:0,c:0};per[k].n++;per[k].i+=r.i;per[k].o+=r.o;per[k].c+=r.c;}
+  return {log,total,today,per};
+}
+function money(x){return '$'+(x<1?x.toFixed(4):x.toFixed(2));}
+function openUsage(){
+  const {log,total,today,per}=usageTotals();
+  const budget=parseFloat(ls('ai_budget')||'50')||50, left=Math.max(0,budget-total), pct=Math.min(100,total/budget*100);
+  const n=log.length, avg=n?total/n:0;
+  const rows=Object.entries(per).sort((a,b)=>b[1].c-a[1].c).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.n}</td><td>${(v.i/1000).toFixed(1)}k / ${(v.o/1000).toFixed(1)}k</td><td>${money(v.c)}</td></tr>`).join('');
+  document.getElementById('usageBody').innerHTML=`
+    <h3>Usage &amp; cost</h3>
+    <div><div class="usage-big">${money(total)} <span style="font-size:14px;color:var(--fg3)">of $${budget}</span></div>
+    <div class="usage-bar"><div style="width:${pct}%"></div></div>
+    <div style="font-size:12px;color:var(--fg2);margin-top:6px">${money(left)} left · today ${money(today)} · ${n} messages · avg ${money(avg)}/msg${avg?` · ≈${Math.floor(left/avg)} messages left`:''}</div></div>
+    <table class="usage-tbl"><tr><td><b>Model</b></td><td><b>Msgs</b></td><td><b>Tokens in/out</b></td><td><b>Cost</b></td></tr>${rows||'<tr><td colspan=4>No usage yet</td></tr>'}</table>
+    <div style="font-size:11px;color:var(--fg3)">Estimated from Anthropic list prices × your multiplier. Free providers count as $0. Your vnaipro dashboard is the final word.</div>
+    <div class="usage-set">
+      <label>Budget ($)<input type="number" value="${budget}" onchange="ls('ai_budget',this.value);openUsage()"></label>
+      <label>Price multiplier<input type="number" step="0.05" value="${ls('ai_price_mult')||'1'}" onchange="ls('ai_price_mult',this.value)"></label>
+    </div>
+    <div class="modal-btns">
+      <button class="gh-btn" onclick="if(confirm('Reset usage history?')){ls('ai_usage',null);openUsage();updateTokenCounter();}">Reset</button>
+      <button class="gh-btn primary" onclick="document.getElementById('usageModal').style.display='none'">Done</button>
+    </div>`;
+  document.getElementById('usageModal').style.display='flex';
+}
+
+/* ===================== AUTO-FALLBACK ===================== */
+function isOutOfCredit(err){return err.status===429||err.status===402||/quota|credit|insufficient|balance|rate.?limit|exhaust|余额|额度/i.test(err.message||'');}
+function fallbackChain(from){
+  const keyed=['cerebras','groq','sambanova','github','gemini','huggingface','openrouter','cohere','mistral'].filter(p=>ls('ai_key_'+p));
+  return [...keyed,'pollinations','puter'].filter(p=>p!==from);
+}
+
 /* ===================== STATE ===================== */
 let convs={}, curId=null, streaming=false, abort=null, inTok=0, outTok=0, isDark=false;
 let curProvider='vnaipro';
@@ -734,6 +899,7 @@ function init(){
   if(ghToken) initGhConnected();
   switchTab('chat');
   if(window.innerWidth<=680)closeSidebar();
+  renderSaver();
 }
 
 /* ===================== LOCAL STORAGE ===================== */
@@ -783,7 +949,7 @@ function renderProviderUI(){
   document.getElementById('customBase').value=ls('ai_custom_base')||'';
   document.getElementById('customModel').value=ls('ai_custom_model')||'';
   document.getElementById('modelSelect').parentElement.style.display=curProvider==='custom'?'none':'';
-  document.getElementById('vnaiRefresh').style.display=['vnaipro','custom','pollinations'].includes(curProvider)?'':'none';
+  document.getElementById('vnaiRefresh').style.display=['vnaipro','custom','pollinations','cerebras','huggingface','sambanova','github'].includes(curProvider)?'':'none';
   // API key label/link/placeholder
   document.getElementById('apiKeyLabel').textContent=p.name+' API Key';
   document.getElementById('apiKeyLink').href=p.link;
@@ -791,7 +957,7 @@ function renderProviderUI(){
   // Models
   const sel=document.getElementById('modelSelect');
   const saved=ls('ai_model_'+curProvider)||p.defaultModel;
-  sel.innerHTML=p.models.map(m=>`<option value="${esc(m.v)}" ${m.v===saved?'selected':''}>${esc(m.l)}</option>`).join('');
+  sel.innerHTML=p.models.map(m=>`<option value="${esc(m.v)}" ${m.v===saved?'selected':''}>${esc(m.l)}${priceLabel(curProvider,m.v)}</option>`).join('');
   sel.value=saved;
   // OpenRouter custom model field
   const orRow=document.getElementById('orModelRow');
@@ -820,7 +986,12 @@ async function loadModels(prov,loud){
   if(prov==='vnaipro')return loadVnaiModels(document.getElementById('apiKey').value.trim(),loud);
   try{
     let ids;
-    if(prov==='pollinations'){
+    const LISTS={cerebras:'https://api.cerebras.ai/v1/models',huggingface:'https://router.huggingface.co/v1/models',sambanova:'https://api.sambanova.ai/v1/models',github:'https://models.github.ai/catalog/models'};
+    if(LISTS[prov]){
+      const k=ls('ai_key_'+prov)||'';if(!k){if(loud)showErr('Paste your key first.');return;}
+      const r=await fetch(LISTS[prov],{headers:{'Authorization':`Bearer ${k}`}});if(!r.ok)throw new Error('HTTP '+r.status);
+      const j=await r.json();ids=(Array.isArray(j)?j:j.data||[]).map(m=>m.id||m.name).filter(Boolean);
+    }else if(prov==='pollinations'){
       const r=await fetch('https://text.pollinations.ai/models');if(!r.ok)throw new Error('HTTP '+r.status);
       ids=(await r.json()).map(m=>typeof m==='string'?m:m.name).filter(Boolean);
     }else{
@@ -833,7 +1004,7 @@ async function loadModels(prov,loud){
     if(!ids.length)return;
     PROVIDERS[prov].models=ids.map(v=>({v,l:v}));ls('ai_models_'+prov,PROVIDERS[prov].models);
     if(curProvider===prov)renderProviderUI();
-    toast((prov==='custom'?'Server':'Pollinations')+' · '+ids.length+' models');
+    toast(PROVIDERS[prov].name+' · '+ids.length+' models');
   }catch(e){if(loud)showErr('Could not load models: '+e.message);}
 }
 
@@ -1166,8 +1337,19 @@ async function send(){
   inner.appendChild(trow);scrollDown();
   streaming=true;abort=new AbortController();setSend(true);
   try{
-    const prov=curProvider;
-    const full=await callAPI(prov,apiKey,conv,trow,abort);
+    let prov=curProvider,full;
+    try{full=await callAPI(prov,apiKey,conv,trow,abort);}
+    catch(err){
+      if(err.name==='AbortError'||ls('ai_fallback')==='0'||!isOutOfCredit(err))throw err;
+      let lastErr=err;
+      for(const p of fallbackChain(prov)){
+        toast(`${PROVIDERS[prov].name} out of credit → ${PROVIDERS[p].name}`);
+        trow.querySelector('.msg-name').textContent=PROVIDERS[p].name;
+        try{full=await callAPI(p,ls('ai_key_'+p)||'',conv,trow,abort,ls('ai_model_'+p)||PROVIDERS[p].defaultModel);prov=p;lastErr=null;break;}
+        catch(e2){if(e2.name==='AbortError')throw e2;lastErr=e2;}
+      }
+      if(lastErr)throw new Error(err.message+' (free fallbacks also failed: '+lastErr.message+')');
+    }
     conv.msgs.push({role:'assistant',content:full});conv.ts=Date.now();
     saveConvs();renderConvList();renderMessages();updateTokenCounter();
   }catch(err){
@@ -1178,26 +1360,31 @@ async function send(){
 }
 
 /* ===================== API ADAPTERS ===================== */
-async function callAPI(prov,apiKey,conv,trow,abortCtrl){
+async function callAPI(prov,apiKey,conv,trow,abortCtrl,modelOverride){
   const sel=document.getElementById('modelSelect');
-  let model=sel.value;
+  let model=modelOverride||sel.value;
   if(prov==='custom') model=ls('ai_custom_model')||'';
   if(prov==='custom'&&(!model||!customBase())) throw new Error('Set your server URL and model ID in the sidebar.');
   if(prov==='openrouter'&&model==='custom') model=document.getElementById('orModelInput').value.trim()||'meta-llama/llama-3.3-70b-instruct';
-  const sys=document.getElementById('sysPrompt').value.trim();
-  // Build messages — inline images where supported
-  const msgs=conv.msgs.map(m=>{
+  const sys=[document.getElementById('sysPrompt').value.trim(),SAVER[saverMode()].sys].filter(Boolean).join('\n');
+  // Build messages — inline images where supported; token saver filters history
+  const msgs=compactMsgs(conv.msgs).map(m=>{
     if(!m.attachments||!m.attachments.length) return {role:m.role,content:m.content};
     return {role:m.role,content:m.content,images:m.attachments.map(a=>a.dataUrl)};
   });
   const bubble=trow.querySelector('.msg-bubble');
 
-  if(prov==='anthropic') return callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl);
-  if(prov==='gemini')    return callGemini(apiKey,model,sys,msgs,bubble,abortCtrl);
-  if(prov==='puter')     return callPuter(model,sys,msgs,bubble,abortCtrl);
-  // OpenAI-compatible: openai, mistral, groq, openrouter
-  return callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl);
+  lastUsage=null;
+  let full;
+  if(prov==='anthropic') full=await callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl);
+  else if(prov==='gemini') full=await callGemini(apiKey,model,sys,msgs,bubble,abortCtrl);
+  else if(prov==='puter')  full=await callPuter(model,sys,msgs,bubble,abortCtrl);
+  // OpenAI-compatible: everything else
+  else full=await callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl);
+  recordUsage(prov,model,sys.length+msgs.reduce((n,m)=>n+m.content.length+(m.images?.length||0)*6000,0),full);
+  return full;
 }
+function httpErr(msg,status){return Object.assign(new Error(msg),{status});}
 
 async function callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl){
   // Convert messages with images to Anthropic content array format
@@ -1211,16 +1398,19 @@ async function callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl){
     parts.push({type:'text',text:m.content});
     return {role:m.role,content:parts};
   });
-  const body={model,max_tokens:8192,stream:true,messages:anthropicMsgs};
+  const body={model,max_tokens:maxOut(),stream:true,messages:anthropicMsgs};
   if(sys)body.system=sys;
   const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-allow-browser':'true'},body:JSON.stringify(body),signal:abortCtrl.signal});
-  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`Anthropic error ${res.status}`);}
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw httpErr(e.error?.message||`Anthropic error ${res.status}`,res.status);}
   bubble.innerHTML='';
   const reader=res.body.getReader();const dec=new TextDecoder();let full='';
   while(true){const{done,value}=await reader.read();if(done)break;
     for(const line of dec.decode(value,{stream:true}).split('\n')){
       if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(d==='[DONE]')continue;
-      try{const ev=JSON.parse(d);if(ev.type==='content_block_delta'&&ev.delta?.type==='text_delta'){full+=ev.delta.text;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
+      try{const ev=JSON.parse(d);
+        if(ev.type==='message_start'){const u=ev.message?.usage||{};lastUsage={in:(u.input_tokens||0)+(u.cache_read_input_tokens||0)+(u.cache_creation_input_tokens||0),out:0};}
+        if(ev.type==='message_delta'&&ev.usage&&lastUsage)lastUsage.out=ev.usage.output_tokens||0;
+        if(ev.type==='content_block_delta'&&ev.delta?.type==='text_delta'){full+=ev.delta.text;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
     }
   }
   return full;
@@ -1234,6 +1424,11 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
     openrouter:'https://openrouter.ai/api/v1/chat/completions',
     vnaipro:VNAI_BASE+'/chat/completions',
     pollinations:'https://text.pollinations.ai/openai',
+    cerebras:'https://api.cerebras.ai/v1/chat/completions',
+    huggingface:'https://router.huggingface.co/v1/chat/completions',
+    sambanova:'https://api.sambanova.ai/v1/chat/completions',
+    github:'https://models.github.ai/inference/chat/completions',
+    cohere:'https://api.cohere.ai/compatibility/v1/chat/completions',
     custom:customBase()+'/chat/completions'
   };
   const url=ENDPOINTS[prov];
@@ -1245,15 +1440,16 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
   });
   const messages=sys?[{role:'system',content:sys},...oaiMsgs]:[...oaiMsgs];
   const extraHeaders=prov==='openrouter'?{'HTTP-Referer':'https://ai-studio.local','X-Title':'AI Studio'}:{};
-  const body={model,messages,stream:true,max_tokens:8192};
+  const body={model,messages,stream:true,max_tokens:maxOut()};
+  if(['vnaipro','openai','openrouter','groq','custom','cerebras','huggingface','sambanova','github'].includes(prov))body.stream_options={include_usage:true};
   const res=await fetch(url,{method:'POST',headers:{...(apiKey?{'Authorization':`Bearer ${apiKey}`}:{}),'Content-Type':'application/json',...extraHeaders},body:JSON.stringify(body),signal:abortCtrl.signal});
-  if(!res.ok){const e=await res.json().catch(()=>({}));let m=e.error?.message||`${prov} error ${res.status}`;if(prov==='vnaipro'&&/access|model/i.test(m))m+=' — pick another model in the sidebar or tap "Reload my models".';throw new Error(m);}
+  if(!res.ok){const e=await res.json().catch(()=>({}));let m=e.error?.message||`${prov} error ${res.status}`;if(prov==='vnaipro'&&/access|model/i.test(m)&&!/quota|credit/i.test(m))m+=' — pick another model in the sidebar or tap "Reload my models".';throw httpErr(m,res.status);}
   bubble.innerHTML='';
   const reader=res.body.getReader();const dec=new TextDecoder();let full='';
   while(true){const{done,value}=await reader.read();if(done)break;
     for(const line of dec.decode(value,{stream:true}).split('\n')){
       if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(d==='[DONE]')continue;
-      try{const ev=JSON.parse(d);const delta=ev.choices?.[0]?.delta?.content;if(delta){full+=delta;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
+      try{const ev=JSON.parse(d);if(ev.usage&&ev.usage.prompt_tokens!=null)lastUsage={in:ev.usage.prompt_tokens,out:ev.usage.completion_tokens||0};const delta=ev.choices?.[0]?.delta?.content;if(delta){full+=delta;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
     }
   }
   return full;
@@ -1279,17 +1475,17 @@ async function callPuter(model,sys,msgs,bubble,abortCtrl){
 async function callGemini(apiKey,model,sys,msgs,bubble,abortCtrl){
   // Gemini uses a different format
   const contents=msgs.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
-  const body={contents,generationConfig:{maxOutputTokens:8192}};
+  const body={contents,generationConfig:{maxOutputTokens:maxOut()}};
   if(sys) body.systemInstruction={parts:[{text:sys}]};
   const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`;
   const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:abortCtrl.signal});
-  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`Gemini error ${res.status}`);}
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw httpErr(e.error?.message||`Gemini error ${res.status}`,res.status);}
   bubble.innerHTML='';
   const reader=res.body.getReader();const dec=new TextDecoder();let full='';
   while(true){const{done,value}=await reader.read();if(done)break;
     for(const line of dec.decode(value,{stream:true}).split('\n')){
       if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();
-      try{const ev=JSON.parse(d);const text=ev.candidates?.[0]?.content?.parts?.[0]?.text;if(text){full+=text;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
+      try{const ev=JSON.parse(d);if(ev.usageMetadata)lastUsage={in:ev.usageMetadata.promptTokenCount||0,out:(ev.usageMetadata.candidatesTokenCount||0)+(ev.usageMetadata.thoughtsTokenCount||0)};const text=ev.candidates?.[0]?.content?.parts?.[0]?.text;if(text){full+=text;bubble.innerHTML=md(full);doHighlight();scrollDown();}}catch{}
     }
   }
   return full;
@@ -1460,7 +1656,7 @@ function setGhStatus(msg,cls){const el=document.getElementById('ghStatus');el.te
 function disconnectGh(){ghToken='';ls('gh_token',null);document.getElementById('ghConnect').style.display='';document.getElementById('ghBrowser').style.display='none';document.getElementById('ghTokenInput').value='';ghOpenFile=null;clearEditor();}
 
 /* ===================== UTILS ===================== */
-function updateTokenCounter(){const el=document.getElementById('tokenCounter');el.textContent=(inTok||outTok)?`${inTok.toLocaleString()} in · ${outTok.toLocaleString()} out`:'';}
+function updateTokenCounter(){const el=document.getElementById('tokenCounter');const {total}=usageTotals();el.textContent=`${money(total)} / $${ls('ai_budget')||50}`;el.onclick=openUsage;}
 function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend();}}
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,200)+'px';}
 function scrollDown(){const m=document.getElementById('messages');m.scrollTop=m.scrollHeight;}
