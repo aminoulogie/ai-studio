@@ -18,9 +18,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandlerWithReply, ASWebAuthenticationPresentationContextProviding {
     private var webView: WKWebView!
+    private let studioRequests = StudioRequests()
+    private let studioArtwork = StudioArtwork()
+    private var launchView: StudioLaunchView?
 
     override func loadView() {
         let config = WKWebViewConfiguration()
+        config.setURLSchemeHandler(studioArtwork, forURLScheme: "studio-art")
         config.websiteDataStore = .default() // keeps your key + chats between launches
         config.allowsInlineMediaPlayback = true
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
@@ -37,10 +41,20 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        let splash = StudioLaunchView(frame: view.bounds)
+        splash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(splash); launchView = splash
         // Load with a real https origin (not file://) so Puter sign-in and CORS work
         guard let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "www"),
               let html = try? String(contentsOf: url, encoding: .utf8) else { return }
         webView.loadHTMLString(html, baseURL: URL(string: "https://aistudio.app/"))
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard webView === self.webView else { return }
+        UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.3, animations: {
+            self.launchView?.alpha = 0
+        }, completion: { _ in self.launchView?.removeFromSuperview(); self.launchView = nil })
     }
 
     // Open external links (e.g. "Get key ↗") in Safari instead of inside the app
@@ -90,11 +104,15 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {
-        guard message.frameInfo.isMainFrame,
+        guard message.webView === webView, message.frameInfo.isMainFrame,
               let msg = message.body as? [String: Any], let op = msg["op"] as? String else {
             replyHandler(nil, "bad message"); return
         }
         switch op {
+        case "aiRequest":
+            studioRequests.send(msg, reply: replyHandler); return
+        case "cancelRequest":
+            studioRequests.cancel(msg["id"] as? String ?? ""); replyHandler(true, nil); return
         case "share":
             shareText(name: msg["name"] as? String ?? "backup.txt", text: msg["text"] as? String ?? "", replyHandler); return
         default: break

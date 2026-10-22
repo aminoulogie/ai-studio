@@ -1,11 +1,10 @@
 <!doctype html>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>AI Studio</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
@@ -299,6 +298,8 @@ html{-webkit-text-size-adjust:100%}
 .plus-menu{display:none;position:absolute;bottom:calc(100% - 28px);left:0;z-index:50;background:var(--surface);border:1px solid var(--border2);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.25);padding:6px;min-width:260px}
 .plus-menu.show{display:block}
 .opt-menu{left:auto;right:0}
+.code-input .plus-menu{max-height:60vh;overflow-y:auto;max-width:calc(100vw - 32px)}
+#optProvider{display:block;width:100%;padding:9px;margin:8px 0;border-radius:8px;background:var(--surface);color:var(--fg);border:1px solid var(--border2)}
 .plus-menu button span{flex:1;display:flex;flex-direction:column}.plus-menu button small{font-size:11px;color:var(--fg3)}
 .opt-title{padding:8px 12px 4px;font-size:13px;font-weight:600;color:var(--fg)}.opt-title small{display:block;font-weight:400;font-size:11px;color:var(--fg3)}
 .btn-attach.rec{color:#fff;background:#dc2626}
@@ -338,9 +339,9 @@ html{-webkit-text-size-adjust:100%}
 .code-file .grow{flex:1;font-family:var(--font-mono);font-size:12px;overflow:hidden;text-overflow:ellipsis}
 .diff{font-family:var(--font-mono);font-size:11px;white-space:pre-wrap;word-break:break-all;background:var(--surface);border-radius:8px;padding:8px;margin:4px 0 8px;max-height:260px;overflow:auto}
 .diff .a{background:#16a34a22;color:#16a34a;display:block}.diff .d{background:#dc262622;color:#dc2626;display:block}
-.code-input{display:flex;gap:8px;padding:10px 12px max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--border)}
-.code-input textarea{flex:1;resize:none;border:1px solid var(--border2);border-radius:12px;padding:10px;background:var(--surface);color:var(--fg);font-family:var(--font-sans);font-size:16px;min-height:44px;max-height:140px}
-.code-input button{border:none;border-radius:12px;background:var(--brand);color:#fff;padding:0 16px;font-size:15px;font-weight:500}
+.code-input{position:relative;display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--border)}
+.code-input textarea{flex:1 1 180px;resize:none;border:1px solid var(--border2);border-radius:12px;padding:10px;background:var(--surface);color:var(--fg);font-family:var(--font-sans);font-size:16px;min-height:44px;max-height:140px}
+.code-input #codeRunBtn{border:none;border-radius:12px;background:var(--brand);color:#fff;padding:0 16px;font-size:15px;font-weight:500}
 .saver-row{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 10px}
 .saver-row button{padding:7px 2px;border:1px solid var(--sidebar-border);border-radius:7px;background:transparent;color:var(--sidebar-fg2);font-size:11px;font-family:var(--font-sans);cursor:pointer}
 .saver-row button.active{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -378,6 +379,7 @@ body{overscroll-behavior:none}
   .provider-grid{grid-template-columns:1fr 1fr}
 }
 </style>
+<link rel="stylesheet" href="assets/studio.css">
 
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
@@ -532,6 +534,7 @@ body{overscroll-behavior:none}
     <div class="saver-hint" id="saverHint"></div>
     <label class="fb-row"><input type="checkbox" id="fallbackToggle" onchange="ls('ai_fallback',this.checked?'1':'0')"> Auto-switch to a free provider when out of credit</label>
     <button class="btn-new-chat" onclick="openUsage()">💰 Usage &amp; cost</button>
+    <button class="btn-new-chat" onclick="openOptimizerSettings()">✨ Prompt optimizer settings</button>
     <button class="btn-new-chat" onclick="openPrivacy()">🔒 Privacy &amp; security</button>
 
     <div class="s-label" id="recentLabel">Recents</div>
@@ -539,6 +542,7 @@ body{overscroll-behavior:none}
     <div class="sidebar-convs" id="convList"></div>
 
     <div class="sidebar-bottom">
+      <button class="nav-item" onclick="openAppearance()">✦ <span>Appearance</span></button>
       <button class="nav-item" onclick="setTheme()">
         <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
           <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
@@ -554,7 +558,7 @@ body{overscroll-behavior:none}
   <!-- MAIN -->
   <main class="main">
     <div class="topbar">
-      <button class="btn-icon" onclick="toggleSidebar()">
+      <button class="btn-icon" onclick="toggleSidebar()" aria-label="Settings and chats">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <span class="topbar-title" id="topbarTitle">AI Studio</span>
@@ -574,12 +578,13 @@ body{overscroll-behavior:none}
         <div class="input-container">
           <div class="error-strip" id="errorStrip"></div>
           <div class="plus-menu opt-menu" id="optMenu">
-            <div class="opt-title">✨ Improve my prompt <small>free AI · rewrites your message</small></div>
+            <div class="opt-title">✨ Improve my prompt <small>choose provider · rewrites your message</small></div>
             <button onclick="optimizePrompt('clear')">✍️ <span>Clearer<small>Fix wording, make the goal obvious</small></span></button>
             <button onclick="optimizePrompt('detailed')">🎯 <span>Detailed<small>Add context, steps and the answer format you want</small></span></button>
             <button onclick="optimizePrompt('short')">⚡ <span>Shorter<small>Same meaning, fewer tokens (cheaper)</small></span></button>
             <button onclick="optimizePrompt('code')">💻 <span>For coding<small>Precise request an AI coder can act on</small></span></button>
             <button onclick="document.getElementById('optMenu').classList.remove('show');saveCurrentPrompt()">📌 <span>Save this prompt<small>Reuse it later from + → Saved prompts</small></span></button>
+            <button onclick="openOptimizerSettings()">⚙️ <span>Provider &amp; fallback settings</span></button>
             <button id="optUndo" style="display:none" onclick="undoOptimize()">↩️ <span>Undo<small>Bring back what I wrote</small></span></button>
           </div>
           <div class="plus-menu" id="plusMenu">
@@ -631,13 +636,17 @@ body{overscroll-behavior:none}
     <div class="panel" id="panelCode">
       <div class="code-wrap">
         <div class="code-head">
-          <select id="codeRepo" onchange="codeRepoChange()"></select>
-          <select id="codeBranch" onchange="codeState.branch=this.value;codeReset()"></select>
+          <div class="code-heading"><span class="eyebrow">YOUR WORKSPACE</span><h2>Make something great.</h2><p>From idea to a working app.</p></div>
+          <select aria-label="Repository" id="codeRepo" onchange="codeRepoChange()"></select>
+          <select aria-label="Branch" id="codeBranch" onchange="codeBranchChange(this.value)"></select>
         </div>
+        <div class="code-status" id="codeStatus" role="status" aria-live="polite" data-state="idle"><i></i><span>Ready to build</span><button onclick="openCodeHelp()" aria-label="Code connection help">?</button></div>
         <div class="code-log" id="codeLog"></div>
         <div class="code-changes" id="codeChanges" style="display:none"></div>
         <div class="code-input">
-          <textarea id="codeTask" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&window.innerWidth>680){event.preventDefault();codeRun();}" placeholder="Tell me what you want…" oninput="autoResize(this)"></textarea>
+          <div class="attach-bar" id="codeAttachBar" style="width:100%"></div>
+          <div id="codeAttachProcessing" class="attach-processing" style="display:none;width:100%"></div>
+          <textarea id="codeTask" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&window.innerWidth>680){event.preventDefault();codeRun();}" placeholder="What shall we build?" oninput="autoResize(this);ls('code_draft',this.value)"></textarea>
           <div class="input-actions" style="gap:4px;padding:0">
             <button class="btn-attach" onclick="codePlus(event)" title="More">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="20" height="20"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -645,6 +654,12 @@ body{overscroll-behavior:none}
             <button class="btn-attach" id="codeOptBtn" onclick="codeOptimizePrompt(event)" title="Improve my prompt">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5"/></svg>
             </button>
+            <button class="btn-attach" id="codeMicBtn" onclick="toggleMic()" title="Talk">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>
+                </button>
+            <button class="btn-attach" id="codeAskBtn" onclick="toggleInterview()" title="Ask me questions">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </button>
             <button id="codeRunBtn" onclick="codeRun()">Send</button>
           </div>
         </div>
@@ -706,6 +721,12 @@ body{overscroll-behavior:none}
         </div>
       </div>
     </div>
+    <nav class="studio-tabs" aria-label="Main navigation">
+      <button class="studio-tab active" data-tab="chat" onclick="switchTab('chat')" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-3 3V11.5A7.5 7.5 0 0 1 9.5 4h3a7.5 7.5 0 0 1 7.5 7.5Z"/></svg><span>Chat</span></button>
+      <button class="studio-tab" data-tab="code" onclick="switchTab('code')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16"/></svg><span>Code</span></button>
+      <button class="studio-tab" data-tab="github" onclick="switchTab('github')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18M7 5V3m10 2V3"/></svg><span>Projects</span></button>
+      <button class="studio-tab" onclick="toggleSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="var(--surface)"/><circle cx="15" cy="17" r="3" fill="var(--surface)"/></svg><span>Settings</span></button>
+    </nav>
   </main>
 </div>
 
@@ -738,6 +759,8 @@ body{overscroll-behavior:none}
 
 <div class="toast" id="toast"></div>
 
+<script src="assets/code-runtime.js"></script>
+<script src="assets/studio.js"></script>
 <script>
 /* ===================== PROVIDERS ===================== */
 const VNAI_BASE='https://apikey.vnaipro.app/v1';
@@ -851,6 +874,8 @@ const PROVIDERS = {
       {v:'microsoft/phi-4',                          l:'Phi-4'},
       {v:'x-ai/grok-3-beta',                         l:'Grok-3 Beta'},
       {v:'cohere/command-r-plus',                    l:'Command R+'},
+      {v:'openrouter/free', l:'Free models · automatic routing'},
+      {v:'qwen/qwen3-coder:free', l:'Qwen3 Coder · free (limited)'},
       {v:'custom',                                   l:'Custom model ID…'},
     ],
     defaultModel: 'meta-llama/llama-3.3-70b-instruct'
@@ -1049,88 +1074,107 @@ const OPT_GOALS={
   short:'Make it as short as possible while keeping every requirement — remove filler, politeness and repetition so it costs fewer tokens.',
   code:'Turn it into a precise request for an AI coding assistant: what to change, where (if known), expected behaviour, edge cases, and how to verify it works. Plain language, no code unless the user wrote some.'
 };
-let optPrev=null;
-function toggleOpt(e){e.stopPropagation();closePlus();document.getElementById('optUndo').style.display=optPrev!==null?'':'none';document.getElementById('optMenu').classList.toggle('show');}
-// Free providers only: Puter (Claude, free for you) → Pollinations as backup
-async function freeComplete(prompt){
-  // Try multiple free providers with fallback
-  const providers=[
-    async()=>{
-      try{
-        await ensurePuter();
-        const r=await puter.ai.chat(prompt,{model:'claude-sonnet-5-5'});
-        const c=r?.message?.content??r;
-        const t=Array.isArray(c)?c.map(b=>b.text||'').join(''):String(c||'');
-        if(t.trim())return t;
-      }catch(e){}
-      return null;
-    },
-    async()=>{
-      try{
-        const r=await fetch('https://text.pollinations.ai/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',messages:[{role:'user',content:prompt}]})});
-        if(!r.ok)return null;
-        return (await r.json()).choices?.[0]?.message?.content||null;
-      }catch(e){return null;}
-    }
-  ];
-  for(const p of providers){
-    const result=await p();
-    if(result)return result;
-  }
-  throw new Error('Free AI unavailable — try again later');
+let optTarget='chat', optBusy=false;
+const optPrevious={chat:null,code:null};
+function promptInput(target=activeTab){return document.getElementById(target==='code'?'codeTask':'userInput');}
+function toggleOpt(e,target='chat'){
+  e.stopPropagation();closePlus();optTarget=target;
+  const menu=document.getElementById('optMenu');
+  document.querySelector(target==='code'?'.code-input':'.input-container').appendChild(menu);
+  document.getElementById('optUndo').style.display=optPrevious[target]!==null?'':'none';
+  menu.classList.toggle('show');
 }
-function codeOptimizePrompt(e){
-  e.stopPropagation();
-  const textarea=document.getElementById('codeTask');
-  const text=textarea.value.trim();
-  if(!text){toast('Type your task first');return;}
-  const btn=e.target.closest('button');
-  btn.classList.add('busy');
-  freeComplete(`You improve prompts for a coding task that a developer will send to an AI. Make it clearer, more specific, and easier for an AI to code. Include exact requirements, expected output format, and any edge cases.
-Write it in the same language as the original. Return ONLY the improved prompt — no intro, no quotes, no explanation.
-
-ORIGINAL:
-${text}`).then(out=>{
-    if(out.trim()){
-      textarea.value=out.trim().replace(/^[""]|[""]$/g,'');
-      autoResize(textarea);
-      toast('✨ Task improved');
-    }
-  }).catch(e=>{showErr('Improve failed: '+e.message);})
-  .finally(()=>{btn.classList.remove('busy');});
+function codeOptimizePrompt(e){toggleOpt(e,'code');}
+function optimizerModel(p){
+  return ls('ai_opt_model_'+p)|| (p==='openrouter'?'openrouter/free':p===curProvider?curModel():ls('ai_model_'+p)||PROVIDERS[p]?.defaultModel||'');
+}
+function openOptimizerSettings(){
+  document.getElementById('optMenu').classList.remove('show');
+  const p=ls('ai_opt_provider')||'auto';
+  const ready=Object.keys(PROVIDERS).filter(k=>['puter','pollinations','custom'].includes(k)||provReady(k));
+  const models=p==='auto'?[]:PROVIDERS[p]?.models||[];
+  openSheet('<h3>✨ Prompt optimizer</h3><p>Used by Chat and Code. Automatic mode tries OpenRouter’s free router, then Pollinations. Add an OpenRouter key in the sidebar for a reliable free route. Free services still have usage limits.</p>'+
+    '<label>Provider<select id="optProvider" onchange="ls(\'ai_opt_provider\',this.value);openOptimizerSettings()">'+
+    '<option value="auto">Automatic · free routes only</option>'+
+    ready.map(k=>'<option value="'+esc(k)+'" '+(k===p?'selected':'')+'>'+esc(PROVIDERS[k].name)+'</option>').join('')+'</select></label>'+
+    (p!=='auto'?'<label>Model<input id="optModel" list="optModels" value="'+esc(optimizerModel(p))+'"><datalist id="optModels">'+models.filter(m=>m.v!=='custom').map(m=>'<option value="'+esc(m.v)+'"></option>').join('')+'</datalist></label><p>Uses your saved key. Your chosen provider/model may charge or consume trial credits. Puter uses your Puter allowance.</p>':'')+
+    '<label class="fb-row"><input type="checkbox" id="optFallback" '+(ls('ai_opt_fallback')!=='0'?'checked':'')+'> Try free routes if my chosen provider fails</label>'+
+    '<p>Private mode applies to every attempt. Your chat model stays the same.</p>'+
+    '<div class="modal-btns"><button class="gh-btn primary" onclick="saveOptimizerSettings()">Save</button></div>');
+}
+function saveOptimizerSettings(){
+  const p=document.getElementById('optProvider').value;
+  if(p!=='auto')ls('ai_opt_model_'+p,document.getElementById('optModel').value.trim());
+  ls('ai_opt_fallback',document.getElementById('optFallback').checked?'1':'0');closeSheet();toast('Optimizer settings saved');
+}
+function optimizerCandidates(){
+  const p=ls('ai_opt_provider')||'auto', list=[];
+  if(p!=='auto'&&PROVIDERS[p])list.push({p,model:optimizerModel(p)});
+  if(p==='auto'||ls('ai_opt_fallback')!=='0'){
+    if(provReady('openrouter'))list.push({p:'openrouter',model:'openrouter/free'});
+    list.push({p:'pollinations',model:'openai'});
+  }
+  return list.filter((x,i,a)=>privacyAllows(x.p)&&a.findIndex(y=>y.p===x.p&&y.model===x.model)===i);
+}
+async function optimizerComplete(prompt){
+  const candidates=optimizerCandidates(), errors=[];
+  if(!candidates.length)throw new Error('No allowed optimizer provider. Choose a provider in optimizer settings that Private mode allows.');
+  for(const {p,model} of candidates){
+    const ctrl=new AbortController(), bubble=document.createElement('div');
+    let timer;
+    try{
+      if(!model||model==='custom')throw new Error('Choose a model in optimizer settings');
+      const key=ls('ai_key_'+p)||'';
+      if(!key&&!['puter','pollinations','custom'].includes(p))throw new Error('Add this provider’s API key in the sidebar');
+      const msgs=[{role:'user',content:prompt}], sys='Return only the rewritten prompt.';
+      lastUsage=null;
+      const request=p==='puter'?callPuter(model,sys,msgs,bubble,ctrl):
+        p==='anthropic'?callAnthropic(key,model,sys,msgs,bubble,ctrl):
+        p==='gemini'?callGemini(key,model,sys,msgs,bubble,ctrl):
+        p==='openai'&&usesResponses(model)?callResponses(key,model,sys,msgs,bubble,ctrl):
+        callOpenAICompat(p,key,model,sys,msgs,bubble,ctrl);
+      const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>{ctrl.abort();reject(new Error('Request timed out'));},45000);});
+      const out=await Promise.race([request,timeout]);
+      if(typeof out!=='string'||!out.trim())throw new Error('Empty response');
+      recordUsage(p,model,prompt.length,out);
+      toast('✨ Improved with '+PROVIDERS[p].name+' · '+model);
+      return out;
+    }catch(e){errors.push(PROVIDERS[p].name+': '+(e.message||e.error?.message||'Request failed'));}
+    finally{clearTimeout(timer);}
+  }
+  throw new Error(errors.join(' → ')+' — choose another provider in ✨ Prompt optimizer settings.');
 }
 function codePlus(e){
   e.stopPropagation();
-  const menu=document.createElement('div');
-  menu.className='plus-menu';
-  menu.style.bottom='calc(100% - 28px)';
-  menu.style.left='0';
-  menu.innerHTML=`
-    <button onclick="document.getElementById('fileInput2')?.click()||document.getElementById('fileInput').click();this.closest('.plus-menu').remove()">📎 <span>Upload file</span></button>
-    <button onclick="codeOptimizePrompt(event);this.closest('.plus-menu').remove()">✨ <span>Improve task</span></button>
-  `;
+  document.getElementById('codePlusMenu')?.remove();
+  const menu=document.createElement('div');menu.id='codePlusMenu';menu.className='plus-menu show';
+  menu.innerHTML=document.getElementById('plusMenu').innerHTML.replace('id="infToggle"','id="codeInfToggle"')+
+    '<button onclick="openOptimizerSettings()">✨ <span>Prompt optimizer settings</span></button>';
+  menu.querySelector('#codeInfToggle').checked=infinityOn();
+  menu.querySelector('button[onclick*="switchTab"]').setAttribute('onclick',"switchTab('chat')");
+  menu.querySelector('button[onclick*="switchTab"]').innerHTML='💬 <span>Chat</span>';
+  menu.addEventListener('click',ev=>{if(ev.target.closest('button'))menu.remove();});
   e.target.closest('.input-actions').appendChild(menu);
-  setTimeout(()=>{document.addEventListener('click',()=>{menu.remove();},{once:true});},0);
+  setTimeout(()=>document.addEventListener('click',ev=>{if(!menu.contains(ev.target))menu.remove();},{once:true}),0);
 }
 async function optimizePrompt(kind){
   document.getElementById('optMenu').classList.remove('show');
-  if(ls('ai_private')==='1'){showErr('🔒 Private mode is on — the free prompt optimizer uses Puter/Pollinations, so it is turned off.');return;}
-  const inp=document.getElementById('userInput'), text=inp.value.trim();
+  if(optBusy)return;
+  const target=optTarget, inp=promptInput(target), text=inp.value.trim();
   if(!text){toast('Type your message first, then tap ✨');return;}
-  const btn=document.getElementById('optBtn');btn.classList.add('busy');
+  const btn=document.getElementById(target==='code'?'codeOptBtn':'optBtn');btn.classList.add('busy');optBusy=true;
   try{
-    const out=await freeComplete(`You improve prompts that a person will send to an AI assistant. ${OPT_GOALS[kind]}
-Write it in the same language as the original, from the user's point of view ("I want…"). Return ONLY the improved prompt — no intro, no quotes, no explanation.
-
-ORIGINAL PROMPT:
-${text}`);
-    if(!out.trim())throw new Error('Empty result');
-    optPrev=inp.value;inp.value=out.trim().replace(/^["“]|["”]$/g,'');autoResize(inp);updateCtx();
-    toast('✨ Prompt improved — tap ✨ → Undo to go back');
-  }catch(e){showErr('Prompt optimizer: '+e.message);}
-  finally{btn.classList.remove('busy');}
+    const out=await optimizerComplete('You improve prompts that a person will send to an AI assistant. '+OPT_GOALS[kind]+
+      '\nWrite in the same language as the original, from the user’s point of view. Return ONLY the improved prompt — no intro, quotes or explanation.\n\nORIGINAL PROMPT:\n'+text);
+    if(inp.value.trim()!==text){toast('Your draft changed while improving it; try again.');return;}
+    optPrevious[target]=inp.value;inp.value=out.trim().replace(/^["“]|["”]$/g,'');autoResize(inp);updateCtx();
+  }catch(e){toast('Prompt optimizer: '+e.message);if(target==='chat')showErr('Prompt optimizer: '+e.message);else codeLog('step','⚠️ '+esc('Prompt optimizer: '+e.message));}
+  finally{btn.classList.remove('busy');optBusy=false;}
 }
-function undoOptimize(){document.getElementById('optMenu').classList.remove('show');if(optPrev===null)return;const inp=document.getElementById('userInput');inp.value=optPrev;optPrev=null;autoResize(inp);}
+function undoOptimize(){
+  document.getElementById('optMenu').classList.remove('show');const inp=promptInput(optTarget);
+  if(optPrevious[optTarget]===null)return;inp.value=optPrevious[optTarget];optPrevious[optTarget]=null;autoResize(inp);updateCtx();
+}
 
 /* ===================== INTERVIEW MODE (rounds of 4 questions) ===================== */
 const INTERVIEW_SYS=`QUESTION MODE is on. Help the user reach a clear, specific answer to what they're exploring by interviewing them, like a great coach.
@@ -1140,7 +1184,9 @@ const INTERVIEW_SYS=`QUESTION MODE is on. Help the user reach a clear, specific 
 - Up to 30 questions in total (about 8 rounds). Stop early if you're already confident.
 - At the end (or if the user asks), give your conclusion: the best-fit answer, 2 runner-ups with why, and 3 concrete next steps.
 - Keep wording simple and friendly. Reply in the user's language.`;
+let codeInterview=false;
 function toggleInterview(){
+  if(activeTab==='code'){if(codeState.busy){toast('Wait for the current task to finish first');return;}codeInterview=!codeInterview;document.getElementById('codeAskBtn').classList.toggle('lit',codeInterview);toast(codeInterview?'Question mode on — describe your coding goal':'Question mode off');return;}
   const conv=convs[curId];if(!conv)return;
   conv.interview=!conv.interview;saveConvs();syncInterviewBtn();
   toast(conv.interview?'❓ Question mode on — tell me what you are thinking about':'Question mode off');
@@ -1257,14 +1303,14 @@ async function restoreBackup(file){
 let rec=null;
 function toggleMic(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){toast('Voice typing isn’t available here — use the 🎤 on the iPhone keyboard');document.getElementById('userInput').focus();return;}
+  if(!SR){toast('Voice typing isn’t available here — use the 🎤 on the iPhone keyboard');promptInput().focus();return;}
   if(rec){rec.stop();return;}
-  const inp=document.getElementById('userInput'), base=inp.value?inp.value.replace(/\s*$/,' '):'';
+  const inp=promptInput(), mic=document.getElementById(activeTab==='code'?'codeMicBtn':'micBtn'), base=inp.value?inp.value.replace(/\s*$/,' '):'';
   rec=new SR();rec.lang=navigator.language||'en-US';rec.interimResults=true;rec.continuous=true;
   rec.onresult=e=>{let t='';for(const r of e.results)t+=r[0].transcript;inp.value=base+t;autoResize(inp);updateCtx();};
   rec.onerror=e=>{if(e.error!=='aborted')toast('Mic: '+e.error);};
-  rec.onend=()=>{rec=null;document.getElementById('micBtn').classList.remove('rec');};
-  rec.start();document.getElementById('micBtn').classList.add('rec');toast('🎙️ Listening… tap the mic again to stop');
+  rec.onend=()=>{rec=null;mic.classList.remove('rec');};
+  rec.start();mic.classList.add('rec');toast('🎙️ Listening… tap the mic again to stop');
 }
 let speakingBtn=null;
 function speakMsg(i,btn){
@@ -1291,10 +1337,10 @@ function openSaved(){
     ${list.map((x,i)=>`<div class="list-row"><span class="grow" style="cursor:pointer" onclick="useSaved(${i})"><b>${esc(x.t)}</b><small>${esc(x.p.slice(0,90))}${x.p.length>90?'…':''}</small></span><button class="gh-btn" onclick="delSaved(${i})">✕</button></div>`).join('')||'<div style="font-size:13px;color:var(--fg3)">Nothing saved yet.</div>'}
     <div class="modal-btns"><button class="gh-btn" onclick="saveCurrentPrompt()">＋ Save what I typed</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
 }
-function useSaved(i){const inp=document.getElementById('userInput');inp.value=savedPrompts()[i].p;autoResize(inp);closeSheet();inp.focus();updateCtx();}
+function useSaved(i){const inp=promptInput();inp.value=savedPrompts()[i].p;autoResize(inp);closeSheet();inp.focus();updateCtx();}
 function delSaved(i){const l=savedPrompts();l.splice(i,1);ls('saved_prompts',l);openSaved();}
 function saveCurrentPrompt(){
-  const p=document.getElementById('userInput').value.trim();if(!p){toast('Type a prompt first');return;}
+  const p=promptInput().value.trim();if(!p){toast('Type a prompt first');return;}
   const t=(prompt('Name for this prompt:',p.slice(0,30))||'').trim();if(!t)return;
   const l=savedPrompts();l.unshift({t,p});ls('saved_prompts',l);toast('📌 Saved');
 }
@@ -1317,8 +1363,8 @@ function checkBudget(){
 
 /* ===================== PLUS MENU / SHEETS ===================== */
 function togglePlus(e){e.stopPropagation();const m=document.getElementById('plusMenu');m.classList.toggle('show');document.getElementById('infToggle').checked=infinityOn();}
-function closePlus(){document.getElementById('plusMenu').classList.remove('show');}
-document.addEventListener('click',e=>{if(!e.target.closest('#plusMenu'))closePlus();if(!e.target.closest('#optMenu,#optBtn'))document.getElementById('optMenu').classList.remove('show');});
+function closePlus(){document.getElementById('plusMenu').classList.remove('show');document.getElementById('codePlusMenu')?.remove();}
+document.addEventListener('click',e=>{if(!e.target.closest('#plusMenu'))closePlus();if(!e.target.closest('#optMenu,#optBtn,#codeOptBtn'))document.getElementById('optMenu').classList.remove('show');});
 function openSheet(html){document.getElementById('sheetBody').innerHTML=html;document.getElementById('sheet').style.display='flex';}
 function closeSheet(){document.getElementById('sheet').style.display='none';sheetCancel=true;}
 let sheetCancel=false;
@@ -1540,6 +1586,7 @@ async function openDrive(q){
   }catch(e){document.getElementById('driveList').textContent=e.message;}
 }
 async function driveAttach(i){
+  const target=activeTab;
   const f=_driveFiles[i];closeSheet();toast('Downloading '+f.name+'…');
   try{
     const tok=await gToken();
@@ -1548,7 +1595,7 @@ async function driveAttach(i){
     const url=ex?`https://www.googleapis.com/drive/v3/files/${f.id}/export?mimeType=${encodeURIComponent(ex[0])}`:`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`;
     const r=await fetch(url,{headers:{Authorization:'Bearer '+tok}});if(!r.ok)throw new Error('HTTP '+r.status);
     const blob=await r.blob();
-    await readAndAttach(new File([blob],f.name+(ex&&!f.name.endsWith(ex[1])?ex[1]:''),{type:ex?ex[0]:f.mimeType}));
+    await readAndAttach(new File([blob],f.name+(ex&&!f.name.endsWith(ex[1])?ex[1]:''),{type:ex?ex[0]:f.mimeType}),target);
   }catch(e){showErr('Drive: '+e.message);}
 }
 
@@ -1564,6 +1611,8 @@ async function codeOpen(){
 }
 function codeAsk(a){document.getElementById('codeTask').value=a.textContent;codeRun();}
 async function codeRepoChange(){
+  if(codeState.busy)return;
+  await saveCodeSession();
   codeState.repo=document.getElementById('codeRepo').value;ls('code_repo',codeState.repo);
   try{
     const br=await ghFetch(`/repos/${codeState.repo}/branches?per_page=50`);
@@ -1571,8 +1620,9 @@ async function codeRepoChange(){
     document.getElementById('codeBranch').innerHTML=br.map(b=>`<option ${b.name===def?'selected':''}>${esc(b.name)}</option>`).join('');
     codeState.branch=document.getElementById('codeBranch').value;
   }catch(e){codeLog('step',e.message);}
-  codeReset();
+  codeReset();await restoreCodeSession();
 }
+async function codeBranchChange(branch){if(codeState.busy)return;await saveCodeSession();codeState.branch=branch;codeReset();await restoreCodeSession();}
 function codeReset(){Object.assign(codeState,{paths:null,staged:{},orig:{},msgs:[],respId:null,pending:[]});document.getElementById('codeLog').innerHTML='';renderCodeChanges();}
 function codeLog(cls,html){const el=document.createElement('div');el.className='code-step '+cls;el.innerHTML=html;const log=document.getElementById('codeLog');log.appendChild(el);log.scrollTop=log.scrollHeight;return el;}
 const CODE_TOOLS=[
@@ -1614,9 +1664,9 @@ async function codeTool(name,a){
       codeState.staged[a.path]=t.replace(a.old_text,()=>a.new_text);renderCodeChanges();
       return 'OK, edited '+a.path;
     }
-    const from=Math.max(1,a.start_line||1), to=Math.min(lines.length,a.end_line||(t.length>60000?from+799:lines.length));
+    const from=Math.max(1,a.start_line||1), to=Math.min(lines.length,a.end_line||from+119,from+199);
     const part=lines.slice(from-1,to).join('\n');
-    return (from>1||to<lines.length?`[lines ${from}-${to} of ${lines.length}]\n`:'')+(part.length>80000?part.slice(0,80000)+'\n…[truncated — use a smaller line range]':part);
+    return (from>1||to<lines.length?`[lines ${from}-${to} of ${lines.length}]\n`:'')+(part.length>12000?part.slice(0,12000)+'\n…[truncated — use a smaller line range]':part);
   }
   if(name==='write_file'){
     if(!(a.path in codeState.orig)){codeState.orig[a.path]=(await ghRaw(a.path))??'';}
@@ -1626,14 +1676,16 @@ async function codeTool(name,a){
   return 'ERROR: unknown tool';
 }
 async function codeRun(){
-  if(codeState.busy){codeState.stop=true;return;}
+  if(codeState.busy){codeState.stop=true;codeState.controller?.abort();codeStatus('Stopping…','working');return;}
   const task=document.getElementById('codeTask').value.trim();if(!task)return;
+  if(ghToken&&(!codeState.repo||!codeState.branch)){codeLog('step','Choose a repository and branch first.');return;}
   if(!ghToken){codeLog('step','Connect GitHub first: + → Connectors.');openConnectors();return;}
   const prov=curProvider, key=document.getElementById('apiKey').value.trim(), model=curModel();
   if(!privacyAllows(prov)){codeLog('step','🔒 Private mode is on — pick a trusted provider (OpenAI, Anthropic, OpenRouter, Vercel or your own server).');return;}
   if(!OPENAI_COMPAT(prov)&&prov!=='puter'){codeLog('step','⚠️ The Code tab works with Puter, OpenAI (incl. Codex), VNAIPro, OpenRouter, Vercel and other OpenAI-style providers — tap the model at the top to switch.');return;}
-  const useResp=prov==='openai', usePuter=prov==='puter';
-  document.getElementById('codeTask').value='';
+  if(!key&&!['puter','pollinations','custom'].includes(prov)){codeLog('step','Add your provider API key in Settings first.');return;}
+  const useResp=prov==='openai';
+  document.getElementById('codeTask').value='';ls('code_draft','');
   codeLog('user',esc(task));
   if(!codeState.msgs.length)codeState.msgs.push({role:'system',content:`You are a friendly assistant who builds and fixes the user's app for them. The app's code is in the GitHub repo ${codeState.repo} (branch ${codeState.branch}).
 The user is NOT a programmer. Talk like a helpful person: short, simple, everyday words — no jargon, no code, no file names unless they ask.
@@ -1643,90 +1695,71 @@ The user is NOT a programmer. Talk like a helpful person: short, simple, everyda
 - Big requests (like a redesign): work in steps — a few focused edits at a time — and tell the user what's done and what's next.
 - When done, call finish with a summary in plain words of what will be different for them (e.g. "The send button is now bigger and easier to tap."), then remind them to tap Commit to save it.
 Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
-  codeState.msgs.push({role:'user',content:task});
-  codeState.pending=[{role:'user',content:task}];
-  codeState.busy=true;codeState.stop=false;document.getElementById('codeRunBtn').textContent='Stop';
+  codeState.msgs[0].content=codeState.msgs[0].content.replace(/\nQUESTION MODE is on[\s\S]*$/,'')+(codeInterview?'\n'+INTERVIEW_SYS+'\nWhile question mode is on, ask questions and discuss requirements only. Do not edit files.':'');
+  const context=task+codeAttachments.filter(a=>!a.isImage).map(a=>'\n\n--- File: '+a.name+' ---\n'+a.content).join('');
+  const images=codeAttachments.filter(a=>a.isImage);
+  const content=images.length?[{type:'text',text:context},...images.map(a=>({type:'image_url',image_url:{url:a.dataUrl}}))]:context;
+  codeState.msgs.push({role:'user',content});
+  codeState.pending=[{role:'user',content:images.length?[{type:'input_text',text:context},...images.map(a=>({type:'input_image',image_url:a.dataUrl}))]:context}];
+  codeAttachments=[];renderAttachBar('code');
+  codeState.busy=true;codeState.stop=false;codeState.controller=new AbortController();
+  document.getElementById('codeRunBtn').textContent='Stop';
+  document.getElementById('codeRepo').disabled=true;document.getElementById('codeBranch').disabled=true;
+  await saveCodeSession();
+  codeStatus('Connecting to '+PROVIDERS[prov].name+'…','working');
   try{
-    for(let step=0;step<30&&!codeState.stop;step++){
-      const thinking=codeLog('step','…');
-      let msg;
-      if(usePuter){
-        await ensurePuter();
-        const resp=await puter.ai.chat(codeState.msgs,{model,tools:CODE_TOOLS});
-        thinking.remove();
-        const m=resp?.message||resp||{};
-        let content=m.content, calls=[...(m.tool_calls||[])];
-        if(Array.isArray(content)){
-          content.filter(b=>b.type==='tool_use').forEach(b=>calls.push({id:b.id,function:{name:b.name,arguments:b.input}}));
-          content=content.filter(b=>b.type==='text').map(b=>b.text).join('');
-        }
-        calls=calls.map(c=>({id:c.id,type:'function',function:{name:c.function.name,arguments:typeof c.function.arguments==='string'?c.function.arguments:JSON.stringify(c.function.arguments||{})}}));
-        msg={content:content||'',tool_calls:calls};
-        recordUsage(prov,model,JSON.stringify(codeState.msgs).length,msg.content);updateTokenCounter();
-      }else{
-      const r=useResp
-        ?await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'},
-          body:JSON.stringify({model,instructions:codeState.msgs[0].content,input:codeState.pending,tools:CODE_TOOLS.map(t=>({type:'function',...t.function})),max_output_tokens:16000,...(codeState.respId?{previous_response_id:codeState.respId}:{})})})
-        :await fetch(chatURL(prov),{method:'POST',headers:{...(key?{'Authorization':`Bearer ${key}`}:{}),'Content-Type':'application/json'},
-          body:JSON.stringify({model,messages:codeState.msgs,tools:CODE_TOOLS,max_tokens:32000,stream:true,stream_options:{include_usage:true}})});
-      const j=(!useResp&&r.ok)?await readToolStream(r,thinking):await r.json().catch(()=>({}));thinking.remove();
-      if(!r.ok)throw new Error(prov==='vnaipro'?explainVnai(j.error?.message||String(r.status),model):(j.error?.message||'HTTP '+r.status));
-      if(j.usage)lastUsage={in:j.usage.prompt_tokens??j.usage.input_tokens??0,out:j.usage.completion_tokens??j.usage.output_tokens??0};recordUsage(prov,model,0,'');updateTokenCounter();
-      if(useResp){
-        codeState.respId=j.id;codeState.pending=[];(codeState.respIds=codeState.respIds||[]).push(j.id);
-        const out=j.output||[];
-        msg={content:out.filter(o=>o.type==='message').flatMap(o=>o.content||[]).map(c=>c.text||'').join(''),
-             tool_calls:out.filter(o=>o.type==='function_call').map(o=>({id:o.call_id,function:{name:o.name,arguments:o.arguments}}))};
-      }else msg=j.choices?.[0]?.message;
+    for(let step=0;step<24&&!codeState.stop;step++){
+      codeStatus('Thinking · step '+(step+1),'working');
+      lastUsage=null;
+      const msg=await codeModelStep(prov,key,model,codeState.msgs,codeState.controller.signal);
+      if(codeState.stop)break;
+      // Reject an incomplete tool call before any edit is applied.
+      for(const c of msg?.tool_calls||[]){
+        if(!c.id||!c.function?.name)throw new Error('The provider returned an incomplete tool call.');
+        try{JSON.parse(c.function.arguments||'{}');}catch{throw new Error('The provider returned an unfinished edit. Try a smaller change.');}
       }
+      recordUsage(prov,model,JSON.stringify(codeMessagesForRequest(codeState.msgs)).length,msg?.content||'');updateTokenCounter();
       if(!msg)throw new Error('Empty response');
       codeState.msgs.push({role:'assistant',content:msg.content||'',...(msg.tool_calls?.length?{tool_calls:msg.tool_calls}:{})});
       if(msg.content)codeLog('step',md(msg.content));
-      if(!msg.tool_calls?.length)break;
+      if(!msg.tool_calls?.length){await saveCodeSession();break;}
       let done=false;
       for(const c of msg.tool_calls){
         let args={};try{args=JSON.parse(c.function.arguments||'{}');}catch{}
         const nm=c.function.name;
         if(nm==='finish')codeLog('step','✅ '+md(args.summary||'Done')+(Object.keys(codeState.staged).length?'<br><small>Tap <b>Commit</b> below to save it, or ✕ to undo.</small>':''));
         else codeLog('tool',nm==='write_file'||nm==='edit_file'?`✏️ Changing ${esc(args.path||'')}`:nm==='read_file'?`👀 Reading ${esc(args.path||'')}`:nm==='search_in_file'?`🔎 Searching ${esc(args.path||'')}`:'🗂️ Looking at the project');
-        let out;try{out=await codeTool(nm,args);}catch(e){out='ERROR: '+e.message;}
+        codeStatus(nm==='read_file'?'Reading '+(args.path||'file'):nm==='search_in_file'?'Searching '+(args.path||'file'):'Working on your task','working');
+        let out;try{out=codeState.stop?'Stopped before this tool ran.':codeInterview?'Question mode is on. Discuss requirements without using tools.':await codeTool(nm,args);}catch(e){out='ERROR: '+e.message;}
         codeState.msgs.push({role:'tool',tool_call_id:c.id,content:out});
         if(useResp)codeState.pending.push({type:'function_call_output',call_id:c.id,output:out});
         if(nm==='finish')done=true;
       }
+      await saveCodeSession();
       if(done)break;
+      if(step===23)codeLog('step','Paused after 24 steps. Review your pending changes, then tap Resume if more work is needed. <button class="gh-btn" onclick="codeResume()">Resume</button>');
     }
-  }catch(e){document.querySelectorAll('#codeLog .code-step').forEach(el=>{if(el.textContent==='…')el.remove();});let m=e?.message||e?.error?.message||JSON.stringify(e);
-    if(/load failed|failed to fetch|networkerror|network connection/i.test(m))m='The connection dropped (weak signal, or the AI took too long). Your changes so far are kept — just send “continue”.';
-    codeLog('step','⚠️ '+esc(m));}
-  finally{
-    // Code runs need OpenAI to remember the previous step; delete those stored responses once done
-    if(useResp&&codeState.respIds?.length){const ids=codeState.respIds;codeState.respIds=[];codeState.respId=null;
-      ids.forEach(id=>fetch('https://api.openai.com/v1/responses/'+id,{method:'DELETE',headers:{Authorization:`Bearer ${key}`}}).catch(()=>{}));}
-    codeState.busy=false;document.getElementById('codeRunBtn').textContent='Send';renderCodeChanges();}
-}
-// Rebuild a chat-completions message from a streamed reply, showing progress as it arrives
-async function readToolStream(res,el){
-  const reader=res.body.getReader(), dec=new TextDecoder();let buf='',content='',usage=null;const calls=[];
-  while(true){
-    const {done,value}=await reader.read();if(done)break;
-    buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();
-    for(const line of lines){
-      if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(d==='[DONE]')continue;
-      let ev;try{ev=JSON.parse(d);}catch{continue;}
-      if(ev.usage)usage=ev.usage;
-      const delta=ev.choices?.[0]?.delta;if(!delta)continue;
-      if(delta.content)content+=delta.content;
-      for(const tc of delta.tool_calls||[]){
-        const c=calls[tc.index??calls.length]||(calls[tc.index??calls.length]={id:'',type:'function',function:{name:'',arguments:''}});
-        if(tc.id)c.id=tc.id;if(tc.function?.name)c.function.name+=tc.function.name;if(tc.function?.arguments)c.function.arguments+=tc.function.arguments;
-      }
-      const n=calls.reduce((k,c)=>k+c.function.arguments.length,0)+content.length;
-      el.textContent=calls.length?`✍️ Working… (${Math.round(n/1000)}k characters)`:'💭 Thinking…';
-    }
+    codeStatus(codeState.stop?'Stopped · changes kept':'Ready · changes kept on this device',codeState.stop?'warning':'idle');
+  }catch(e){
+    codeStatus(e.name==='AbortError'?'Stopped · changes kept':'Paused · changes kept','warning');
+    codeLog('step','<div class="recovery-card"><b>'+esc(e.name==='AbortError'?'Task stopped':'Let’s get you moving again')+'</b><p>'+esc(codeErrorMessage(e))+'</p><div><button class="gh-btn primary" onclick="codeResume()">Resume</button> <button class="gh-btn" onclick="openModelPicker()">Change model</button></div></div>');
+  }finally{
+    codeState.busy=false;codeState.controller=null;
+    document.getElementById('codeRunBtn').textContent='Send';
+    document.getElementById('codeRepo').disabled=false;document.getElementById('codeBranch').disabled=false;
+    await saveCodeSession();renderCodeChanges();
   }
-  return {choices:[{message:{role:'assistant',content,tool_calls:calls.filter(Boolean).map((c,i)=>({...c,id:c.id||'call_'+i}))}}],usage};
 }
+function codeResume(){
+  if(codeState.busy)return;
+  const input=document.getElementById('codeTask');
+  if(!input.value.trim())input.value='Continue from the last completed step. Inspect pending edits and do not repeat changes already made.';
+  codeRun();
+}
+function openCodeHelp(){
+  openSheet('<h3>Keep your project moving</h3><p>Code retries a temporary connection failure once. Requests use smaller file reads and limited history to keep the provider responsive.</p><p>If a provider hits its allowance, choose another model. Your completed edits are saved on this device until you commit or discard them.</p><p>On iPhone, supported providers use the native network connection. On the web, a provider must allow browser access.</p><div class="modal-btns"><button class="gh-btn" onclick="openModelPicker()">Choose model</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>');
+}
+
 // Line diff (LCS); falls back to a plain listing for very large files
 function lineDiff(a,b){
   let A=a.split('\n'),B=b.split('\n');
@@ -1749,10 +1782,11 @@ function renderCodeChanges(){
   const el=document.getElementById('codeChanges'), files=Object.keys(codeState.staged);
   el.style.display=files.length?'':'none';if(!files.length){el.innerHTML='';return;}
   el.innerHTML=`<div style="font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:4px">📝 ${files.length} file${files.length>1?'s':''} changed — not saved yet</div>`+
-    files.map((f,i)=>`<div class="code-file"><span class="grow">${esc(f)}</span><button class="gh-btn" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display?'':'none'">Details</button><button class="gh-btn" onclick="delete codeState.staged['${esc(f).replace(/'/g,"\\'")}'];renderCodeChanges()">✕</button></div><div class="diff" style="display:none">${lineDiff(codeState.orig[f]||'',codeState.staged[f])}</div>`).join('')+
-    `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="AI: ${esc((codeState.msgs.filter(m=>m.role==='user').pop()?.content||'update').slice(0,60))}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
+    files.map((f,i)=>`<div class="code-file"><span class="grow">${esc(f)}</span><button class="gh-btn" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display?'':'none'">Details</button><button class="gh-btn" onclick="delete codeState.staged['${esc(f).replace(/'/g,"\\'")}'];renderCodeChanges();saveCodeSession()">✕</button></div><div class="diff" style="display:none">${lineDiff(codeState.orig[f]||'',codeState.staged[f])}</div>`).join('')+
+    `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="AI: ${esc(String(codeState.msgs.filter(m=>m.role==='user').pop()?.content||'update').slice(0,60))}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
 }
 async function codeCommit(){
+  if(codeState.busy){toast('Stop the task before committing changes.');return;}
   const files=Object.keys(codeState.staged);if(!files.length)return;
   const msg=document.getElementById('codeMsg').value.trim()||'Update via AI Studio';
   if(!confirm(`Commit ${files.length} file(s) to ${codeState.repo} @ ${codeState.branch}?`))return;
@@ -1765,7 +1799,7 @@ async function codeCommit(){
     const t=await ghFetch(`${R}/trees`,{method:'POST',body:JSON.stringify({base_tree:base.tree.sha,tree})});
     const c=await ghFetch(`${R}/commits`,{method:'POST',body:JSON.stringify({message:msg,tree:t.sha,parents:[ref.object.sha]})});
     await ghFetch(`${R}/refs/heads/${encodeURIComponent(codeState.branch)}`,{method:'PATCH',body:JSON.stringify({sha:c.sha})});
-    files.forEach(f=>codeState.orig[f]=codeState.staged[f]);codeState.staged={};codeState.paths=null;renderCodeChanges();
+    files.forEach(f=>codeState.orig[f]=codeState.staged[f]);codeState.staged={};codeState.paths=null;renderCodeChanges();await saveCodeSession();
     codeLog('step',`🚀 Committed <a href="${esc(c.html_url)}" target="_blank">${esc(c.sha.slice(0,7))}</a> to ${esc(codeState.branch)}`);
   }catch(e){codeLog('step','⚠️ Commit failed: '+esc(e.message));}
 }
@@ -1773,6 +1807,7 @@ async function codeCommit(){
 /* ===================== STATE ===================== */
 let convs={}, curId=null, streaming=false, abort=null, inTok=0, outTok=0, isDark=false;
 let curProvider='vnaipro';
+let codeAttachments=[];
 let attachments=[]; // [{name, type, content, dataUrl, isImage}]
 let ghToken='', ghUser='', ghRepos=[], ghCurRepo='', ghCurBranch='main', ghBranches=[];
 let ghOpenFile=null;
@@ -1780,7 +1815,8 @@ let activeTab='chat';
 
 /* ===================== INIT ===================== */
 function init(){
-  loadPrefs();
+  loadPrefs();initStudio();
+  document.getElementById('codeTask').value=ls('code_draft')||'';
   convs=lsj('cl_convs')||{};
   renderConvList();
   const last=ls('cl_last');
@@ -2011,15 +2047,17 @@ function updateModelLabel(){
   document.getElementById('badgeModel').textContent=curModel();
 }
 
-function setTheme(){isDark=!isDark;ls('cl_dark',isDark?'1':'0');applyTheme(isDark);}
+function setTheme(){isDark=!isDark;ls('studio_theme',isDark?'dark':'light');ls('cl_dark',isDark?'1':'0');applyTheme(isDark);}
 function applyTheme(dark){
   if(dark){document.documentElement.setAttribute('data-theme','dark');document.getElementById('themeLabel').textContent='Dark mode';document.getElementById('themeIcon').innerHTML=`<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;}
-  else{document.documentElement.removeAttribute('data-theme');document.getElementById('themeLabel').textContent='Light mode';document.getElementById('themeIcon').innerHTML=`<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`;}
+  else{document.documentElement.setAttribute('data-theme','light');document.getElementById('themeLabel').textContent='Light mode';document.getElementById('themeIcon').innerHTML=`<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`;}
 }
 
 /* ===================== TABS ===================== */
 function switchTab(tab){
+  if(rec)rec.stop();closePlus();document.getElementById('optMenu').classList.remove('show');
   activeTab=tab;
+  document.querySelectorAll('.studio-tab').forEach(b=>{const on=b.dataset.tab===tab;b.classList.toggle('active',on);b.setAttribute('aria-current',on?'page':'false');});
   document.getElementById('panelChat').classList.toggle('active',tab==='chat');
   document.getElementById('panelGithub').classList.toggle('active',tab==='github');
   document.getElementById('panelCode').classList.toggle('active',tab==='code');
@@ -2066,17 +2104,7 @@ function renderMessages(){
   updateCtx();
   if(!conv||!conv.msgs.length){
     const p=PROVIDERS[curProvider];
-    el.innerHTML=`<div class="welcome">
-      <div class="welcome-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-      <h1>What can I help with?</h1>
-      <p>Connected to <strong>${p.name}</strong>. Paste your API key in the sidebar to start.</p>
-      <div class="quick-prompts">
-        <button class="quick-prompt" onclick="qs(this)">Explain async/await in JavaScript</button>
-        <button class="quick-prompt" onclick="qs(this)">Write a Python web scraper</button>
-        <button class="quick-prompt" onclick="qs(this)">Debug my code</button>
-        <button class="quick-prompt" onclick="qs(this)">Help me write a README</button>
-      </div>
-    </div>`;
+    el.innerHTML='<div class="welcome"><div class="studio-orbit" aria-hidden="true"><div class="orbit-ring"></div><div class="orbit-core">✦</div><i></i><i></i></div><span class="eyebrow">A LITTLE INTELLIGENCE. ENDLESS POSSIBILITY.</span><h1>Your next big idea<br>starts here.</h1><p>A quiet space to think, create, and build.<br>Choose your model and make it yours.</p><button class="studio-model-link" onclick="openModelPicker()">'+esc(p.name)+' <span>↗</span></button><div class="quick-prompts"><button class="quick-prompt" onclick="studioPrompt(\'Help me turn an idea into a clear plan. Ask me about it first.\')"><span>✦</span><strong>Explore an idea</strong><small>Find a fresh perspective</small></button><button class="quick-prompt" onclick="switchTab(\'code\')"><span>⌘</span><strong>Build something</strong><small>Your code, a little closer</small></button><button class="quick-prompt" onclick="studioPrompt(\'Help me write something. Ask me what I need and who it is for.\')"><span>↗</span><strong>Find the words</strong><small>Make your message matter</small></button></div></div>';
     return;
   }
   el.innerHTML=conv.msgs.map((m,i)=>msgHtml(m,i,conv.provider)).join('');
@@ -2088,7 +2116,7 @@ function msgHtml(m,i,prov){
   const provName=PROVIDERS[prov||curProvider]?.name||'AI';
   return`<div class="msg-row assistant" data-i="${i}"><div class="msg-header">${providerAvatar(prov||curProvider)}<span class="msg-name">${esc(provName)}</span></div><div class="msg-bubble">${md(m.content)}</div><div class="msg-actions"><button class="msg-act" onclick="copyMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button class="msg-act" onclick="speakMsg(${i},this)">🔊 Listen</button></div></div>`;
 }
-function doHighlight(){document.querySelectorAll('pre code:not([data-hl])').forEach(el=>{hljs.highlightElement(el);el.dataset.hl='1';});}
+function doHighlight(){if(typeof hljs==='undefined')return;document.querySelectorAll('pre code:not([data-hl])').forEach(el=>{hljs.highlightElement(el);el.dataset.hl='1';});}
 
 /* ===================== MARKDOWN ===================== */
 function md(text){
@@ -2130,29 +2158,30 @@ document.addEventListener('paste',e=>{for(const it of e.clipboardData?.items||[]
 function isPDF(name){return /\.pdf$/i.test(name);}
 
 async function handleFiles(files){
+  const target=activeTab;
   for(const file of files){
-    await readAndAttach(file);
+    await readAndAttach(file,target);
   }
   document.getElementById('fileInput').value='';
 }
 
-async function readAndAttach(file){
-  const proc=document.getElementById('attachProcessing');
+async function readAndAttach(file,target=activeTab){
+  const proc=document.getElementById(target==='code'?'codeAttachProcessing':'attachProcessing');
   proc.style.display='block';proc.textContent='Reading '+file.name+'…';
   try{
     if(isImage(file.name,file.type)){
       const dataUrl=await shrinkImage(file);
-      pushAttachment({name:file.name,type:'image',dataUrl,isImage:true});
+      pushAttachment({name:file.name,type:'image',dataUrl,isImage:true},target);
     } else if(isPDF(file.name)){
       const text=await extractPDF(file);
-      pushAttachment({name:file.name,type:'pdf',content:text,isImage:false});
+      pushAttachment({name:file.name,type:'pdf',content:text,isImage:false},target);
     } else {
       const text=await readAsText(file);
-      pushAttachment({name:file.name,type:'text',content:text,isImage:false});
+      pushAttachment({name:file.name,type:'text',content:text,isImage:false},target);
     }
   }catch(e){toast('Could not read '+file.name);}
   proc.style.display='none';
-  renderAttachBar();
+  renderAttachBar(target);
 }
 
 // Re-encode photos as JPEG ≤1568px: converts HEIC and keeps requests small
@@ -2177,25 +2206,25 @@ async function extractPDF(file){
   return out.trim()||'[PDF contained no extractable text — may be a scanned image]';
 }
 
-function pushAttachment(att){
-  attachments.push(att);
+function pushAttachment(att,target=activeTab){
+  (target==='code'?codeAttachments:attachments).push(att);
 }
 
-function removeAttachment(i){
-  attachments.splice(i,1);
-  renderAttachBar();
+function removeAttachment(i,target='chat'){
+  (target==='code'?codeAttachments:attachments).splice(i,1);
+  renderAttachBar(target);
 }
 
-function renderAttachBar(){
-  const bar=document.getElementById('attachBar');
+function renderAttachBar(target='chat'){
+  const bar=document.getElementById(target==='code'?'codeAttachBar':'attachBar');
   bar.innerHTML='';
-  attachments.forEach((a,i)=>{
+  (target==='code'?codeAttachments:attachments).forEach((a,i)=>{
     const chip=document.createElement('div');
     chip.className='attach-chip';
     if(a.isImage){
-      chip.innerHTML=`<img src="${a.dataUrl}" alt="${esc(a.name)}"><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i})">×</button>`;
+      chip.innerHTML=`<img src="${a.dataUrl}" alt="${esc(a.name)}"><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i},\'${target}\')">×</button>`;
     } else {
-      chip.innerHTML=`<span>${fileIcon(a.name)}</span><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i})">×</button>`;
+      chip.innerHTML=`<span>${fileIcon(a.name)}</span><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i},\'${target}\')">×</button>`;
     }
     bar.appendChild(chip);
   });
