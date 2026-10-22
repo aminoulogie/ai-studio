@@ -2,21 +2,56 @@ name: Build iOS IPA
 
 on:
   push:
-    paths: ['index.html', 'ios/**', '.github/workflows/ios.yml']
+    branches: [main]
+    paths: ['index.html', 'assets/**', 'tests/**', 'ios/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['index.html', 'assets/**', 'tests/**', 'ios/**', '.github/workflows/ios.yml']
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test optimizer and request recovery
+        run: |
+          node tests/optimizer.cjs
+          node tests/code-runtime.cjs
+      - name: Install browser checks
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps webkit chromium
+      - name: Verify iPhone and desktop layouts
+        run: node tests/browser.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-screenshots
+          path: test-artifacts/
   build:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
-      - name: Bundle web app (libraries inside the app — no code loaded from the internet)
+      - name: Install artwork tools
         run: |
-          mkdir -p ios/www && cp index.html ios/www/index.html
+          python3 -m venv .art-tools
+          .art-tools/bin/pip install numpy==2.2.6 Pillow==11.3.0
+
+      - name: Bundle UI and original Retina artwork
+        run: |
+          mkdir -p ios/www
+          cp index.html ios/www/index.html
+          cp -R assets ios/www/assets
+          .art-tools/bin/python ios/scripts/generate_artwork.py
           python3 ios/scripts/inline_libs.py ios/www/index.html
 
       - name: Generate Xcode project
@@ -35,6 +70,12 @@ jobs:
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/AIStudio.app Payload/
           zip -qry AIStudio.ipa Payload
+          python3 - <<'PY'
+          from pathlib import Path
+          size = Path('AIStudio.ipa').stat().st_size
+          print(f'IPA size: {size / 1024**2:.2f} MiB')
+          assert size >= 20 * 1024**2, 'IPA must contain at least 20 MiB of app and functional artwork'
+          PY
 
       - uses: actions/upload-artifact@v4
         with:
