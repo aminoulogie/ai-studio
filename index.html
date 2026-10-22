@@ -1786,6 +1786,7 @@ function renderCodeChanges(){
     `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="AI: ${esc(String(codeState.msgs.filter(m=>m.role==='user').pop()?.content||'update').slice(0,60))}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
 }
 async function codeCommit(){
+  if(codeState.busy){toast('Stop the task before committing changes.');return;}
   const files=Object.keys(codeState.staged);if(!files.length)return;
   const msg=document.getElementById('codeMsg').value.trim()||'Update via AI Studio';
   if(!confirm(`Commit ${files.length} file(s) to ${codeState.repo} @ ${codeState.branch}?`))return;

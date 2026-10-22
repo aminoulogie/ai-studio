@@ -23,7 +23,7 @@ function codeMessagesForRequest(messages,limit=64000){
   // Keep the original goal even after dropping old tool cycles.
   const goal=messages.find(m=>m.role==='user');
   const flat=selected.flat();
-  if(goal&&!flat.some(m=>m.role==='user'))flat.unshift(goal);
+  if(goal&&!flat.some(m=>m.role==='user'&&m.content===goal.content))flat.unshift({...goal,content:typeof goal.content==='string'?goal.content.slice(0,12000):goal.content.filter(c=>c.type==='text').map(c=>c.text).join('\n').slice(0,12000)});
   return [system,...flat];
 }
 function codeResponsesInput(messages){

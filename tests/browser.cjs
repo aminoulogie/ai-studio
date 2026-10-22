@@ -38,6 +38,7 @@ const server=http.createServer((req,res)=>{
     assert.ok(await page.locator('.welcome h1').innerText());
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'No page overflow');
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-chat.png'),fullPage:true});
+    if(name==='iphone')console.log('STUDIO_PREVIEW_BASE64:'+ (await page.screenshot({type:'jpeg',quality:65})).toString('base64'));
     await page.evaluate(()=>{openAppearance();});
     await page.locator('.appearance-card').nth(1).click();
     assert.equal(await page.evaluate(()=>localStorage.getItem('studio_art')),'lagoon');
