@@ -1,5 +1,7 @@
 import UIKit
 import WebKit
+import AuthenticationServices
+import CryptoKit
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -14,7 +16,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
-class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
+class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandlerWithReply, ASWebAuthenticationPresentationContextProviding {
     private var webView: WKWebView!
 
     override func loadView() {
@@ -22,6 +24,8 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
         config.websiteDataStore = .default() // keeps your key + chats between launches
         config.allowsInlineMediaPlayback = true
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        // window.webkit.messageHandlers.native — sign-in helpers only (fixed endpoints)
+        config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "native")
         webView = WKWebView(frame: .zero, configuration: config)
         webView.uiDelegate = self
         webView.navigationDelegate = self
@@ -64,6 +68,88 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
 
     func webViewDidClose(_ webView: WKWebView) {
         if webView !== self.webView { dismiss(animated: true) }
+    }
+
+    // MARK: sign-in bridge
+    private var authSession: ASWebAuthenticationSession?
+
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        view.window ?? ASPresentationAnchor()
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
+                               replyHandler: @escaping (Any?, String?) -> Void) {
+        guard message.frameInfo.isMainFrame,
+              let msg = message.body as? [String: Any], let op = msg["op"] as? String,
+              let clientId = msg["clientId"] as? String, !clientId.isEmpty else {
+            replyHandler(nil, "bad message"); return
+        }
+        switch op {
+        case "githubDeviceCode":
+            postForm("https://github.com/login/device/code", ["client_id": clientId, "scope": "repo"], replyHandler)
+        case "githubToken":
+            postForm("https://github.com/login/oauth/access_token",
+                     ["client_id": clientId, "device_code": msg["deviceCode"] as? String ?? "",
+                      "grant_type": "urn:ietf:params:oauth:grant-type:device_code"], replyHandler)
+        case "google":
+            googleSignIn(clientId: clientId, replyHandler)
+        case "googleRefresh":
+            postForm("https://oauth2.googleapis.com/token",
+                     ["client_id": clientId, "refresh_token": msg["refreshToken"] as? String ?? "",
+                      "grant_type": "refresh_token"], replyHandler)
+        default:
+            replyHandler(nil, "unknown op")
+        }
+    }
+
+    // GitHub's sign-in endpoints don't allow browser (CORS) calls, so these two go through native code
+    private func postForm(_ url: String, _ fields: [String: String], _ reply: @escaping (Any?, String?) -> Void) {
+        var req = URLRequest(url: URL(string: url)!)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var form = URLComponents()
+        form.queryItems = fields.map { URLQueryItem(name: $0.key, value: $0.value) }
+        req.httpBody = form.percentEncodedQuery?.data(using: .utf8)
+        URLSession.shared.dataTask(with: req) { data, _, err in
+            DispatchQueue.main.async {
+                if let err = err { reply(nil, err.localizedDescription); return }
+                reply(String(data: data ?? Data(), encoding: .utf8) ?? "", nil)
+            }
+        }.resume()
+    }
+
+    // Google sign-in with PKCE in the system sheet (iOS client IDs need no secret); Drive read-only
+    private func googleSignIn(clientId: String, _ reply: @escaping (Any?, String?) -> Void) {
+        let prefix = clientId.replacingOccurrences(of: ".apps.googleusercontent.com", with: "")
+        let scheme = "com.googleusercontent.apps." + prefix
+        let redirect = scheme + ":/oauth2redirect"
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let b64url = { (d: Data) in d.base64EncodedString().replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
+        let verifier = b64url(Data(bytes))
+        let challenge = b64url(Data(SHA256.hash(data: Data(verifier.utf8))))
+        var c = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
+        c.queryItems = [
+            .init(name: "client_id", value: clientId), .init(name: "redirect_uri", value: redirect),
+            .init(name: "response_type", value: "code"),
+            .init(name: "scope", value: "https://www.googleapis.com/auth/drive.readonly"),
+            .init(name: "code_challenge", value: challenge), .init(name: "code_challenge_method", value: "S256"),
+            .init(name: "access_type", value: "offline"), .init(name: "prompt", value: "consent"),
+        ]
+        authSession = ASWebAuthenticationSession(url: c.url!, callbackURLScheme: scheme) { [weak self] callback, err in
+            guard let callback = callback,
+                  let code = URLComponents(url: callback, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first(where: { $0.name == "code" })?.value else {
+                reply(nil, err?.localizedDescription ?? "Sign-in cancelled"); return
+            }
+            self?.postForm("https://oauth2.googleapis.com/token",
+                           ["client_id": clientId, "code": code, "code_verifier": verifier,
+                            "redirect_uri": redirect, "grant_type": "authorization_code"], reply)
+        }
+        authSession?.presentationContextProvider = self
+        authSession?.start()
     }
 
     // JS alert / confirm / prompt support
