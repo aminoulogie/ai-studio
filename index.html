@@ -369,6 +369,12 @@ body{overscroll-behavior:none}
         <button class="provider-btn" data-p="puter" onclick="selectProvider('puter')">
           <span class="pb-dot" style="background:#06b6d4"></span>Puter (free)
         </button>
+        <button class="provider-btn" data-p="pollinations" onclick="selectProvider('pollinations')">
+          <span class="pb-dot" style="background:#22c55e"></span>Pollinations (free)
+        </button>
+        <button class="provider-btn" data-p="custom" onclick="selectProvider('custom')">
+          <span class="pb-dot" style="background:#eab308"></span>Own server
+        </button>
       </div>
     </div>
 
@@ -382,6 +388,14 @@ body{overscroll-behavior:none}
         <input type="password" id="apiKey" placeholder="Paste your API key…" oninput="onKeyInput()" autocomplete="off" spellcheck="false">
         <span class="api-status-dot" id="statusDot"></span>
       </div>
+    </div>
+
+    <!-- Own server (Ollama / vLLM / LM Studio on a cloud GPU) -->
+    <div class="openrouter-row" id="customRow">
+      <div class="api-label" style="margin-bottom:5px;font-size:10px;font-weight:500;color:var(--sidebar-fg3);letter-spacing:.05em;text-transform:uppercase">Server URL (OpenAI-compatible)</div>
+      <input type="url" id="customBase" placeholder="https://your-gpu-server:11434/v1" oninput="ls('ai_custom_base',this.value.trim())" onchange="loadModels('custom',true)" spellcheck="false" autocapitalize="off">
+      <div class="api-label" style="margin:8px 0 5px;font-size:10px;font-weight:500;color:var(--sidebar-fg3);letter-spacing:.05em;text-transform:uppercase">Model ID</div>
+      <input type="text" id="customModel" placeholder="e.g. llama3.1:8b" oninput="ls('ai_custom_model',this.value.trim());updateModelLabel()" spellcheck="false" autocapitalize="off">
     </div>
 
     <!-- OpenRouter custom model field -->
@@ -406,7 +420,7 @@ body{overscroll-behavior:none}
     <div class="model-select-wrap">
       <select id="modelSelect" onchange="saveSettings()"></select>
     </div>
-    <button class="btn-new-chat" id="vnaiRefresh" style="margin-top:6px" onclick="loadVnaiModels(document.getElementById('apiKey').value.trim(),true)">↻ Reload my models</button>
+    <button class="btn-new-chat" id="vnaiRefresh" style="margin-top:6px" onclick="loadModels(curProvider,true)">↻ Reload my models</button>
 
     <!-- SYSTEM PROMPT -->
     <div class="s-label">System prompt</div>
@@ -664,6 +678,22 @@ const PROVIDERS = {
     ],
     defaultModel: 'meta-llama/llama-3.3-70b-instruct'
   },
+  pollinations: {
+    name: 'Pollinations',
+    color: '#22c55e',
+    placeholder: '— no API key needed —',
+    link: 'https://pollinations.ai',
+    models: lsj('ai_models_pollinations')||[{v:'openai',l:'openai'},{v:'openai-fast',l:'openai-fast'},{v:'mistral',l:'mistral'}],
+    defaultModel: 'openai'
+  },
+  custom: {
+    name: 'Own server',
+    color: '#eab308',
+    placeholder: 'API key (leave empty for Ollama)',
+    link: 'https://ollama.com/download',
+    models: lsj('ai_models_custom')||[],
+    defaultModel: ''
+  },
   puter: {
     name: 'Puter',
     color: '#06b6d4',
@@ -734,6 +764,7 @@ function selectProvider(p){
   updateDot(key);
   updateModelLabel();
   if(p==='vnaipro'&&key)loadVnaiModels(key);
+  if(p==='pollinations')loadModels(p);
 }
 
 function renderProviderUI(){
@@ -747,8 +778,12 @@ function renderProviderUI(){
   document.querySelector('#providerBadge .pb-dot').style.background=p.color;
   // API key section — hide for Puter (no key needed)
   const apiSection=document.querySelector('.api-section');
-  if(apiSection) apiSection.style.display=curProvider==='puter'?'none':'block';
-  document.getElementById('vnaiRefresh').style.display=curProvider==='vnaipro'?'':'none';
+  if(apiSection) apiSection.style.display=(curProvider==='puter'||curProvider==='pollinations')?'none':'block';
+  document.getElementById('customRow').style.display=curProvider==='custom'?'block':'none';
+  document.getElementById('customBase').value=ls('ai_custom_base')||'';
+  document.getElementById('customModel').value=ls('ai_custom_model')||'';
+  document.getElementById('modelSelect').parentElement.style.display=curProvider==='custom'?'none':'';
+  document.getElementById('vnaiRefresh').style.display=['vnaipro','custom','pollinations'].includes(curProvider)?'':'none';
   // API key label/link/placeholder
   document.getElementById('apiKeyLabel').textContent=p.name+' API Key';
   document.getElementById('apiKeyLink').href=p.link;
@@ -778,6 +813,28 @@ function onKeyInput(){
   ls('ai_key_'+curProvider,k);
   updateDot(k);
   if(curProvider==='vnaipro'){clearTimeout(vnaiTimer);vnaiTimer=setTimeout(()=>loadVnaiModels(k),600);}
+}
+
+function customBase(){return (ls('ai_custom_base')||'').replace(/\/+$/,'').replace(/\/chat\/completions$/,'');}
+async function loadModels(prov,loud){
+  if(prov==='vnaipro')return loadVnaiModels(document.getElementById('apiKey').value.trim(),loud);
+  try{
+    let ids;
+    if(prov==='pollinations'){
+      const r=await fetch('https://text.pollinations.ai/models');if(!r.ok)throw new Error('HTTP '+r.status);
+      ids=(await r.json()).map(m=>typeof m==='string'?m:m.name).filter(Boolean);
+    }else{
+      if(!customBase()){if(loud)showErr('Enter your server URL first.');return;}
+      const k=ls('ai_key_custom')||'';
+      const r=await fetch(customBase()+'/models',{headers:k?{'Authorization':`Bearer ${k}`}:{}});if(!r.ok)throw new Error('HTTP '+r.status);
+      ids=((await r.json()).data||[]).map(m=>m.id);
+      if(ids.length&&!ls('ai_custom_model')){ls('ai_custom_model',ids[0]);document.getElementById('customModel').value=ids[0];}
+    }
+    if(!ids.length)return;
+    PROVIDERS[prov].models=ids.map(v=>({v,l:v}));ls('ai_models_'+prov,PROVIDERS[prov].models);
+    if(curProvider===prov)renderProviderUI();
+    toast((prov==='custom'?'Server':'Pollinations')+' · '+ids.length+' models');
+  }catch(e){if(loud)showErr('Could not load models: '+e.message);}
 }
 
 /* Fetch the models your vnaipro key's group can use, so the picker always matches */
@@ -830,6 +887,7 @@ function updateModelLabel(){
   const sel=document.getElementById('modelSelect');
   const p=PROVIDERS[curProvider];
   let label=sel.options[sel.selectedIndex]?.text||'';
+  if(curProvider==='custom') label=ls('ai_custom_model')||'no model';
   if(curProvider==='openrouter'&&sel.value==='custom'){
     const custom=document.getElementById('orModelInput').value.trim();
     if(custom) label=custom;
@@ -1082,7 +1140,7 @@ async function send(){
   const text=inp.value.trim();
   if(!text)return;
   const apiKey=document.getElementById('apiKey').value.trim();
-  if(!apiKey&&curProvider!=='puter'){showErr('Add your API key in the sidebar to start chatting.');return;}
+  if(!apiKey&&!['puter','pollinations','custom'].includes(curProvider)){showErr('Add your API key in the sidebar to start chatting.');return;}
   hideErr();
   const conv=convs[curId];if(!conv)return;
   // Build content with any attachments
@@ -1123,6 +1181,8 @@ async function send(){
 async function callAPI(prov,apiKey,conv,trow,abortCtrl){
   const sel=document.getElementById('modelSelect');
   let model=sel.value;
+  if(prov==='custom') model=ls('ai_custom_model')||'';
+  if(prov==='custom'&&(!model||!customBase())) throw new Error('Set your server URL and model ID in the sidebar.');
   if(prov==='openrouter'&&model==='custom') model=document.getElementById('orModelInput').value.trim()||'meta-llama/llama-3.3-70b-instruct';
   const sys=document.getElementById('sysPrompt').value.trim();
   // Build messages — inline images where supported
@@ -1172,7 +1232,9 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
     mistral:'https://api.mistral.ai/v1/chat/completions',
     groq:'https://api.groq.com/openai/v1/chat/completions',
     openrouter:'https://openrouter.ai/api/v1/chat/completions',
-    vnaipro:VNAI_BASE+'/chat/completions'
+    vnaipro:VNAI_BASE+'/chat/completions',
+    pollinations:'https://text.pollinations.ai/openai',
+    custom:customBase()+'/chat/completions'
   };
   const url=ENDPOINTS[prov];
   // Convert messages with images to OpenAI content array format
@@ -1184,7 +1246,7 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
   const messages=sys?[{role:'system',content:sys},...oaiMsgs]:[...oaiMsgs];
   const extraHeaders=prov==='openrouter'?{'HTTP-Referer':'https://ai-studio.local','X-Title':'AI Studio'}:{};
   const body={model,messages,stream:true,max_tokens:8192};
-  const res=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json',...extraHeaders},body:JSON.stringify(body),signal:abortCtrl.signal});
+  const res=await fetch(url,{method:'POST',headers:{...(apiKey?{'Authorization':`Bearer ${apiKey}`}:{}),'Content-Type':'application/json',...extraHeaders},body:JSON.stringify(body),signal:abortCtrl.signal});
   if(!res.ok){const e=await res.json().catch(()=>({}));let m=e.error?.message||`${prov} error ${res.status}`;if(prov==='vnaipro'&&/access|model/i.test(m))m+=' — pick another model in the sidebar or tap "Reload my models".';throw new Error(m);}
   bubble.innerHTML='';
   const reader=res.body.getReader();const dec=new TextDecoder();let full='';

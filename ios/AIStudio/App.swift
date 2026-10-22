@@ -33,15 +33,17 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        guard let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "www") else { return }
-        webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        // Load with a real https origin (not file://) so Puter sign-in and CORS work
+        guard let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "www"),
+              let html = try? String(contentsOf: url, encoding: .utf8) else { return }
+        webView.loadHTMLString(html, baseURL: URL(string: "https://aistudio.app/"))
     }
 
     // Open external links (e.g. "Get key ↗") in Safari instead of inside the app
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        if let url = action.request.url, url.scheme == "http" || url.scheme == "https",
-           action.navigationType == .linkActivated || action.targetFrame == nil {
+        if webView === self.webView, let url = action.request.url, url.scheme == "http" || url.scheme == "https",
+           action.navigationType == .linkActivated {
             UIApplication.shared.open(url)
             decisionHandler(.cancel)
             return
@@ -49,10 +51,19 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
         decisionHandler(.allow)
     }
 
+    // Sign-in popups (Puter etc.) open in a sheet so they can talk back to the app
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = action.request.url { UIApplication.shared.open(url) }
-        return nil
+        let popup = WKWebView(frame: .zero, configuration: configuration)
+        popup.uiDelegate = self
+        let vc = UIViewController()
+        vc.view = popup
+        (presentedViewController ?? self).present(vc, animated: true)
+        return popup
+    }
+
+    func webViewDidClose(_ webView: WKWebView) {
+        if webView !== self.webView { dismiss(animated: true) }
     }
 
     // JS alert / confirm / prompt support
