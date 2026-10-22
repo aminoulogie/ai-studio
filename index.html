@@ -1140,18 +1140,15 @@ const PRIVACY={
 function privacyOf(p){return PRIVACY[p]||['warn',PROVIDERS[p]?.name||p,'Check this provider’s privacy policy before sending anything personal.'];}
 function privacyAllows(p){return ls('ai_private')!=='1'||privacyOf(p)[0]==='ok';}
 async function openPrivacy(){
-  let lockOn=false;try{if(inApp())lockOn=await native({op:'lockStatus'});}catch{}
   const dot=l=>`<span class="privacy-dot" style="background:${l==='ok'?'#16a34a':l==='warn'?'#eab308':'#dc2626'}"></span>`;
   const rows=Object.keys(PROVIDERS).map(p=>{const [l,n,t]=privacyOf(p);return `<div class="list-row"><span class="grow">${dot(l)}<b>${esc(PROVIDERS[p].name)}</b><small>${esc(t)}</small></span></div>`;}).join('');
   openSheet(`<h3>🔒 Privacy &amp; security</h3>
     <div style="font-size:12px;color:var(--fg2);line-height:1.5">Everything leaves your phone encrypted (HTTPS). The AI provider has to read your message to answer it, so the real choice is <b>which provider you trust</b>.</div>
-    ${inApp()?`<label class="fb-row" style="padding:0"><input type="checkbox" ${lockOn?'checked':''} onchange="setLock(this)"> <span><b>Face ID lock</b><br><small style="color:var(--fg3)">Ask for Face ID / passcode when opening the app; hide it in the app switcher</small></span></label>`:''}
     <label class="fb-row" style="padding:0"><input type="checkbox" ${ls('ai_private')==='1'?'checked':''} onchange="ls('ai_private',this.checked?'1':'0');openPrivacy();renderProviderUI()"> <span><b>Private mode</b><br><small style="color:var(--fg3)">Only send to 🟢 providers. Blocks VNAIPro, Puter, Pollinations, Gemini free and unknown ones (incl. Infinity switching and ✨).</small></span></label>
     <div>${rows}</div>
-    <div style="font-size:11px;color:var(--fg3)">Your keys and chats stay on this phone (iOS encrypts its storage when locked). Make an encrypted backup in 💾 Backup.</div>
+    <div style="font-size:11px;color:var(--fg3)">Your keys and chats stay inside this app on your phone — they're only ever sent to the provider you pick. Make an encrypted backup in 💾 Backup.</div>
     <div class="modal-btns"><button class="gh-btn" style="color:#dc2626" onclick="wipeAll()">Delete all data</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
 }
-async function setLock(cb){try{const on=await native({op:'setLock',on:cb.checked});toast(on?'🔒 Face ID lock on':'Face ID lock off');}catch(e){cb.checked=false;toast(String(e.message||e));}}
 function wipeAll(){
   if(!confirm('Delete ALL chats, keys and settings from this phone? This cannot be undone.'))return;
   if(!confirm('Really delete everything?'))return;

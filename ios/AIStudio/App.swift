@@ -2,7 +2,6 @@ import UIKit
 import WebKit
 import AuthenticationServices
 import CryptoKit
-import LocalAuthentication
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -38,7 +37,6 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        observeLifecycle()
         // Load with a real https origin (not file://) so Puter sign-in and CORS work
         guard let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "www"),
               let html = try? String(contentsOf: url, encoding: .utf8) else { return }
@@ -72,52 +70,6 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         if webView !== self.webView { dismiss(animated: true) }
     }
 
-    // MARK: Face ID lock — hides the app until the owner unlocks it
-    private var lockView: UIView?
-    private var unlocking = false
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        if lockView == nil { lockIfNeeded() }
-    }
-
-    private func observeLifecycle() {
-        let nc = NotificationCenter.default
-        nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in self?.lockIfNeeded(authenticate: false) }
-        nc.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in self?.lockIfNeeded() }
-    }
-
-    private func lockIfNeeded(authenticate: Bool = true) {
-        guard UserDefaults.standard.bool(forKey: "lockEnabled") else { return }
-        if lockView == nil {
-            let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
-            blur.frame = view.bounds
-            blur.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            let button = UIButton(type: .system)
-            button.setTitle("🔒 Unlock AI Studio", for: .normal)
-            button.titleLabel?.font = .systemFont(ofSize: 20, weight: .semibold)
-            button.addTarget(self, action: #selector(unlockTapped), for: .touchUpInside)
-            button.frame = CGRect(x: 0, y: 0, width: 260, height: 60)
-            button.center = CGPoint(x: blur.bounds.midX, y: blur.bounds.midY)
-            button.autoresizingMask = [.flexibleTopMargin, .flexibleBottomMargin, .flexibleLeftMargin, .flexibleRightMargin]
-            blur.contentView.addSubview(button)
-            view.addSubview(blur)
-            lockView = blur
-        }
-        if authenticate { unlockTapped() }
-    }
-
-    @objc private func unlockTapped() {
-        guard !unlocking, UIApplication.shared.applicationState != .background else { return }
-        unlocking = true
-        LAContext().evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock your chats and keys") { ok, _ in
-            DispatchQueue.main.async {
-                self.unlocking = false
-                if ok { self.lockView?.removeFromSuperview(); self.lockView = nil }
-            }
-        }
-    }
-
     // Backup file → iOS share sheet (Save to Files, AirDrop…)
     private func shareText(name: String, text: String, _ reply: @escaping (Any?, String?) -> Void) {
         let safe = name.replacingOccurrences(of: "/", with: "_")
@@ -143,14 +95,6 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             replyHandler(nil, "bad message"); return
         }
         switch op {
-        case "setLock":
-            let on = msg["on"] as? Bool ?? false
-            if on && !LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) {
-                replyHandler(nil, "Set a passcode / Face ID on this iPhone first"); return
-            }
-            UserDefaults.standard.set(on, forKey: "lockEnabled"); replyHandler(on, nil); return
-        case "lockStatus":
-            replyHandler(UserDefaults.standard.bool(forKey: "lockEnabled"), nil); return
         case "share":
             shareText(name: msg["name"] as? String ?? "backup.txt", text: msg["text"] as? String ?? "", replyHandler); return
         default: break
