@@ -299,6 +299,8 @@ html{-webkit-text-size-adjust:100%}
 .plus-menu{display:none;position:absolute;bottom:calc(100% - 28px);left:0;z-index:50;background:var(--surface);border:1px solid var(--border2);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.25);padding:6px;min-width:260px}
 .plus-menu.show{display:block}
 .opt-menu{left:auto;right:0}
+.code-input .plus-menu{max-height:60vh;overflow-y:auto;max-width:calc(100vw - 32px)}
+#optProvider{display:block;width:100%;padding:9px;margin:8px 0;border-radius:8px;background:var(--surface);color:var(--fg);border:1px solid var(--border2)}
 .plus-menu button span{flex:1;display:flex;flex-direction:column}.plus-menu button small{font-size:11px;color:var(--fg3)}
 .opt-title{padding:8px 12px 4px;font-size:13px;font-weight:600;color:var(--fg)}.opt-title small{display:block;font-weight:400;font-size:11px;color:var(--fg3)}
 .btn-attach.rec{color:#fff;background:#dc2626}
@@ -338,9 +340,9 @@ html{-webkit-text-size-adjust:100%}
 .code-file .grow{flex:1;font-family:var(--font-mono);font-size:12px;overflow:hidden;text-overflow:ellipsis}
 .diff{font-family:var(--font-mono);font-size:11px;white-space:pre-wrap;word-break:break-all;background:var(--surface);border-radius:8px;padding:8px;margin:4px 0 8px;max-height:260px;overflow:auto}
 .diff .a{background:#16a34a22;color:#16a34a;display:block}.diff .d{background:#dc262622;color:#dc2626;display:block}
-.code-input{display:flex;gap:8px;padding:10px 12px max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--border)}
-.code-input textarea{flex:1;resize:none;border:1px solid var(--border2);border-radius:12px;padding:10px;background:var(--surface);color:var(--fg);font-family:var(--font-sans);font-size:16px;min-height:44px;max-height:140px}
-.code-input button{border:none;border-radius:12px;background:var(--brand);color:#fff;padding:0 16px;font-size:15px;font-weight:500}
+.code-input{position:relative;display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--border)}
+.code-input textarea{flex:1 1 180px;resize:none;border:1px solid var(--border2);border-radius:12px;padding:10px;background:var(--surface);color:var(--fg);font-family:var(--font-sans);font-size:16px;min-height:44px;max-height:140px}
+.code-input #codeRunBtn{border:none;border-radius:12px;background:var(--brand);color:#fff;padding:0 16px;font-size:15px;font-weight:500}
 .saver-row{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 10px}
 .saver-row button{padding:7px 2px;border:1px solid var(--sidebar-border);border-radius:7px;background:transparent;color:var(--sidebar-fg2);font-size:11px;font-family:var(--font-sans);cursor:pointer}
 .saver-row button.active{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -532,6 +534,7 @@ body{overscroll-behavior:none}
     <div class="saver-hint" id="saverHint"></div>
     <label class="fb-row"><input type="checkbox" id="fallbackToggle" onchange="ls('ai_fallback',this.checked?'1':'0')"> Auto-switch to a free provider when out of credit</label>
     <button class="btn-new-chat" onclick="openUsage()">💰 Usage &amp; cost</button>
+    <button class="btn-new-chat" onclick="openOptimizerSettings()">✨ Prompt optimizer settings</button>
     <button class="btn-new-chat" onclick="openPrivacy()">🔒 Privacy &amp; security</button>
 
     <div class="s-label" id="recentLabel">Recents</div>
@@ -574,12 +577,13 @@ body{overscroll-behavior:none}
         <div class="input-container">
           <div class="error-strip" id="errorStrip"></div>
           <div class="plus-menu opt-menu" id="optMenu">
-            <div class="opt-title">✨ Improve my prompt <small>free AI · rewrites your message</small></div>
+            <div class="opt-title">✨ Improve my prompt <small>choose provider · rewrites your message</small></div>
             <button onclick="optimizePrompt('clear')">✍️ <span>Clearer<small>Fix wording, make the goal obvious</small></span></button>
             <button onclick="optimizePrompt('detailed')">🎯 <span>Detailed<small>Add context, steps and the answer format you want</small></span></button>
             <button onclick="optimizePrompt('short')">⚡ <span>Shorter<small>Same meaning, fewer tokens (cheaper)</small></span></button>
             <button onclick="optimizePrompt('code')">💻 <span>For coding<small>Precise request an AI coder can act on</small></span></button>
             <button onclick="document.getElementById('optMenu').classList.remove('show');saveCurrentPrompt()">📌 <span>Save this prompt<small>Reuse it later from + → Saved prompts</small></span></button>
+            <button onclick="openOptimizerSettings()">⚙️ <span>Provider &amp; fallback settings</span></button>
             <button id="optUndo" style="display:none" onclick="undoOptimize()">↩️ <span>Undo<small>Bring back what I wrote</small></span></button>
           </div>
           <div class="plus-menu" id="plusMenu">
@@ -637,6 +641,8 @@ body{overscroll-behavior:none}
         <div class="code-log" id="codeLog"></div>
         <div class="code-changes" id="codeChanges" style="display:none"></div>
         <div class="code-input">
+          <div class="attach-bar" id="codeAttachBar" style="width:100%"></div>
+          <div id="codeAttachProcessing" class="attach-processing" style="display:none;width:100%"></div>
           <textarea id="codeTask" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&window.innerWidth>680){event.preventDefault();codeRun();}" placeholder="Tell me what you want…" oninput="autoResize(this)"></textarea>
           <div class="input-actions" style="gap:4px;padding:0">
             <button class="btn-attach" onclick="codePlus(event)" title="More">
@@ -645,6 +651,12 @@ body{overscroll-behavior:none}
             <button class="btn-attach" id="codeOptBtn" onclick="codeOptimizePrompt(event)" title="Improve my prompt">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5"/></svg>
             </button>
+            <button class="btn-attach" id="codeMicBtn" onclick="toggleMic()" title="Talk">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>
+                </button>
+            <button class="btn-attach" id="codeAskBtn" onclick="toggleInterview()" title="Ask me questions">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </button>
             <button id="codeRunBtn" onclick="codeRun()">Send</button>
           </div>
         </div>
@@ -851,6 +863,8 @@ const PROVIDERS = {
       {v:'microsoft/phi-4',                          l:'Phi-4'},
       {v:'x-ai/grok-3-beta',                         l:'Grok-3 Beta'},
       {v:'cohere/command-r-plus',                    l:'Command R+'},
+      {v:'openrouter/free', l:'Free models · automatic routing'},
+      {v:'qwen/qwen3-coder:free', l:'Qwen3 Coder · free (limited)'},
       {v:'custom',                                   l:'Custom model ID…'},
     ],
     defaultModel: 'meta-llama/llama-3.3-70b-instruct'
@@ -1049,88 +1063,107 @@ const OPT_GOALS={
   short:'Make it as short as possible while keeping every requirement — remove filler, politeness and repetition so it costs fewer tokens.',
   code:'Turn it into a precise request for an AI coding assistant: what to change, where (if known), expected behaviour, edge cases, and how to verify it works. Plain language, no code unless the user wrote some.'
 };
-let optPrev=null;
-function toggleOpt(e){e.stopPropagation();closePlus();document.getElementById('optUndo').style.display=optPrev!==null?'':'none';document.getElementById('optMenu').classList.toggle('show');}
-// Free providers only: Puter (Claude, free for you) → Pollinations as backup
-async function freeComplete(prompt){
-  // Try multiple free providers with fallback
-  const providers=[
-    async()=>{
-      try{
-        await ensurePuter();
-        const r=await puter.ai.chat(prompt,{model:'claude-sonnet-5-5'});
-        const c=r?.message?.content??r;
-        const t=Array.isArray(c)?c.map(b=>b.text||'').join(''):String(c||'');
-        if(t.trim())return t;
-      }catch(e){}
-      return null;
-    },
-    async()=>{
-      try{
-        const r=await fetch('https://text.pollinations.ai/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',messages:[{role:'user',content:prompt}]})});
-        if(!r.ok)return null;
-        return (await r.json()).choices?.[0]?.message?.content||null;
-      }catch(e){return null;}
-    }
-  ];
-  for(const p of providers){
-    const result=await p();
-    if(result)return result;
-  }
-  throw new Error('Free AI unavailable — try again later');
+let optTarget='chat', optBusy=false;
+const optPrevious={chat:null,code:null};
+function promptInput(target=activeTab){return document.getElementById(target==='code'?'codeTask':'userInput');}
+function toggleOpt(e,target='chat'){
+  e.stopPropagation();closePlus();optTarget=target;
+  const menu=document.getElementById('optMenu');
+  document.querySelector(target==='code'?'.code-input':'.input-container').appendChild(menu);
+  document.getElementById('optUndo').style.display=optPrevious[target]!==null?'':'none';
+  menu.classList.toggle('show');
 }
-function codeOptimizePrompt(e){
-  e.stopPropagation();
-  const textarea=document.getElementById('codeTask');
-  const text=textarea.value.trim();
-  if(!text){toast('Type your task first');return;}
-  const btn=e.target.closest('button');
-  btn.classList.add('busy');
-  freeComplete(`You improve prompts for a coding task that a developer will send to an AI. Make it clearer, more specific, and easier for an AI to code. Include exact requirements, expected output format, and any edge cases.
-Write it in the same language as the original. Return ONLY the improved prompt — no intro, no quotes, no explanation.
-
-ORIGINAL:
-${text}`).then(out=>{
-    if(out.trim()){
-      textarea.value=out.trim().replace(/^[""]|[""]$/g,'');
-      autoResize(textarea);
-      toast('✨ Task improved');
-    }
-  }).catch(e=>{showErr('Improve failed: '+e.message);})
-  .finally(()=>{btn.classList.remove('busy');});
+function codeOptimizePrompt(e){toggleOpt(e,'code');}
+function optimizerModel(p){
+  return ls('ai_opt_model_'+p)|| (p==='openrouter'?'openrouter/free':p===curProvider?curModel():ls('ai_model_'+p)||PROVIDERS[p]?.defaultModel||'');
+}
+function openOptimizerSettings(){
+  document.getElementById('optMenu').classList.remove('show');
+  const p=ls('ai_opt_provider')||'auto';
+  const ready=Object.keys(PROVIDERS).filter(k=>['puter','pollinations','custom'].includes(k)||provReady(k));
+  const models=p==='auto'?[]:PROVIDERS[p]?.models||[];
+  openSheet('<h3>✨ Prompt optimizer</h3><p>Used by Chat and Code. Automatic mode tries OpenRouter’s free router, then Pollinations. Add an OpenRouter key in the sidebar for a reliable free route. Free services still have usage limits.</p>'+
+    '<label>Provider<select id="optProvider" onchange="ls(\'ai_opt_provider\',this.value);openOptimizerSettings()">'+
+    '<option value="auto">Automatic · free routes only</option>'+
+    ready.map(k=>'<option value="'+esc(k)+'" '+(k===p?'selected':'')+'>'+esc(PROVIDERS[k].name)+'</option>').join('')+'</select></label>'+
+    (p!=='auto'?'<label>Model<input id="optModel" list="optModels" value="'+esc(optimizerModel(p))+'"><datalist id="optModels">'+models.filter(m=>m.v!=='custom').map(m=>'<option value="'+esc(m.v)+'"></option>').join('')+'</datalist></label><p>Uses your saved key. Your chosen provider/model may charge or consume trial credits. Puter uses your Puter allowance.</p>':'')+
+    '<label class="fb-row"><input type="checkbox" id="optFallback" '+(ls('ai_opt_fallback')!=='0'?'checked':'')+'> Try free routes if my chosen provider fails</label>'+
+    '<p>Private mode applies to every attempt. Your chat model stays the same.</p>'+
+    '<div class="modal-btns"><button class="gh-btn primary" onclick="saveOptimizerSettings()">Save</button></div>');
+}
+function saveOptimizerSettings(){
+  const p=document.getElementById('optProvider').value;
+  if(p!=='auto')ls('ai_opt_model_'+p,document.getElementById('optModel').value.trim());
+  ls('ai_opt_fallback',document.getElementById('optFallback').checked?'1':'0');closeSheet();toast('Optimizer settings saved');
+}
+function optimizerCandidates(){
+  const p=ls('ai_opt_provider')||'auto', list=[];
+  if(p!=='auto'&&PROVIDERS[p])list.push({p,model:optimizerModel(p)});
+  if(p==='auto'||ls('ai_opt_fallback')!=='0'){
+    if(provReady('openrouter'))list.push({p:'openrouter',model:'openrouter/free'});
+    list.push({p:'pollinations',model:'openai'});
+  }
+  return list.filter((x,i,a)=>privacyAllows(x.p)&&a.findIndex(y=>y.p===x.p&&y.model===x.model)===i);
+}
+async function optimizerComplete(prompt){
+  const candidates=optimizerCandidates(), errors=[];
+  if(!candidates.length)throw new Error('No allowed optimizer provider. Choose a provider in optimizer settings that Private mode allows.');
+  for(const {p,model} of candidates){
+    const ctrl=new AbortController(), bubble=document.createElement('div');
+    let timer;
+    try{
+      if(!model||model==='custom')throw new Error('Choose a model in optimizer settings');
+      const key=ls('ai_key_'+p)||'';
+      if(!key&&!['puter','pollinations','custom'].includes(p))throw new Error('Add this provider’s API key in the sidebar');
+      const msgs=[{role:'user',content:prompt}], sys='Return only the rewritten prompt.';
+      lastUsage=null;
+      const request=p==='puter'?callPuter(model,sys,msgs,bubble,ctrl):
+        p==='anthropic'?callAnthropic(key,model,sys,msgs,bubble,ctrl):
+        p==='gemini'?callGemini(key,model,sys,msgs,bubble,ctrl):
+        p==='openai'&&usesResponses(model)?callResponses(key,model,sys,msgs,bubble,ctrl):
+        callOpenAICompat(p,key,model,sys,msgs,bubble,ctrl);
+      const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>{ctrl.abort();reject(new Error('Request timed out'));},45000);});
+      const out=await Promise.race([request,timeout]);
+      if(typeof out!=='string'||!out.trim())throw new Error('Empty response');
+      recordUsage(p,model,prompt.length,out);
+      toast('✨ Improved with '+PROVIDERS[p].name+' · '+model);
+      return out;
+    }catch(e){errors.push(PROVIDERS[p].name+': '+(e.message||e.error?.message||'Request failed'));}
+    finally{clearTimeout(timer);}
+  }
+  throw new Error(errors.join(' → ')+' — choose another provider in ✨ Prompt optimizer settings.');
 }
 function codePlus(e){
   e.stopPropagation();
-  const menu=document.createElement('div');
-  menu.className='plus-menu';
-  menu.style.bottom='calc(100% - 28px)';
-  menu.style.left='0';
-  menu.innerHTML=`
-    <button onclick="document.getElementById('fileInput2')?.click()||document.getElementById('fileInput').click();this.closest('.plus-menu').remove()">📎 <span>Upload file</span></button>
-    <button onclick="codeOptimizePrompt(event);this.closest('.plus-menu').remove()">✨ <span>Improve task</span></button>
-  `;
+  document.getElementById('codePlusMenu')?.remove();
+  const menu=document.createElement('div');menu.id='codePlusMenu';menu.className='plus-menu show';
+  menu.innerHTML=document.getElementById('plusMenu').innerHTML.replace('id="infToggle"','id="codeInfToggle"')+
+    '<button onclick="openOptimizerSettings()">✨ <span>Prompt optimizer settings</span></button>';
+  menu.querySelector('#codeInfToggle').checked=infinityOn();
+  menu.querySelector('button[onclick*="switchTab"]').setAttribute('onclick',"switchTab('chat')");
+  menu.querySelector('button[onclick*="switchTab"]').innerHTML='💬 <span>Chat</span>';
+  menu.addEventListener('click',ev=>{if(ev.target.closest('button'))menu.remove();});
   e.target.closest('.input-actions').appendChild(menu);
-  setTimeout(()=>{document.addEventListener('click',()=>{menu.remove();},{once:true});},0);
+  setTimeout(()=>document.addEventListener('click',ev=>{if(!menu.contains(ev.target))menu.remove();},{once:true}),0);
 }
 async function optimizePrompt(kind){
   document.getElementById('optMenu').classList.remove('show');
-  if(ls('ai_private')==='1'){showErr('🔒 Private mode is on — the free prompt optimizer uses Puter/Pollinations, so it is turned off.');return;}
-  const inp=document.getElementById('userInput'), text=inp.value.trim();
+  if(optBusy)return;
+  const target=optTarget, inp=promptInput(target), text=inp.value.trim();
   if(!text){toast('Type your message first, then tap ✨');return;}
-  const btn=document.getElementById('optBtn');btn.classList.add('busy');
+  const btn=document.getElementById(target==='code'?'codeOptBtn':'optBtn');btn.classList.add('busy');optBusy=true;
   try{
-    const out=await freeComplete(`You improve prompts that a person will send to an AI assistant. ${OPT_GOALS[kind]}
-Write it in the same language as the original, from the user's point of view ("I want…"). Return ONLY the improved prompt — no intro, no quotes, no explanation.
-
-ORIGINAL PROMPT:
-${text}`);
-    if(!out.trim())throw new Error('Empty result');
-    optPrev=inp.value;inp.value=out.trim().replace(/^["“]|["”]$/g,'');autoResize(inp);updateCtx();
-    toast('✨ Prompt improved — tap ✨ → Undo to go back');
-  }catch(e){showErr('Prompt optimizer: '+e.message);}
-  finally{btn.classList.remove('busy');}
+    const out=await optimizerComplete('You improve prompts that a person will send to an AI assistant. '+OPT_GOALS[kind]+
+      '\nWrite in the same language as the original, from the user’s point of view. Return ONLY the improved prompt — no intro, quotes or explanation.\n\nORIGINAL PROMPT:\n'+text);
+    if(inp.value.trim()!==text){toast('Your draft changed while improving it; try again.');return;}
+    optPrevious[target]=inp.value;inp.value=out.trim().replace(/^["“]|["”]$/g,'');autoResize(inp);updateCtx();
+  }catch(e){toast('Prompt optimizer: '+e.message);if(target==='chat')showErr('Prompt optimizer: '+e.message);else codeLog('step','⚠️ '+esc('Prompt optimizer: '+e.message));}
+  finally{btn.classList.remove('busy');optBusy=false;}
 }
-function undoOptimize(){document.getElementById('optMenu').classList.remove('show');if(optPrev===null)return;const inp=document.getElementById('userInput');inp.value=optPrev;optPrev=null;autoResize(inp);}
+function undoOptimize(){
+  document.getElementById('optMenu').classList.remove('show');const inp=promptInput(optTarget);
+  if(optPrevious[optTarget]===null)return;inp.value=optPrevious[optTarget];optPrevious[optTarget]=null;autoResize(inp);updateCtx();
+}
 
 /* ===================== INTERVIEW MODE (rounds of 4 questions) ===================== */
 const INTERVIEW_SYS=`QUESTION MODE is on. Help the user reach a clear, specific answer to what they're exploring by interviewing them, like a great coach.
@@ -1140,7 +1173,9 @@ const INTERVIEW_SYS=`QUESTION MODE is on. Help the user reach a clear, specific 
 - Up to 30 questions in total (about 8 rounds). Stop early if you're already confident.
 - At the end (or if the user asks), give your conclusion: the best-fit answer, 2 runner-ups with why, and 3 concrete next steps.
 - Keep wording simple and friendly. Reply in the user's language.`;
+let codeInterview=false;
 function toggleInterview(){
+  if(activeTab==='code'){if(codeState.busy){toast('Wait for the current task to finish first');return;}codeInterview=!codeInterview;document.getElementById('codeAskBtn').classList.toggle('lit',codeInterview);toast(codeInterview?'Question mode on — describe your coding goal':'Question mode off');return;}
   const conv=convs[curId];if(!conv)return;
   conv.interview=!conv.interview;saveConvs();syncInterviewBtn();
   toast(conv.interview?'❓ Question mode on — tell me what you are thinking about':'Question mode off');
@@ -1257,14 +1292,14 @@ async function restoreBackup(file){
 let rec=null;
 function toggleMic(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){toast('Voice typing isn’t available here — use the 🎤 on the iPhone keyboard');document.getElementById('userInput').focus();return;}
+  if(!SR){toast('Voice typing isn’t available here — use the 🎤 on the iPhone keyboard');promptInput().focus();return;}
   if(rec){rec.stop();return;}
-  const inp=document.getElementById('userInput'), base=inp.value?inp.value.replace(/\s*$/,' '):'';
+  const inp=promptInput(), mic=document.getElementById(activeTab==='code'?'codeMicBtn':'micBtn'), base=inp.value?inp.value.replace(/\s*$/,' '):'';
   rec=new SR();rec.lang=navigator.language||'en-US';rec.interimResults=true;rec.continuous=true;
   rec.onresult=e=>{let t='';for(const r of e.results)t+=r[0].transcript;inp.value=base+t;autoResize(inp);updateCtx();};
   rec.onerror=e=>{if(e.error!=='aborted')toast('Mic: '+e.error);};
-  rec.onend=()=>{rec=null;document.getElementById('micBtn').classList.remove('rec');};
-  rec.start();document.getElementById('micBtn').classList.add('rec');toast('🎙️ Listening… tap the mic again to stop');
+  rec.onend=()=>{rec=null;mic.classList.remove('rec');};
+  rec.start();mic.classList.add('rec');toast('🎙️ Listening… tap the mic again to stop');
 }
 let speakingBtn=null;
 function speakMsg(i,btn){
@@ -1291,10 +1326,10 @@ function openSaved(){
     ${list.map((x,i)=>`<div class="list-row"><span class="grow" style="cursor:pointer" onclick="useSaved(${i})"><b>${esc(x.t)}</b><small>${esc(x.p.slice(0,90))}${x.p.length>90?'…':''}</small></span><button class="gh-btn" onclick="delSaved(${i})">✕</button></div>`).join('')||'<div style="font-size:13px;color:var(--fg3)">Nothing saved yet.</div>'}
     <div class="modal-btns"><button class="gh-btn" onclick="saveCurrentPrompt()">＋ Save what I typed</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
 }
-function useSaved(i){const inp=document.getElementById('userInput');inp.value=savedPrompts()[i].p;autoResize(inp);closeSheet();inp.focus();updateCtx();}
+function useSaved(i){const inp=promptInput();inp.value=savedPrompts()[i].p;autoResize(inp);closeSheet();inp.focus();updateCtx();}
 function delSaved(i){const l=savedPrompts();l.splice(i,1);ls('saved_prompts',l);openSaved();}
 function saveCurrentPrompt(){
-  const p=document.getElementById('userInput').value.trim();if(!p){toast('Type a prompt first');return;}
+  const p=promptInput().value.trim();if(!p){toast('Type a prompt first');return;}
   const t=(prompt('Name for this prompt:',p.slice(0,30))||'').trim();if(!t)return;
   const l=savedPrompts();l.unshift({t,p});ls('saved_prompts',l);toast('📌 Saved');
 }
@@ -1317,8 +1352,8 @@ function checkBudget(){
 
 /* ===================== PLUS MENU / SHEETS ===================== */
 function togglePlus(e){e.stopPropagation();const m=document.getElementById('plusMenu');m.classList.toggle('show');document.getElementById('infToggle').checked=infinityOn();}
-function closePlus(){document.getElementById('plusMenu').classList.remove('show');}
-document.addEventListener('click',e=>{if(!e.target.closest('#plusMenu'))closePlus();if(!e.target.closest('#optMenu,#optBtn'))document.getElementById('optMenu').classList.remove('show');});
+function closePlus(){document.getElementById('plusMenu').classList.remove('show');document.getElementById('codePlusMenu')?.remove();}
+document.addEventListener('click',e=>{if(!e.target.closest('#plusMenu'))closePlus();if(!e.target.closest('#optMenu,#optBtn,#codeOptBtn'))document.getElementById('optMenu').classList.remove('show');});
 function openSheet(html){document.getElementById('sheetBody').innerHTML=html;document.getElementById('sheet').style.display='flex';}
 function closeSheet(){document.getElementById('sheet').style.display='none';sheetCancel=true;}
 let sheetCancel=false;
@@ -1540,6 +1575,7 @@ async function openDrive(q){
   }catch(e){document.getElementById('driveList').textContent=e.message;}
 }
 async function driveAttach(i){
+  const target=activeTab;
   const f=_driveFiles[i];closeSheet();toast('Downloading '+f.name+'…');
   try{
     const tok=await gToken();
@@ -1548,7 +1584,7 @@ async function driveAttach(i){
     const url=ex?`https://www.googleapis.com/drive/v3/files/${f.id}/export?mimeType=${encodeURIComponent(ex[0])}`:`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`;
     const r=await fetch(url,{headers:{Authorization:'Bearer '+tok}});if(!r.ok)throw new Error('HTTP '+r.status);
     const blob=await r.blob();
-    await readAndAttach(new File([blob],f.name+(ex&&!f.name.endsWith(ex[1])?ex[1]:''),{type:ex?ex[0]:f.mimeType}));
+    await readAndAttach(new File([blob],f.name+(ex&&!f.name.endsWith(ex[1])?ex[1]:''),{type:ex?ex[0]:f.mimeType}),target);
   }catch(e){showErr('Drive: '+e.message);}
 }
 
@@ -1643,8 +1679,13 @@ The user is NOT a programmer. Talk like a helpful person: short, simple, everyda
 - Big requests (like a redesign): work in steps — a few focused edits at a time — and tell the user what's done and what's next.
 - When done, call finish with a summary in plain words of what will be different for them (e.g. "The send button is now bigger and easier to tap."), then remind them to tap Commit to save it.
 Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
-  codeState.msgs.push({role:'user',content:task});
-  codeState.pending=[{role:'user',content:task}];
+  codeState.msgs[0].content=codeState.msgs[0].content.replace(/\nQUESTION MODE is on[\s\S]*$/,'')+(codeInterview?'\n'+INTERVIEW_SYS+'\nWhile question mode is on, ask questions and discuss requirements only. Do not edit files.':'');
+  const context=task+codeAttachments.filter(a=>!a.isImage).map(a=>'\n\n--- File: '+a.name+' ---\n'+a.content).join('');
+  const images=codeAttachments.filter(a=>a.isImage);
+  const content=images.length?[{type:'text',text:context},...images.map(a=>({type:'image_url',image_url:{url:a.dataUrl}}))]:context;
+  codeState.msgs.push({role:'user',content});
+  codeState.pending=[{role:'user',content:images.length?[{type:'input_text',text:context},...images.map(a=>({type:'input_image',image_url:a.dataUrl}))]:context}];
+  codeAttachments=[];renderAttachBar('code');
   codeState.busy=true;codeState.stop=false;document.getElementById('codeRunBtn').textContent='Stop';
   try{
     for(let step=0;step<30&&!codeState.stop;step++){
@@ -1652,7 +1693,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
       let msg;
       if(usePuter){
         await ensurePuter();
-        const resp=await puter.ai.chat(codeState.msgs,{model,tools:CODE_TOOLS});
+        const resp=await puter.ai.chat(codeState.msgs,{model,tools:codeInterview?[]:CODE_TOOLS});
         thinking.remove();
         const m=resp?.message||resp||{};
         let content=m.content, calls=[...(m.tool_calls||[])];
@@ -1666,9 +1707,9 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
       }else{
       const r=useResp
         ?await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'},
-          body:JSON.stringify({model,instructions:codeState.msgs[0].content,input:codeState.pending,tools:CODE_TOOLS.map(t=>({type:'function',...t.function})),max_output_tokens:16000,...(codeState.respId?{previous_response_id:codeState.respId}:{})})})
+          body:JSON.stringify({model,instructions:codeState.msgs[0].content,input:codeState.pending,tools:(codeInterview?[]:CODE_TOOLS).map(t=>({type:'function',...t.function})),max_output_tokens:16000,...(codeState.respId?{previous_response_id:codeState.respId}:{})})})
         :await fetch(chatURL(prov),{method:'POST',headers:{...(key?{'Authorization':`Bearer ${key}`}:{}),'Content-Type':'application/json'},
-          body:JSON.stringify({model,messages:codeState.msgs,tools:CODE_TOOLS,max_tokens:32000,stream:true,stream_options:{include_usage:true}})});
+          body:JSON.stringify({model,messages:codeState.msgs,tools:codeInterview?[]:CODE_TOOLS,max_tokens:32000,stream:true,stream_options:{include_usage:true}})});
       const j=(!useResp&&r.ok)?await readToolStream(r,thinking):await r.json().catch(()=>({}));thinking.remove();
       if(!r.ok)throw new Error(prov==='vnaipro'?explainVnai(j.error?.message||String(r.status),model):(j.error?.message||'HTTP '+r.status));
       if(j.usage)lastUsage={in:j.usage.prompt_tokens??j.usage.input_tokens??0,out:j.usage.completion_tokens??j.usage.output_tokens??0};recordUsage(prov,model,0,'');updateTokenCounter();
@@ -1689,7 +1730,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
         const nm=c.function.name;
         if(nm==='finish')codeLog('step','✅ '+md(args.summary||'Done')+(Object.keys(codeState.staged).length?'<br><small>Tap <b>Commit</b> below to save it, or ✕ to undo.</small>':''));
         else codeLog('tool',nm==='write_file'||nm==='edit_file'?`✏️ Changing ${esc(args.path||'')}`:nm==='read_file'?`👀 Reading ${esc(args.path||'')}`:nm==='search_in_file'?`🔎 Searching ${esc(args.path||'')}`:'🗂️ Looking at the project');
-        let out;try{out=await codeTool(nm,args);}catch(e){out='ERROR: '+e.message;}
+        let out;try{out=codeInterview?'Question mode is on. Discuss requirements without using tools.':await codeTool(nm,args);}catch(e){out='ERROR: '+e.message;}
         codeState.msgs.push({role:'tool',tool_call_id:c.id,content:out});
         if(useResp)codeState.pending.push({type:'function_call_output',call_id:c.id,output:out});
         if(nm==='finish')done=true;
@@ -1773,6 +1814,7 @@ async function codeCommit(){
 /* ===================== STATE ===================== */
 let convs={}, curId=null, streaming=false, abort=null, inTok=0, outTok=0, isDark=false;
 let curProvider='vnaipro';
+let codeAttachments=[];
 let attachments=[]; // [{name, type, content, dataUrl, isImage}]
 let ghToken='', ghUser='', ghRepos=[], ghCurRepo='', ghCurBranch='main', ghBranches=[];
 let ghOpenFile=null;
@@ -2019,6 +2061,7 @@ function applyTheme(dark){
 
 /* ===================== TABS ===================== */
 function switchTab(tab){
+  if(rec)rec.stop();closePlus();document.getElementById('optMenu').classList.remove('show');
   activeTab=tab;
   document.getElementById('panelChat').classList.toggle('active',tab==='chat');
   document.getElementById('panelGithub').classList.toggle('active',tab==='github');
@@ -2130,29 +2173,30 @@ document.addEventListener('paste',e=>{for(const it of e.clipboardData?.items||[]
 function isPDF(name){return /\.pdf$/i.test(name);}
 
 async function handleFiles(files){
+  const target=activeTab;
   for(const file of files){
-    await readAndAttach(file);
+    await readAndAttach(file,target);
   }
   document.getElementById('fileInput').value='';
 }
 
-async function readAndAttach(file){
-  const proc=document.getElementById('attachProcessing');
+async function readAndAttach(file,target=activeTab){
+  const proc=document.getElementById(target==='code'?'codeAttachProcessing':'attachProcessing');
   proc.style.display='block';proc.textContent='Reading '+file.name+'…';
   try{
     if(isImage(file.name,file.type)){
       const dataUrl=await shrinkImage(file);
-      pushAttachment({name:file.name,type:'image',dataUrl,isImage:true});
+      pushAttachment({name:file.name,type:'image',dataUrl,isImage:true},target);
     } else if(isPDF(file.name)){
       const text=await extractPDF(file);
-      pushAttachment({name:file.name,type:'pdf',content:text,isImage:false});
+      pushAttachment({name:file.name,type:'pdf',content:text,isImage:false},target);
     } else {
       const text=await readAsText(file);
-      pushAttachment({name:file.name,type:'text',content:text,isImage:false});
+      pushAttachment({name:file.name,type:'text',content:text,isImage:false},target);
     }
   }catch(e){toast('Could not read '+file.name);}
   proc.style.display='none';
-  renderAttachBar();
+  renderAttachBar(target);
 }
 
 // Re-encode photos as JPEG ≤1568px: converts HEIC and keeps requests small
@@ -2177,25 +2221,25 @@ async function extractPDF(file){
   return out.trim()||'[PDF contained no extractable text — may be a scanned image]';
 }
 
-function pushAttachment(att){
-  attachments.push(att);
+function pushAttachment(att,target=activeTab){
+  (target==='code'?codeAttachments:attachments).push(att);
 }
 
-function removeAttachment(i){
-  attachments.splice(i,1);
-  renderAttachBar();
+function removeAttachment(i,target='chat'){
+  (target==='code'?codeAttachments:attachments).splice(i,1);
+  renderAttachBar(target);
 }
 
-function renderAttachBar(){
-  const bar=document.getElementById('attachBar');
+function renderAttachBar(target='chat'){
+  const bar=document.getElementById(target==='code'?'codeAttachBar':'attachBar');
   bar.innerHTML='';
-  attachments.forEach((a,i)=>{
+  (target==='code'?codeAttachments:attachments).forEach((a,i)=>{
     const chip=document.createElement('div');
     chip.className='attach-chip';
     if(a.isImage){
-      chip.innerHTML=`<img src="${a.dataUrl}" alt="${esc(a.name)}"><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i})">×</button>`;
+      chip.innerHTML=`<img src="${a.dataUrl}" alt="${esc(a.name)}"><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i},\'${target}\')">×</button>`;
     } else {
-      chip.innerHTML=`<span>${fileIcon(a.name)}</span><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i})">×</button>`;
+      chip.innerHTML=`<span>${fileIcon(a.name)}</span><span class="chip-name" title="${esc(a.name)}">${esc(a.name)}</span><button class="chip-rm" onclick="removeAttachment(${i},\'${target}\')">×</button>`;
     }
     bar.appendChild(chip);
   });
