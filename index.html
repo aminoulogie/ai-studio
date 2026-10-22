@@ -1053,16 +1053,64 @@ let optPrev=null;
 function toggleOpt(e){e.stopPropagation();closePlus();document.getElementById('optUndo').style.display=optPrev!==null?'':'none';document.getElementById('optMenu').classList.toggle('show');}
 // Free providers only: Puter (Claude, free for you) → Pollinations as backup
 async function freeComplete(prompt){
-  try{
-    await ensurePuter();
-    const r=await puter.ai.chat(prompt,{model:'claude-sonnet-5-5'});
-    const c=r?.message?.content??r;
-    const t=Array.isArray(c)?c.map(b=>b.text||'').join(''):String(c||'');
-    if(t.trim())return t;
-  }catch(e){}
-  const r=await fetch('https://text.pollinations.ai/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',messages:[{role:'user',content:prompt}]})});
-  if(!r.ok)throw new Error('Free AI unavailable ('+r.status+')');
-  return (await r.json()).choices?.[0]?.message?.content||'';
+  // Try multiple free providers with fallback
+  const providers=[
+    async()=>{
+      try{
+        await ensurePuter();
+        const r=await puter.ai.chat(prompt,{model:'claude-sonnet-5-5'});
+        const c=r?.message?.content??r;
+        const t=Array.isArray(c)?c.map(b=>b.text||'').join(''):String(c||'');
+        if(t.trim())return t;
+      }catch(e){}
+      return null;
+    },
+    async()=>{
+      try{
+        const r=await fetch('https://text.pollinations.ai/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',messages:[{role:'user',content:prompt}]})});
+        if(!r.ok)return null;
+        return (await r.json()).choices?.[0]?.message?.content||null;
+      }catch(e){return null;}
+    }
+  ];
+  for(const p of providers){
+    const result=await p();
+    if(result)return result;
+  }
+  throw new Error('Free AI unavailable — try again later');
+}
+function codeOptimizePrompt(e){
+  e.stopPropagation();
+  const textarea=document.getElementById('codeTask');
+  const text=textarea.value.trim();
+  if(!text){toast('Type your task first');return;}
+  const btn=e.target.closest('button');
+  btn.classList.add('busy');
+  freeComplete(`You improve prompts for a coding task that a developer will send to an AI. Make it clearer, more specific, and easier for an AI to code. Include exact requirements, expected output format, and any edge cases.
+Write it in the same language as the original. Return ONLY the improved prompt — no intro, no quotes, no explanation.
+
+ORIGINAL:
+${text}`).then(out=>{
+    if(out.trim()){
+      textarea.value=out.trim().replace(/^[""]|[""]$/g,'');
+      autoResize(textarea);
+      toast('✨ Task improved');
+    }
+  }).catch(e=>{showErr('Improve failed: '+e.message);})
+  .finally(()=>{btn.classList.remove('busy');});
+}
+function codePlus(e){
+  e.stopPropagation();
+  const menu=document.createElement('div');
+  menu.className='plus-menu';
+  menu.style.bottom='calc(100% - 28px)';
+  menu.style.left='0';
+  menu.innerHTML=`
+    <button onclick="document.getElementById('fileInput2')?.click()||document.getElementById('fileInput').click();this.closest('.plus-menu').remove()">📎 <span>Upload file</span></button>
+    <button onclick="codeOptimizePrompt(event);this.closest('.plus-menu').remove()">✨ <span>Improve task</span></button>
+  `;
+  e.target.closest('.input-actions').appendChild(menu);
+  setTimeout(()=>{document.addEventListener('click',()=>{menu.remove();},{once:true});},0);
 }
 async function optimizePrompt(kind){
   document.getElementById('optMenu').classList.remove('show');
