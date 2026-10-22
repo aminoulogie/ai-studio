@@ -125,6 +125,9 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
 .topbar-title{flex:1;font-size:14px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .topbar-tokens{font-size:11px;color:var(--fg3);font-variant-numeric:tabular-nums}
 .provider-badge{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:500;background:var(--brand-light);color:var(--brand);flex-shrink:0}
+.provider-badge{border:none;cursor:pointer;font-family:var(--font-sans);max-width:60vw;overflow:hidden;white-space:nowrap}
+.badge-model{opacity:.75;overflow:hidden;text-overflow:ellipsis}
+.badge-model:not(:empty)::before{content:'· '}
 .provider-badge .pb-dot{width:5px;height:5px;border-radius:50%;background:var(--brand)}
 
 /* PANELS */
@@ -538,7 +541,7 @@ body{overscroll-behavior:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <span class="topbar-title" id="topbarTitle">AI Studio</span>
-      <div class="provider-badge" id="providerBadge"><span class="pb-dot"></span><span id="providerBadgeName">Anthropic</span></div>
+      <button class="provider-badge" id="providerBadge" onclick="openModelPicker()"><span class="pb-dot"></span><span id="providerBadgeName">Anthropic</span><span class="badge-model" id="badgeModel"></span> ▾</button>
       <span class="topbar-tokens" id="tokenCounter"></span>
       <button class="btn-icon" onclick="clearChat()" title="Clear">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.36"/></svg>
@@ -722,7 +725,10 @@ const PROVIDERS = {
     color: '#10a37f',
     placeholder: 'sk-…',
     link: 'https://platform.openai.com/api-keys',
-    models: [
+    models: lsj('ai_models_openai')||[
+      {v:'gpt-5',        l:'gpt-5'},
+      {v:'gpt-5-mini',   l:'gpt-5-mini'},
+      {v:'gpt-5-codex',  l:'gpt-5-codex'},
       {v:'o3',           l:'o3'},
       {v:'o4-mini',      l:'o4-mini'},
       {v:'gpt-4o',       l:'GPT-4o'},
@@ -731,7 +737,7 @@ const PROVIDERS = {
       {v:'gpt-4',        l:'GPT-4'},
       {v:'gpt-3.5-turbo',l:'GPT-3.5 Turbo'},
     ],
-    defaultModel: 'gpt-4o'
+    defaultModel: 'gpt-5'
   },
   gemini: {
     name: 'Gemini',
@@ -902,7 +908,7 @@ const PRICES=[
   ['claude-fable-5',10,50],['claude-mythos-5',10,50],['claude-opus-5-5',4,20],['claude-opus-5',5,25],['claude-opus-4-8',5,25],
   ['claude-opus-4-7',5,25],['claude-opus-4-6',5,25],['claude-opus-4-5',5,25],['claude-opus-4',15,75],['claude-sonnet-5',2,10],
   ['claude-sonnet-4',3,15],['claude-haiku-5',0.1,0.5],['claude-haiku-4',1,5],
-  ['gpt-5',1.25,10],['gpt-4.1-mini',0.4,1.6],['gpt-4.1',2,8],['gpt-4o-mini',0.15,0.6],['gpt-4o',2.5,10],['o3',2,8],
+  ['gpt-5-codex',1.25,10],['gpt-5-mini',0.25,2],['gpt-5',1.25,10],['gpt-4.1-mini',0.4,1.6],['gpt-4.1',2,8],['gpt-4o-mini',0.15,0.6],['gpt-4o',2.5,10],['o3',2,8],
   ['gemini-2.5-pro',1.25,10],['gemini-2.5-flash',0.3,2.5],['gemini',0.1,0.4],['grok',3,15],['mistral-large',2,6]
 ];
 const FREE_PROVS=['puter','pollinations','custom','cerebras','huggingface','sambanova','github','cohere','groq'];
@@ -943,16 +949,21 @@ function openUsage(){
     <div class="usage-bar"><div style="width:${pct}%"></div></div>
     <div style="font-size:12px;color:var(--fg2);margin-top:6px">${money(left)} left · today ${money(today)} · ${n} messages · avg ${money(avg)}/msg${avg?` · ≈${Math.floor(left/avg)} messages left`:''}</div></div>
     <table class="usage-tbl"><tr><td><b>Model</b></td><td><b>Msgs</b></td><td><b>Tokens in/out</b></td><td><b>Cost</b></td></tr>${rows||'<tr><td colspan=4>No usage yet</td></tr>'}</table>
-    <div style="font-size:11px;color:var(--fg3)">Estimated from Anthropic list prices × your multiplier. Free providers count as $0. Your vnaipro dashboard is the final word.</div>
+    <div style="font-size:11px;color:var(--fg3)">Estimated from official list prices × your multiplier. Free providers count as $0. Each provider’s dashboard is the final word.</div>
     <div class="usage-set">
       <label>Budget ($)<input type="number" value="${budget}" onchange="ls('ai_budget',this.value);openUsage()"></label>
       <label>Price multiplier<input type="number" step="0.05" value="${ls('ai_price_mult')||'1'}" onchange="ls('ai_price_mult',this.value)"></label>
     </div>
     <div class="modal-btns">
       <button class="gh-btn" onclick="if(confirm('Reset usage history?')){ls('ai_usage',null);openUsage();updateTokenCounter();}">Reset</button>
+      <button class="gh-btn" onclick="openUsage()">↻</button>
       <button class="gh-btn primary" onclick="document.getElementById('usageModal').style.display='none'">Done</button>
     </div>`;
   document.getElementById('usageModal').style.display='flex';
+  const oa=document.createElement('div');oa.style.cssText='display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border);padding-top:12px';
+  oa.innerHTML='<h3>OpenAI Platform</h3><div style="font-size:12px;color:var(--fg3)">Loading…</div>';
+  document.getElementById('usageBody').insertBefore(oa,document.querySelector('#usageBody .usage-set'));
+  openaiUsageHTML().then(h=>oa.innerHTML='<h3>OpenAI Platform</h3>'+h);
 }
 
 /* ===================== AUTO-FALLBACK ===================== */
@@ -1062,6 +1073,47 @@ function openInfinity(){
     <div class="modal-btns"><button class="gh-btn" onclick="ls('inf_exhausted',null);openInfinity()">Reset limits</button><button class="gh-btn" onclick="addExtraProvider()">＋ Add provider</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
 }
 function moveInf(p,d){const o=infinityOrder(),i=o.indexOf(p);o.splice(i,1);o.splice(Math.max(0,i+d),0,p);ls('inf_order',o);openInfinity();}
+
+/* ===================== MODEL PICKER (top bar) ===================== */
+function openModelPicker(p){
+  p=p||curProvider;
+  const provs=Object.keys(PROVIDERS).filter(k=>k===curProvider||provReady(k)||k==='pollinations');
+  const models=p==='custom'?[{v:ls('ai_custom_model')||'',l:ls('ai_custom_model')||'(set in sidebar)'}]:PROVIDERS[p].models;
+  const cur=p===curProvider?curModel():ls('ai_model_'+p);
+  openSheet(`<h3>Model</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${provs.map(k=>`<button class="gh-btn ${k===p?'primary':''}" onclick="openModelPicker('${k}')">${esc(PROVIDERS[k].name)}</button>`).join('')}
+      <button class="gh-btn" onclick="closeSheet();if(window.innerWidth<=680)toggleSidebar()">＋ more…</button></div>
+    <div>${models.map(m=>`<div class="list-row" style="cursor:pointer" onclick="pickModel('${p}','${esc(m.v).replace(/'/g,"\\'")}')"><span class="grow">${esc(m.l)}<small>${priceLabel(p,m.v).replace(' · ','')||(FREE_PROVS.includes(p)?'free':'')}</small></span>${m.v===cur?'<span class="pill ok">✓</span>':''}</div>`).join('')||'<div style="font-size:13px;color:var(--fg3)">No models yet — add a key, then Reload.</div>'}</div>
+    <div class="modal-btns"><button class="gh-btn" onclick="loadModels('${p}',true).then(()=>openModelPicker('${p}'))">↻ Reload</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
+}
+function pickModel(p,m){
+  ls('ai_model_'+p,m);
+  if(p!==curProvider)selectProvider(p);
+  else{renderProviderUI();updateCtx();}
+  closeSheet();toast(PROVIDERS[p].name+' · '+m);
+}
+
+/* ===================== OPENAI PLATFORM USAGE ===================== */
+// Needs an Admin key (platform.openai.com → Settings → Admin keys); read-only use
+async function openaiUsageHTML(){
+  const k=ls('openai_admin_key');
+  if(!k)return `<div style="font-size:12px;color:var(--fg2)">See your real OpenAI Platform spend here: paste an <b>Admin key</b> from platform.openai.com → Settings → Organization → Admin keys.</div>
+    <div style="display:flex;gap:8px"><input id="oaAdmin" type="password" placeholder="sk-admin-…" style="flex:1"><button class="gh-btn primary" onclick="ls('openai_admin_key',document.getElementById('oaAdmin').value.trim());openUsage()">Save</button></div>`;
+  try{
+    const now=new Date(), som=Math.floor(new Date(now.getFullYear(),now.getMonth(),1)/1000), sod=Math.floor(new Date(now.toDateString())/1000);
+    const H={headers:{Authorization:'Bearer '+k}};
+    const [c,u]=await Promise.all([
+      fetch(`https://api.openai.com/v1/organization/costs?start_time=${som}&bucket_width=1d&limit=31`,H).then(r=>r.json()),
+      fetch(`https://api.openai.com/v1/organization/usage/completions?start_time=${som}&bucket_width=1d&limit=31&group_by=model`,H).then(r=>r.json())]);
+    if(c.error)throw new Error(c.error.message);
+    let month=0,todayC=0;for(const b of c.data||[])for(const r of b.results||[]){const v=+r.amount?.value||0;month+=v;if(b.start_time>=sod)todayC+=v;}
+    const per={};for(const b of u.data||[])for(const r of b.results||[]){const m=r.model||'other';per[m]=per[m]||{n:0,i:0,o:0};per[m].n+=r.num_model_requests||0;per[m].i+=r.input_tokens||0;per[m].o+=r.output_tokens||0;}
+    const rows=Object.entries(per).sort((a,b)=>b[1].i+b[1].o-a[1].i-a[1].o).map(([m,v])=>`<tr><td>${esc(m)}</td><td>${v.n}</td><td>${fmtK(v.i)} / ${fmtK(v.o)}</td></tr>`).join('');
+    return `<div><div class="usage-big" style="font-size:22px">${money(month)} <span style="font-size:13px;color:var(--fg3)">this month · today ${money(todayC)}</span></div></div>
+      <table class="usage-tbl"><tr><td><b>Model</b></td><td><b>Reqs</b></td><td><b>Tokens in/out</b></td></tr>${rows||'<tr><td colspan=3>No usage this month</td></tr>'}</table>
+      <div style="font-size:11px;color:var(--fg3)">From OpenAI's usage API (updates every few minutes). <a href="#" onclick="ls('openai_admin_key',null);openUsage();return false">Remove key</a></div>`;
+  }catch(e){return `<div style="font-size:12px;color:#dc2626">OpenAI usage: ${esc(e.message)} <a href="#" onclick="ls('openai_admin_key',null);openUsage();return false">Change key</a></div>`;}
+}
 
 /* ===================== YOUR OWN PROVIDERS ===================== */
 // Any OpenAI-compatible service: name + base URL; key pasted like any other provider
@@ -1199,7 +1251,7 @@ async function codeRepoChange(){
   }catch(e){codeLog('step',e.message);}
   codeReset();
 }
-function codeReset(){Object.assign(codeState,{paths:null,staged:{},orig:{},msgs:[]});document.getElementById('codeLog').innerHTML='';renderCodeChanges();}
+function codeReset(){Object.assign(codeState,{paths:null,staged:{},orig:{},msgs:[],respId:null,pending:[]});document.getElementById('codeLog').innerHTML='';renderCodeChanges();}
 function codeLog(cls,html){const el=document.createElement('div');el.className='code-step '+cls;el.innerHTML=html;const log=document.getElementById('codeLog');log.appendChild(el);log.scrollTop=log.scrollHeight;return el;}
 const CODE_TOOLS=[
   {type:'function',function:{name:'list_files',description:'List every file path in the repository.',parameters:{type:'object',properties:{},required:[]}}},
@@ -1234,22 +1286,34 @@ async function codeRun(){
   const task=document.getElementById('codeTask').value.trim();if(!task)return;
   if(!ghToken){openConnectors();return;}
   const prov=curProvider, key=document.getElementById('apiKey').value.trim(), model=curModel();
-  if(!OPENAI_COMPAT(prov)){showErr('Code works with VNAIPro, OpenRouter, Vercel and other OpenAI-style providers.');return;}
+  if(!OPENAI_COMPAT(prov)){showErr('Code works with OpenAI (incl. Codex), VNAIPro, OpenRouter, Vercel and other OpenAI-style providers.');return;}
+  const useResp=prov==='openai';
   document.getElementById('codeTask').value='';
   codeLog('user',esc(task));
   if(!codeState.msgs.length)codeState.msgs.push({role:'system',content:`You are a careful coding agent editing the GitHub repo ${codeState.repo} (branch ${codeState.branch}). Use list_files and read_file to understand the code, then write_file the complete new contents of each file you change. Keep changes minimal and consistent with the existing style. Don't rewrite files you don't need to change. When done, call finish with a 1-3 sentence summary. ${SAVER[saverMode()].sys}`});
   codeState.msgs.push({role:'user',content:task});
+  codeState.pending=[{role:'user',content:task}];
   codeState.busy=true;codeState.stop=false;document.getElementById('codeRunBtn').textContent='Stop';
   try{
     for(let step=0;step<30&&!codeState.stop;step++){
       const thinking=codeLog('step','…');
-      const r=await fetch(chatURL(prov),{method:'POST',headers:{...(key?{'Authorization':`Bearer ${key}`}:{}),'Content-Type':'application/json'},
-        body:JSON.stringify({model,messages:codeState.msgs,tools:CODE_TOOLS,max_tokens:16000})});
+      const r=useResp
+        ?await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'},
+          body:JSON.stringify({model,instructions:codeState.msgs[0].content,input:codeState.pending,tools:CODE_TOOLS.map(t=>({type:'function',...t.function})),max_output_tokens:16000,...(codeState.respId?{previous_response_id:codeState.respId}:{})})})
+        :await fetch(chatURL(prov),{method:'POST',headers:{...(key?{'Authorization':`Bearer ${key}`}:{}),'Content-Type':'application/json'},
+          body:JSON.stringify({model,messages:codeState.msgs,tools:CODE_TOOLS,max_tokens:16000})});
       const j=await r.json().catch(()=>({}));thinking.remove();
       if(!r.ok)throw new Error(prov==='vnaipro'?explainVnai(j.error?.message||String(r.status),model):(j.error?.message||'HTTP '+r.status));
-      if(j.usage)lastUsage={in:j.usage.prompt_tokens||0,out:j.usage.completion_tokens||0};recordUsage(prov,model,0,'');updateTokenCounter();
-      const msg=j.choices?.[0]?.message;if(!msg)throw new Error('Empty response');
-      codeState.msgs.push({role:'assistant',content:msg.content||'',...(msg.tool_calls?{tool_calls:msg.tool_calls}:{})});
+      if(j.usage)lastUsage={in:j.usage.prompt_tokens??j.usage.input_tokens??0,out:j.usage.completion_tokens??j.usage.output_tokens??0};recordUsage(prov,model,0,'');updateTokenCounter();
+      let msg;
+      if(useResp){
+        codeState.respId=j.id;codeState.pending=[];
+        const out=j.output||[];
+        msg={content:out.filter(o=>o.type==='message').flatMap(o=>o.content||[]).map(c=>c.text||'').join(''),
+             tool_calls:out.filter(o=>o.type==='function_call').map(o=>({id:o.call_id,function:{name:o.name,arguments:o.arguments}}))};
+      }else msg=j.choices?.[0]?.message;
+      if(!msg)throw new Error('Empty response');
+      codeState.msgs.push({role:'assistant',content:msg.content||'',...(msg.tool_calls?.length?{tool_calls:msg.tool_calls}:{})});
       if(msg.content)codeLog('step',md(msg.content));
       if(!msg.tool_calls?.length)break;
       let done=false;
@@ -1259,6 +1323,7 @@ async function codeRun(){
         codeLog('tool',nm==='finish'?'✅ '+esc(args.summary||'Done'):`${nm==='write_file'?'✏️':'📄'} ${esc(nm)} ${esc(args.path||'')}`);
         let out;try{out=await codeTool(nm,args);}catch(e){out='ERROR: '+e.message;}
         codeState.msgs.push({role:'tool',tool_call_id:c.id,content:out});
+        if(useResp)codeState.pending.push({type:'function_call_output',call_id:c.id,output:out});
         if(nm==='finish')done=true;
       }
       if(done)break;
@@ -1375,7 +1440,7 @@ function renderProviderUI(){
   document.getElementById('customBase').value=ls('ai_custom_base')||'';
   document.getElementById('customModel').value=ls('ai_custom_model')||'';
   document.getElementById('modelSelect').parentElement.style.display=curProvider==='custom'?'none':'';
-  document.getElementById('vnaiRefresh').style.display=(['vnaipro','custom','pollinations','cerebras','huggingface','sambanova','github'].includes(curProvider)||PROVIDERS[curProvider].base)?'':'none';
+  document.getElementById('vnaiRefresh').style.display=(['openai','vnaipro','custom','pollinations','cerebras','huggingface','sambanova','github'].includes(curProvider)||PROVIDERS[curProvider].base)?'':'none';
   document.getElementById('removeProvBtn').style.display=PROVIDERS[curProvider].extra?'':'none';
   // API key label/link/placeholder
   document.getElementById('apiKeyLabel').textContent=p.name+' API Key';
@@ -1432,12 +1497,13 @@ async function loadModels(prov,loud){
   if(prov==='vnaipro')return loadVnaiModels(document.getElementById('apiKey').value.trim(),loud);
   try{
     let ids;
-    const LISTS={cerebras:'https://api.cerebras.ai/v1/models',huggingface:'https://router.huggingface.co/v1/models',sambanova:'https://api.sambanova.ai/v1/models',github:'https://models.github.ai/catalog/models'};
+    const LISTS={openai:'https://api.openai.com/v1/models',cerebras:'https://api.cerebras.ai/v1/models',huggingface:'https://router.huggingface.co/v1/models',sambanova:'https://api.sambanova.ai/v1/models',github:'https://models.github.ai/catalog/models'};
     if(PROVIDERS[prov]?.base)LISTS[prov]=PROVIDERS[prov].base+'/models';
     if(LISTS[prov]){
       const k=ls('ai_key_'+prov)||'';if(!k){if(loud)showErr('Paste your key first.');return;}
       const r=await fetch(LISTS[prov],{headers:{'Authorization':`Bearer ${k}`}});if(!r.ok)throw new Error('HTTP '+r.status);
       const j=await r.json();ids=(Array.isArray(j)?j:j.data||[]).map(m=>m.id||m.name).filter(Boolean);
+      if(prov==='openai')ids=ids.filter(i=>/^(gpt|o\d|chatgpt|codex)/.test(i)&&!/audio|realtime|transcribe|tts|image|search|embedding/.test(i)).sort().reverse();
     }else if(prov==='pollinations'){
       const r=await fetch('https://text.pollinations.ai/models');if(!r.ok)throw new Error('HTTP '+r.status);
       ids=(await r.json()).map(m=>typeof m==='string'?m:m.name).filter(Boolean);
@@ -1542,6 +1608,7 @@ function updateModelLabel(){
     if(custom) label=custom;
   }
   document.getElementById('modelLabel').textContent=p.name+' · '+label;
+  document.getElementById('badgeModel').textContent=curModel();
 }
 
 function setTheme(){isDark=!isDark;ls('cl_dark',isDark?'1':'0');applyTheme(isDark);}
@@ -1867,6 +1934,7 @@ async function callAPI(prov,apiKey,conv,trow,abortCtrl,modelOverride){
   else if(prov==='gemini') full=await callGemini(apiKey,model,sys,msgs,bubble,abortCtrl);
   else if(prov==='puter')  full=await callPuter(model,sys,msgs,bubble,abortCtrl);
   // OpenAI-compatible: everything else
+  else if(prov==='openai'&&usesResponses(model)) full=await callResponses(apiKey,model,sys,msgs,bubble,abortCtrl);
   else full=await callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl);
   recordUsage(prov,model,sys.length+msgs.reduce((n,m)=>n+m.content.length+(m.images?.length||0)*6000,0),full);
   return full;
@@ -1903,6 +1971,28 @@ async function callAnthropic(apiKey,model,sys,msgs,bubble,abortCtrl){
   return full;
 }
 
+// Codex models only speak OpenAI's Responses API
+function usesResponses(model){return /codex/i.test(model||'');}
+async function callResponses(apiKey,model,sys,msgs,bubble,abortCtrl){
+  const input=msgs.map(m=>({role:m.role,content:m.images?.length?[{type:'input_text',text:m.content},...m.images.map(u=>({type:'input_image',image_url:u}))]:m.content}));
+  const body={model,input,stream:true,max_output_tokens:maxOut(),store:false};
+  if(sys)body.instructions=sys;
+  const res=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:abortCtrl.signal});
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw httpErr(e.error?.message||`OpenAI error ${res.status}`,res.status);}
+  bubble.innerHTML='';
+  const reader=res.body.getReader();const dec=new TextDecoder();let full='',buf='';
+  while(true){const{done,value}=await reader.read();if(done)break;
+    buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();
+    for(const line of lines){
+      if(!line.startsWith('data:'))continue;
+      try{const ev=JSON.parse(line.slice(5).trim());
+        if(ev.type==='response.output_text.delta'){full+=ev.delta;bubble.innerHTML=md(full);doHighlight();scrollDown();}
+        if(ev.type==='response.completed'&&ev.response?.usage)lastUsage={in:ev.response.usage.input_tokens||0,out:ev.response.usage.output_tokens||0};
+      }catch{}
+    }
+  }
+  return full;
+}
 async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
   const url=chatURL(prov);
   // Convert messages with images to OpenAI content array format
