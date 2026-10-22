@@ -14,8 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Bundle web app
-        run: mkdir -p ios/www && cp index.html ios/www/index.html
+      - name: Bundle web app (libraries inside the app — no code loaded from the internet)
+        run: |
+          mkdir -p ios/www && cp index.html ios/www/index.html
+          python3 ios/scripts/inline_libs.py ios/www/index.html
 
       - name: Generate Xcode project
         run: brew install xcodegen && cd ios && xcodegen generate

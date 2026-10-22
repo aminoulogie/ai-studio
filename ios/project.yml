@@ -24,6 +24,9 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         NSPhotoLibraryUsageDescription: Attach photos to your chats.
         NSCameraUsageDescription: Take a photo to send in a chat.
+        NSFaceIDUsageDescription: Lock AI Studio so only you can open your chats and keys.
+        NSMicrophoneUsageDescription: Talk to the AI instead of typing.
+        NSSpeechRecognitionUsageDescription: Turn your voice into text for your message.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.aistudio.vnai

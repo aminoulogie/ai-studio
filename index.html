@@ -249,6 +249,8 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
 .modal input:focus,.modal textarea:focus{border-color:var(--brand)}
 .modal textarea{resize:vertical;min-height:60px}
 .modal-btns{display:flex;gap:8px;justify-content:flex-end}
+.modal input[type=checkbox]{width:20px;height:20px;flex:none;padding:0;accent-color:var(--brand)}
+.modal-btns{flex-wrap:wrap}
 
 /* Scrollbars */
 .messages::-webkit-scrollbar,.gh-tree-body::-webkit-scrollbar,.gh-viewer::-webkit-scrollbar{width:6px}
@@ -299,6 +301,8 @@ html{-webkit-text-size-adjust:100%}
 .opt-menu{left:auto;right:0}
 .plus-menu button span{flex:1;display:flex;flex-direction:column}.plus-menu button small{font-size:11px;color:var(--fg3)}
 .opt-title{padding:8px 12px 4px;font-size:13px;font-weight:600;color:var(--fg)}.opt-title small{display:block;font-weight:400;font-size:11px;color:var(--fg3)}
+.btn-attach.rec{color:#fff;background:#dc2626}
+.privacy-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 .btn-attach.lit{color:#fff;background:var(--brand)}
 .btn-attach.busy svg{animation:spin 1s linear infinite}
 .iv-box{display:flex;flex-direction:column;gap:10px;margin:4px 0 8px;padding:12px;border:1px solid var(--border2);border-radius:14px;background:var(--surface)}
@@ -528,8 +532,10 @@ body{overscroll-behavior:none}
     <div class="saver-hint" id="saverHint"></div>
     <label class="fb-row"><input type="checkbox" id="fallbackToggle" onchange="ls('ai_fallback',this.checked?'1':'0')"> Auto-switch to a free provider when out of credit</label>
     <button class="btn-new-chat" onclick="openUsage()">💰 Usage &amp; cost</button>
+    <button class="btn-new-chat" onclick="openPrivacy()">🔒 Privacy &amp; security</button>
 
     <div class="s-label" id="recentLabel">Recents</div>
+    <div class="sys-prompt-row" id="searchRow"><input type="search" id="convSearch" placeholder="🔍 Search all chats…" oninput="renderConvList()"></div>
     <div class="sidebar-convs" id="convList"></div>
 
     <div class="sidebar-bottom">
@@ -573,6 +579,7 @@ body{overscroll-behavior:none}
             <button onclick="optimizePrompt('detailed')">🎯 <span>Detailed<small>Add context, steps and the answer format you want</small></span></button>
             <button onclick="optimizePrompt('short')">⚡ <span>Shorter<small>Same meaning, fewer tokens (cheaper)</small></span></button>
             <button onclick="optimizePrompt('code')">💻 <span>For coding<small>Precise request an AI coder can act on</small></span></button>
+            <button onclick="document.getElementById('optMenu').classList.remove('show');saveCurrentPrompt()">📌 <span>Save this prompt<small>Reuse it later from + → Saved prompts</small></span></button>
             <button id="optUndo" style="display:none" onclick="undoOptimize()">↩️ <span>Undo<small>Bring back what I wrote</small></span></button>
           </div>
           <div class="plus-menu" id="plusMenu">
@@ -582,6 +589,9 @@ body{overscroll-behavior:none}
             <button onclick="closePlus();openConnectors()">🔌 <span>Connectors</span></button>
             <label class="plus-toggle">♾️ <span>Infinity mode<small>Auto-switch provider at limit · auto-summary</small></span><input type="checkbox" id="infToggle" onchange="setInfinity(this.checked)"></label>
             <button onclick="closePlus();openInfinity()">⚙️ <span>Infinity providers</span></button>
+            <button onclick="closePlus();openSaved()">📌 <span>Saved prompts</span></button>
+            <button onclick="closePlus();openPrivacy()">🔒 <span>Privacy &amp; security</span></button>
+            <button onclick="closePlus();openBackup()">💾 <span>Backup &amp; restore</span></button>
           </div>
           <div class="ctx-bar" id="ctxBar"><span id="ctxText"></span><span class="ctx-meter"><span id="ctxFill"></span></span><span class="inf-badge" id="infBadge" onclick="openInfinity()">♾️ Infinity</span></div>
           <div class="input-box">
@@ -594,6 +604,9 @@ body{overscroll-behavior:none}
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="20" height="20"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
                 <input type="file" id="fileInput" style="display:none" multiple accept="image/*,.txt,.md,.csv,.json,.py,.js,.ts,.html,.css,.pdf,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.docx,.dwg,.dxf,.ifc,.xml,.rfa" onchange="handleFiles(this.files)">
+                <button class="btn-attach" id="micBtn" onclick="toggleMic()" title="Talk">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>
+                </button>
                 <button class="btn-attach" id="optBtn" onclick="toggleOpt(event)" title="Improve my prompt">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5"/></svg>
                 </button>
@@ -954,6 +967,7 @@ function recordUsage(prov,model,sentChars,full){
   log.push({t:Date.now(),p:prov,m:model,i:inT,o:outT,c:+cost.toFixed(6),e:est?1:0});
   ls('ai_usage',log.slice(-3000));
   inTok+=inT;outTok+=outT;lastUsage=null;
+  checkBudget();
 }
 function usageTotals(){
   const log=lsj('ai_usage')||[], day=new Date().toDateString();
@@ -979,6 +993,7 @@ function openUsage(){
       <label>Budget ($)<input type="number" value="${budget}" onchange="ls('ai_budget',this.value);openUsage()"></label>
       <label>Price multiplier<input type="number" step="0.05" value="${ls('ai_price_mult')||'1'}" onchange="ls('ai_price_mult',this.value)"></label>
     </div>
+    <label class="fb-row" style="padding:0;color:var(--fg2)"><input type="checkbox" ${ls('budget_autofree')!=='0'?'checked':''} onchange="ls('budget_autofree',this.checked?'1':'0')"> Warn me at 80%, and switch to free Puter Claude when the budget is used up</label>
     <div class="modal-btns">
       <button class="gh-btn" onclick="if(confirm('Reset usage history?')){ls('ai_usage',null);openUsage();updateTokenCounter();}">Reset</button>
       <button class="gh-btn" onclick="openUsage()">↻</button>
@@ -1043,6 +1058,7 @@ async function freeComplete(prompt){
 }
 async function optimizePrompt(kind){
   document.getElementById('optMenu').classList.remove('show');
+  if(ls('ai_private')==='1'){showErr('🔒 Private mode is on — the free prompt optimizer uses Puter/Pollinations, so it is turned off.');return;}
   const inp=document.getElementById('userInput'), text=inp.value.trim();
   if(!text){toast('Type your message first, then tap ✨');return;}
   const btn=document.getElementById('optBtn');btn.classList.add('busy');
@@ -1108,6 +1124,144 @@ function ivSend(){
   handleSend();
 }
 
+/* ===================== PRIVACY ===================== */
+// How each provider treats your messages (API terms as of 2026 — check their policy pages)
+const PRIVACY={
+  anthropic:['ok','Anthropic (direct)','Not used for training. Kept briefly for safety checks, then deleted.'],
+  openai:['ok','OpenAI (direct)','Not used for training. This app asks OpenAI not to store chats (store: off) and deletes Code-tab steps after each run.'],
+  openrouter:['ok','OpenRouter','This app only allows hosts that don’t store or train on prompts (data collection: deny).'],
+  vercel:['ok','Vercel AI Gateway','Passes requests to the model maker; Vercel says it doesn’t train on them.'],
+  custom:['ok','Your own server','Only you see it.'],
+  vnaipro:['warn','VNAIPro (reseller)','A third party between you and Claude: they can read everything you send. Avoid passwords, ID numbers or private documents.'],
+  gemini:['bad','Gemini free tier','Google may use free-tier prompts to improve its products, and humans may review them.'],
+  puter:['warn','Puter','Free service; your messages pass through Puter’s servers.'],
+  pollinations:['bad','Pollinations','Free, no account — treat everything as public.']
+};
+function privacyOf(p){return PRIVACY[p]||['warn',PROVIDERS[p]?.name||p,'Check this provider’s privacy policy before sending anything personal.'];}
+function privacyAllows(p){return ls('ai_private')!=='1'||privacyOf(p)[0]==='ok';}
+async function openPrivacy(){
+  let lockOn=false;try{if(inApp())lockOn=await native({op:'lockStatus'});}catch{}
+  const dot=l=>`<span class="privacy-dot" style="background:${l==='ok'?'#16a34a':l==='warn'?'#eab308':'#dc2626'}"></span>`;
+  const rows=Object.keys(PROVIDERS).map(p=>{const [l,n,t]=privacyOf(p);return `<div class="list-row"><span class="grow">${dot(l)}<b>${esc(PROVIDERS[p].name)}</b><small>${esc(t)}</small></span></div>`;}).join('');
+  openSheet(`<h3>🔒 Privacy &amp; security</h3>
+    <div style="font-size:12px;color:var(--fg2);line-height:1.5">Everything leaves your phone encrypted (HTTPS). The AI provider has to read your message to answer it, so the real choice is <b>which provider you trust</b>.</div>
+    ${inApp()?`<label class="fb-row" style="padding:0"><input type="checkbox" ${lockOn?'checked':''} onchange="setLock(this)"> <span><b>Face ID lock</b><br><small style="color:var(--fg3)">Ask for Face ID / passcode when opening the app; hide it in the app switcher</small></span></label>`:''}
+    <label class="fb-row" style="padding:0"><input type="checkbox" ${ls('ai_private')==='1'?'checked':''} onchange="ls('ai_private',this.checked?'1':'0');openPrivacy();renderProviderUI()"> <span><b>Private mode</b><br><small style="color:var(--fg3)">Only send to 🟢 providers. Blocks VNAIPro, Puter, Pollinations, Gemini free and unknown ones (incl. Infinity switching and ✨).</small></span></label>
+    <div>${rows}</div>
+    <div style="font-size:11px;color:var(--fg3)">Your keys and chats stay on this phone (iOS encrypts its storage when locked). Make an encrypted backup in 💾 Backup.</div>
+    <div class="modal-btns"><button class="gh-btn" style="color:#dc2626" onclick="wipeAll()">Delete all data</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
+}
+async function setLock(cb){try{const on=await native({op:'setLock',on:cb.checked});toast(on?'🔒 Face ID lock on':'Face ID lock off');}catch(e){cb.checked=false;toast(String(e.message||e));}}
+function wipeAll(){
+  if(!confirm('Delete ALL chats, keys and settings from this phone? This cannot be undone.'))return;
+  if(!confirm('Really delete everything?'))return;
+  try{localStorage.clear();}catch{}location.reload();
+}
+
+/* ===================== ENCRYPTED BACKUP ===================== */
+// AES-256-GCM, key from your password (PBKDF2-SHA256, 310k rounds). Without the password the file is unreadable.
+const b64=a=>btoa(String.fromCharCode(...new Uint8Array(a))), ub64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function pwKey(pw,salt){
+  const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:310000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+function openBackup(){
+  openSheet(`<h3>💾 Backup &amp; restore</h3>
+    <div style="font-size:12px;color:var(--fg2)">Saves all chats, settings and keys into one <b>password-encrypted</b> file. Keep it in Files or iCloud; restore it after reinstalling or on a new phone.</div>
+    <input type="password" id="bkPw" placeholder="Backup password (min 8 characters)" autocomplete="new-password">
+    <label class="fb-row" style="padding:0"><input type="checkbox" id="bkKeys" checked> Include API keys and sign-ins</label>
+    <div class="modal-btns"><button class="gh-btn" onclick="document.getElementById('bkFile').click()">Restore…</button><button class="gh-btn primary" onclick="makeBackup()">Create backup</button></div>
+    <input type="file" id="bkFile" style="display:none" accept=".aistudio,.json,application/json,text/plain" onchange="restoreBackup(this.files[0])">
+    <div style="font-size:11px;color:var(--fg3)">Forget the password = the backup can't be opened. Nobody (not even me) can recover it.</div>`);
+}
+const SECRET_KEY=k=>/^ai_key_|^gh_token$|^g_tok$|^openai_admin_key$/.test(k);
+async function makeBackup(){
+  const pw=document.getElementById('bkPw').value;if(pw.length<8){toast('Use at least 8 characters');return;}
+  const keys=document.getElementById('bkKeys').checked, data={};
+  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(keys||!SECRET_KEY(k))data[k]=localStorage.getItem(k);}
+  const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},await pwKey(pw,salt),new TextEncoder().encode(JSON.stringify(data)));
+  const text=JSON.stringify({app:'AI Studio',v:1,kdf:'PBKDF2-SHA256-310000',salt:b64(salt),iv:b64(iv),data:b64(ct)});
+  const name=`ai-studio-backup-${new Date().toISOString().slice(0,10)}.aistudio`;
+  if(inApp()){try{await native({op:'share',name,text});}catch(e){toast(String(e.message||e));}}
+  else{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;a.click();}
+  closeSheet();toast('💾 Encrypted backup created');
+}
+async function restoreBackup(file){
+  if(!file)return;
+  const pw=document.getElementById('bkPw').value||prompt('Backup password:')||'';
+  try{
+    const f=JSON.parse(await file.text());
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(f.iv)},await pwKey(pw,ub64(f.salt)),ub64(f.data));
+    const data=JSON.parse(new TextDecoder().decode(pt));
+    if(!confirm(`Restore ${Object.keys(data).length} items? This replaces the chats and settings on this phone.`))return;
+    localStorage.clear();Object.entries(data).forEach(([k,v])=>localStorage.setItem(k,v));
+    toast('Restored — reloading…');setTimeout(()=>location.reload(),800);
+  }catch(e){toast(e.name==='OperationError'?'Wrong password (or damaged file)':'Not a valid backup file');}
+}
+
+/* ===================== VOICE ===================== */
+let rec=null;
+function toggleMic(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Voice typing isn’t available here — use the 🎤 on the iPhone keyboard');document.getElementById('userInput').focus();return;}
+  if(rec){rec.stop();return;}
+  const inp=document.getElementById('userInput'), base=inp.value?inp.value.replace(/\s*$/,' '):'';
+  rec=new SR();rec.lang=navigator.language||'en-US';rec.interimResults=true;rec.continuous=true;
+  rec.onresult=e=>{let t='';for(const r of e.results)t+=r[0].transcript;inp.value=base+t;autoResize(inp);updateCtx();};
+  rec.onerror=e=>{if(e.error!=='aborted')toast('Mic: '+e.error);};
+  rec.onend=()=>{rec=null;document.getElementById('micBtn').classList.remove('rec');};
+  rec.start();document.getElementById('micBtn').classList.add('rec');toast('🎙️ Listening… tap the mic again to stop');
+}
+let speakingBtn=null;
+function speakMsg(i,btn){
+  const synth=window.speechSynthesis;if(!synth){toast('Read-aloud isn’t available here');return;}
+  const was=speakingBtn===btn;synth.cancel();if(speakingBtn)speakingBtn.textContent='🔊 Listen';speakingBtn=null;
+  if(was)return;
+  const text=(convs[curId]?.msgs[i]?.content||'').replace(/```[\s\S]*?```/g,' (code) ').replace(/[#*_`>|]/g,'').slice(0,8000);
+  const u=new SpeechSynthesisUtterance(text);
+  if(/[àâçéèêëîïôûùüÿœ]/i.test(text))u.lang='fr-FR';else if(/[؀-ۿ]/.test(text))u.lang='ar-SA';
+  u.onend=()=>{if(speakingBtn===btn){btn.textContent='🔊 Listen';speakingBtn=null;}};
+  synth.speak(u);speakingBtn=btn;btn.textContent='⏹ Stop';
+}
+
+/* ===================== SAVED PROMPTS ===================== */
+const DEFAULT_PROMPTS=[
+  {t:'Ask me 30 questions',p:'I want to figure something out. Ask me 30 questions in rounds of 4, each with answer options, and use my answers to narrow it down until you can give me a clear recommendation. The topic is: '},
+  {t:'Explain like I’m 12',p:'Explain this in simple words, like I’m 12, with one everyday example: '},
+  {t:'Fix my text',p:'Fix the spelling and grammar and make this sound natural, keep my meaning and language: '}
+];
+function savedPrompts(){return lsj('saved_prompts')||DEFAULT_PROMPTS;}
+function openSaved(){
+  const list=savedPrompts();
+  openSheet(`<h3>📌 Saved prompts</h3>
+    ${list.map((x,i)=>`<div class="list-row"><span class="grow" style="cursor:pointer" onclick="useSaved(${i})"><b>${esc(x.t)}</b><small>${esc(x.p.slice(0,90))}${x.p.length>90?'…':''}</small></span><button class="gh-btn" onclick="delSaved(${i})">✕</button></div>`).join('')||'<div style="font-size:13px;color:var(--fg3)">Nothing saved yet.</div>'}
+    <div class="modal-btns"><button class="gh-btn" onclick="saveCurrentPrompt()">＋ Save what I typed</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
+}
+function useSaved(i){const inp=document.getElementById('userInput');inp.value=savedPrompts()[i].p;autoResize(inp);closeSheet();inp.focus();updateCtx();}
+function delSaved(i){const l=savedPrompts();l.splice(i,1);ls('saved_prompts',l);openSaved();}
+function saveCurrentPrompt(){
+  const p=document.getElementById('userInput').value.trim();if(!p){toast('Type a prompt first');return;}
+  const t=(prompt('Name for this prompt:',p.slice(0,30))||'').trim();if(!t)return;
+  const l=savedPrompts();l.unshift({t,p});ls('saved_prompts',l);toast('📌 Saved');
+}
+
+/* ===================== BUDGET ALARM ===================== */
+function checkBudget(){
+  const budget=parseFloat(ls('ai_budget')||'50')||50, total=usageTotals().total, pct=total/budget;
+  let lvl=+(ls('budget_warned')||0);
+  if(pct<0.8&&lvl){ls('budget_warned',0);return;}
+  if(ls('budget_autofree')==='0')return;
+  if(pct>=1&&lvl<100){
+    ls('budget_warned',100);
+    if(curProvider!=='puter'&&privacyAllows('puter')){ls('ai_model_puter','claude-sonnet-5-5');selectProvider('puter');}
+    showErr(`💸 You've used your $${budget} budget. ${privacyAllows('puter')?'Switched to free Puter Claude Sonnet 5.5.':'Private mode is on, so I did not switch to a free provider.'} Change this in 💰 Usage.`);
+  }else if(pct>=0.8&&lvl<80){
+    ls('budget_warned',80);
+    showErr(`⚠️ Heads up: ${Math.round(pct*100)}% of your $${budget} budget used (${money(total)}). Tip: claude-sonnet + Severe saver costs least.`);
+  }
+}
+
 /* ===================== PLUS MENU / SHEETS ===================== */
 function togglePlus(e){e.stopPropagation();const m=document.getElementById('plusMenu');m.classList.toggle('show');document.getElementById('infToggle').checked=infinityOn();}
 function closePlus(){document.getElementById('plusMenu').classList.remove('show');}
@@ -1133,7 +1287,7 @@ async function infinityRetry(err,from,conv,trow,abortCtrl){
   markExhausted(from);
   const model=curModel(), ex=exhausted();
   for(const p of infinityOrder()){
-    if(p===from||ex[p]||!provReady(p))continue;
+    if(p===from||ex[p]||!provReady(p)||!privacyAllows(p))continue;
     const m=sameModel(p,model);if(!m)continue;
     toast(`${PROVIDERS[from].name} hit its limit → ${PROVIDERS[p].name}`);
     trow.querySelector('.msg-name').textContent=PROVIDERS[p].name;
@@ -1401,6 +1555,7 @@ async function codeRun(){
   const task=document.getElementById('codeTask').value.trim();if(!task)return;
   if(!ghToken){codeLog('step','Connect GitHub first: + → Connectors.');openConnectors();return;}
   const prov=curProvider, key=document.getElementById('apiKey').value.trim(), model=curModel();
+  if(!privacyAllows(prov)){codeLog('step','🔒 Private mode is on — pick a trusted provider (OpenAI, Anthropic, OpenRouter, Vercel or your own server).');return;}
   if(!OPENAI_COMPAT(prov)&&prov!=='puter'){codeLog('step','⚠️ The Code tab works with Puter, OpenAI (incl. Codex), VNAIPro, OpenRouter, Vercel and other OpenAI-style providers — tap the model at the top to switch.');return;}
   const useResp=prov==='openai', usePuter=prov==='puter';
   document.getElementById('codeTask').value='';
@@ -1442,7 +1597,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
       if(!r.ok)throw new Error(prov==='vnaipro'?explainVnai(j.error?.message||String(r.status),model):(j.error?.message||'HTTP '+r.status));
       if(j.usage)lastUsage={in:j.usage.prompt_tokens??j.usage.input_tokens??0,out:j.usage.completion_tokens??j.usage.output_tokens??0};recordUsage(prov,model,0,'');updateTokenCounter();
       if(useResp){
-        codeState.respId=j.id;codeState.pending=[];
+        codeState.respId=j.id;codeState.pending=[];(codeState.respIds=codeState.respIds||[]).push(j.id);
         const out=j.output||[];
         msg={content:out.filter(o=>o.type==='message').flatMap(o=>o.content||[]).map(c=>c.text||'').join(''),
              tool_calls:out.filter(o=>o.type==='function_call').map(o=>({id:o.call_id,function:{name:o.name,arguments:o.arguments}}))};
@@ -1466,7 +1621,11 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
       if(done)break;
     }
   }catch(e){document.querySelectorAll('#codeLog .code-step').forEach(el=>{if(el.textContent==='…')el.remove();});codeLog('step','⚠️ '+esc(e?.message||e?.error?.message||JSON.stringify(e)));}
-  finally{codeState.busy=false;document.getElementById('codeRunBtn').textContent='Send';renderCodeChanges();}
+  finally{
+    // Code runs need OpenAI to remember the previous step; delete those stored responses once done
+    if(useResp&&codeState.respIds?.length){const ids=codeState.respIds;codeState.respIds=[];codeState.respId=null;
+      ids.forEach(id=>fetch('https://api.openai.com/v1/responses/'+id,{method:'DELETE',headers:{Authorization:`Bearer ${key}`}}).catch(()=>{}));}
+    codeState.busy=false;document.getElementById('codeRunBtn').textContent='Send';renderCodeChanges();}
 }
 // Line diff (LCS); falls back to a plain listing for very large files
 function lineDiff(a,b){
@@ -1766,6 +1925,7 @@ function switchTab(tab){
   document.getElementById('navGh').classList.toggle('active',tab==='github');
   document.getElementById('recentLabel').style.display=tab==='chat'?'':'none';
   document.getElementById('convList').style.display=tab==='chat'?'':'none';
+  document.getElementById('searchRow').style.display=tab==='chat'?'':'none';
   document.getElementById('topbarTitle').textContent=tab==='chat'?(convs[curId]?.title||'AI Studio'):tab==='code'?'Code':'GitHub';
   if(window.innerWidth<=680)closeSidebar();
 }
@@ -1781,7 +1941,9 @@ function clearChat(){if(!curId)return;convs[curId].msgs=[];convs[curId].title='N
 function saveConvs(){ls('cl_convs',convs);}
 function renderConvList(){
   const el=document.getElementById('convList');
-  const sorted=Object.entries(convs).sort((a,b)=>b[1].ts-a[1].ts).slice(0,40);
+  const q=(document.getElementById('convSearch')?.value||'').trim().toLowerCase();
+  const sorted=Object.entries(convs).filter(([,c])=>!q||c.title.toLowerCase().includes(q)||c.msgs.some(m=>m.content.toLowerCase().includes(q))).sort((a,b)=>b[1].ts-a[1].ts).slice(0,q?100:40);
+  if(q&&!sorted.length){el.innerHTML=`<div style="padding:8px 14px;font-size:12px;color:var(--sidebar-fg3)">No chats mention “${esc(q)}”</div>`;return;}
   if(!sorted.length){el.innerHTML=`<div style="padding:8px 14px;font-size:12px;color:var(--sidebar-fg3)">No conversations yet</div>`;return;}
   el.innerHTML=sorted.map(([id,c])=>`<div class="conv-item ${id===curId?'active':''}" onclick="openConv('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="conv-title">${esc(c.title)}</span></div>`).join('');
 }
@@ -1820,7 +1982,7 @@ function renderMessages(){
 function msgHtml(m,i,prov){
   if(m.role==='user')return`<div class="msg-row user" data-i="${i}">${(m.attachments||[]).map(a=>`<img class="msg-img" src="${a.dataUrl}" alt="">`).join('')}<div class="msg-bubble">${esc(m.content).replace(/\n/g,'<br>')}</div><div class="msg-actions"><button class="msg-act" onclick="copyMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button class="msg-act" onclick="editMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button></div></div>`;
   const provName=PROVIDERS[prov||curProvider]?.name||'AI';
-  return`<div class="msg-row assistant" data-i="${i}"><div class="msg-header">${providerAvatar(prov||curProvider)}<span class="msg-name">${esc(provName)}</span></div><div class="msg-bubble">${md(m.content)}</div><div class="msg-actions"><button class="msg-act" onclick="copyMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></div></div>`;
+  return`<div class="msg-row assistant" data-i="${i}"><div class="msg-header">${providerAvatar(prov||curProvider)}<span class="msg-name">${esc(provName)}</span></div><div class="msg-bubble">${md(m.content)}</div><div class="msg-actions"><button class="msg-act" onclick="copyMsg(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button><button class="msg-act" onclick="speakMsg(${i},this)">🔊 Listen</button></div></div>`;
 }
 function doHighlight(){document.querySelectorAll('pre code:not([data-hl])').forEach(el=>{hljs.highlightElement(el);el.dataset.hl='1';});}
 
@@ -1898,7 +2060,8 @@ function readAsDataURL(file){return new Promise((res,rej)=>{const r=new FileRead
 
 async function extractPDF(file){
   if(typeof pdfjsLib==='undefined') throw new Error('pdf.js not loaded');
-  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const w=document.getElementById('pdfWorker'); // bundled copy inside the iPhone app
+  pdfjsLib.GlobalWorkerOptions.workerSrc=w?URL.createObjectURL(new Blob([w.textContent],{type:'text/javascript'})):'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const buf=await file.arrayBuffer();
   const pdf=await pdfjsLib.getDocument({data:buf}).promise;
   let out='';
@@ -2032,7 +2195,7 @@ async function send(){
       else{
       if(err.name==='AbortError'||ls('ai_fallback')==='0'||!isOutOfCredit(err))throw err;
       let lastErr=err;
-      for(const p of fallbackChain(prov)){
+      for(const p of fallbackChain(prov).filter(privacyAllows)){
         toast(`${PROVIDERS[prov].name} out of credit → ${PROVIDERS[p].name}`);
         trow.querySelector('.msg-name').textContent=PROVIDERS[p].name;
         try{full=await callAPI(p,ls('ai_key_'+p)||'',conv,trow,abort,ls('ai_model_'+p)||PROVIDERS[p].defaultModel);prov=p;lastErr=null;break;}
@@ -2052,6 +2215,7 @@ async function send(){
 
 /* ===================== API ADAPTERS ===================== */
 async function callAPI(prov,apiKey,conv,trow,abortCtrl,modelOverride){
+  if(!privacyAllows(prov))throw new Error(`🔒 Private mode is on — ${PROVIDERS[prov].name} isn't a trusted provider. Switch model at the top, or turn Private mode off in Privacy & security.`);
   const sel=document.getElementById('modelSelect');
   let model=modelOverride||sel.value;
   if(prov==='custom') model=ls('ai_custom_model')||'';
@@ -2144,6 +2308,8 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
   const messages=sys?[{role:'system',content:sys},...oaiMsgs]:[...oaiMsgs];
   const extraHeaders=prov==='openrouter'?{'HTTP-Referer':'https://ai-studio.local','X-Title':'AI Studio'}:{};
   const body={model,messages,stream:true,max_tokens:maxOut()};
+  if(prov==='openai')body.store=false;                         // don't keep it in OpenAI's logs dashboard
+  if(prov==='openrouter')body.provider={data_collection:'deny'}; // only hosts that don't store or train
   if(['vnaipro','openai','openrouter','groq','custom','cerebras','huggingface','sambanova','github'].includes(prov)||PROVIDERS[prov]?.base)body.stream_options={include_usage:true};
   const res=await fetch(url,{method:'POST',headers:{...(apiKey?{'Authorization':`Bearer ${apiKey}`}:{}),'Content-Type':'application/json',...extraHeaders},body:JSON.stringify(body),signal:abortCtrl.signal});
   if(!res.ok){const e=await res.json().catch(()=>({}));let m=e.error?.message||`${prov} error ${res.status}`;if(prov==='vnaipro')m=explainVnai(m,model);throw httpErr(m,res.status);}
