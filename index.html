@@ -1521,10 +1521,18 @@ function codeReset(){Object.assign(codeState,{paths:null,staged:{},orig:{},msgs:
 function codeLog(cls,html){const el=document.createElement('div');el.className='code-step '+cls;el.innerHTML=html;const log=document.getElementById('codeLog');log.appendChild(el);log.scrollTop=log.scrollHeight;return el;}
 const CODE_TOOLS=[
   {type:'function',function:{name:'list_files',description:'List every file path in the repository.',parameters:{type:'object',properties:{},required:[]}}},
-  {type:'function',function:{name:'read_file',description:'Read a file (returns your pending edit if you already wrote it).',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},
-  {type:'function',function:{name:'write_file',description:'Create or fully replace a file with new contents. Always send the complete file.',parameters:{type:'object',properties:{path:{type:'string'},content:{type:'string'}},required:['path','content']}}},
+  {type:'function',function:{name:'read_file',description:'Read a file (your pending edits included). Big files: pass start_line/end_line (1-based) to read a part; use search_in_file to find where things are.',parameters:{type:'object',properties:{path:{type:'string'},start_line:{type:'integer'},end_line:{type:'integer'}},required:['path']}}},
+  {type:'function',function:{name:'search_in_file',description:'Find lines containing some text (case-insensitive). Returns line numbers and lines.',parameters:{type:'object',properties:{path:{type:'string'},query:{type:'string'}},required:['path','query']}}},
+  {type:'function',function:{name:'edit_file',description:'PREFERRED way to change existing files: replace one exact, unique snippet (copy it exactly, with enough surrounding lines to be unique) with new text. Call it several times for several changes.',parameters:{type:'object',properties:{path:{type:'string'},old_text:{type:'string'},new_text:{type:'string'}},required:['path','old_text','new_text']}}},
+  {type:'function',function:{name:'write_file',description:'Create a NEW file, or fully replace a SMALL file (under ~300 lines). For big existing files use edit_file instead.',parameters:{type:'object',properties:{path:{type:'string'},content:{type:'string'}},required:['path','content']}}},
   {type:'function',function:{name:'finish',description:'Call when the change is complete.',parameters:{type:'object',properties:{summary:{type:'string'}},required:['summary']}}}
 ];
+// Current text of a file: pending edit if any, else the repo version
+async function codeFile(path){
+  if(path in codeState.staged)return codeState.staged[path];
+  if(!(path in codeState.orig)){const t=await ghRaw(path);if(t===null)return null;codeState.orig[path]=t;}
+  return codeState.orig[path];
+}
 async function ghRaw(path){
   const r=await fetch(`https://api.github.com/repos/${codeState.repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(codeState.branch)}`,{headers:{Authorization:`Bearer ${ghToken}`,Accept:'application/vnd.github.raw'}});
   if(r.status===404)return null;if(!r.ok)throw new Error('GitHub '+r.status);return r.text();
@@ -1535,10 +1543,24 @@ async function codeTool(name,a){
     const all=[...new Set([...codeState.paths,...Object.keys(codeState.staged)])];
     return all.slice(0,3000).join('\n')+(all.length>3000?`\n…(${all.length-3000} more)`:'');
   }
-  if(name==='read_file'){
-    if(a.path in codeState.staged)return codeState.staged[a.path];
-    const t=await ghRaw(a.path);if(t===null)return 'ERROR: file not found';
-    codeState.orig[a.path]=t;return t.length>60000?t.slice(0,60000)+'\n…[truncated]':t;
+  if(name==='read_file'||name==='search_in_file'||name==='edit_file'){
+    const t=await codeFile(a.path);if(t===null)return 'ERROR: file not found: '+a.path;
+    const lines=t.split('\n');
+    if(name==='search_in_file'){
+      const q=(a.query||'').toLowerCase(), hits=[];
+      lines.forEach((l,k)=>{if(q&&l.toLowerCase().includes(q))hits.push(`${k+1}: ${l.slice(0,200)}`);});
+      return hits.length?hits.slice(0,80).join('\n')+(hits.length>80?`\n…(${hits.length-80} more)`:''):'No matches.';
+    }
+    if(name==='edit_file'){
+      const n=t.split(a.old_text).length-1;
+      if(!a.old_text||n===0)return 'ERROR: old_text not found. Re-read that part of the file and copy the text exactly.';
+      if(n>1)return `ERROR: old_text appears ${n} times. Include more surrounding lines so it is unique.`;
+      codeState.staged[a.path]=t.replace(a.old_text,()=>a.new_text);renderCodeChanges();
+      return 'OK, edited '+a.path;
+    }
+    const from=Math.max(1,a.start_line||1), to=Math.min(lines.length,a.end_line||(t.length>60000?from+799:lines.length));
+    const part=lines.slice(from-1,to).join('\n');
+    return (from>1||to<lines.length?`[lines ${from}-${to} of ${lines.length}]\n`:'')+(part.length>80000?part.slice(0,80000)+'\n…[truncated — use a smaller line range]':part);
   }
   if(name==='write_file'){
     if(!(a.path in codeState.orig)){codeState.orig[a.path]=(await ghRaw(a.path))??'';}
@@ -1561,7 +1583,8 @@ async function codeRun(){
 The user is NOT a programmer. Talk like a helpful person: short, simple, everyday words — no jargon, no code, no file names unless they ask.
 - If they greet you or ask a question, just answer in plain words (you may peek at the code with list_files/read_file to answer accurately). Don't edit anything.
 - If they describe something they want (even vaguely, like "make it look nicer" or "the button is broken"), figure out what they mean, and if it's unclear ask ONE simple question first.
-- When making a change: read the relevant files, then write_file the complete new contents of each file you change. Keep changes small and safe; don't touch unrelated things.
+- When making a change: find the right spot (search_in_file, read_file with line ranges for big files), then change it with edit_file (small exact replacements). Use write_file only for new or small files. Keep changes safe; don't touch unrelated things.
+- Big requests (like a redesign): work in steps — a few focused edits at a time — and tell the user what's done and what's next.
 - When done, call finish with a summary in plain words of what will be different for them (e.g. "The send button is now bigger and easier to tap."), then remind them to tap Commit to save it.
 Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
   codeState.msgs.push({role:'user',content:task});
@@ -1589,8 +1612,8 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
         ?await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'},
           body:JSON.stringify({model,instructions:codeState.msgs[0].content,input:codeState.pending,tools:CODE_TOOLS.map(t=>({type:'function',...t.function})),max_output_tokens:16000,...(codeState.respId?{previous_response_id:codeState.respId}:{})})})
         :await fetch(chatURL(prov),{method:'POST',headers:{...(key?{'Authorization':`Bearer ${key}`}:{}),'Content-Type':'application/json'},
-          body:JSON.stringify({model,messages:codeState.msgs,tools:CODE_TOOLS,max_tokens:16000})});
-      const j=await r.json().catch(()=>({}));thinking.remove();
+          body:JSON.stringify({model,messages:codeState.msgs,tools:CODE_TOOLS,max_tokens:32000,stream:true,stream_options:{include_usage:true}})});
+      const j=(!useResp&&r.ok)?await readToolStream(r,thinking):await r.json().catch(()=>({}));thinking.remove();
       if(!r.ok)throw new Error(prov==='vnaipro'?explainVnai(j.error?.message||String(r.status),model):(j.error?.message||'HTTP '+r.status));
       if(j.usage)lastUsage={in:j.usage.prompt_tokens??j.usage.input_tokens??0,out:j.usage.completion_tokens??j.usage.output_tokens??0};recordUsage(prov,model,0,'');updateTokenCounter();
       if(useResp){
@@ -1609,7 +1632,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
         let args={};try{args=JSON.parse(c.function.arguments||'{}');}catch{}
         const nm=c.function.name;
         if(nm==='finish')codeLog('step','✅ '+md(args.summary||'Done')+(Object.keys(codeState.staged).length?'<br><small>Tap <b>Commit</b> below to save it, or ✕ to undo.</small>':''));
-        else codeLog('tool',nm==='write_file'?`✏️ Changing ${esc(args.path||'')}`:nm==='read_file'?`👀 Reading ${esc(args.path||'')}`:'🗂️ Looking at the project');
+        else codeLog('tool',nm==='write_file'||nm==='edit_file'?`✏️ Changing ${esc(args.path||'')}`:nm==='read_file'?`👀 Reading ${esc(args.path||'')}`:nm==='search_in_file'?`🔎 Searching ${esc(args.path||'')}`:'🗂️ Looking at the project');
         let out;try{out=await codeTool(nm,args);}catch(e){out='ERROR: '+e.message;}
         codeState.msgs.push({role:'tool',tool_call_id:c.id,content:out});
         if(useResp)codeState.pending.push({type:'function_call_output',call_id:c.id,output:out});
@@ -1617,16 +1640,44 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
       }
       if(done)break;
     }
-  }catch(e){document.querySelectorAll('#codeLog .code-step').forEach(el=>{if(el.textContent==='…')el.remove();});codeLog('step','⚠️ '+esc(e?.message||e?.error?.message||JSON.stringify(e)));}
+  }catch(e){document.querySelectorAll('#codeLog .code-step').forEach(el=>{if(el.textContent==='…')el.remove();});let m=e?.message||e?.error?.message||JSON.stringify(e);
+    if(/load failed|failed to fetch|networkerror|network connection/i.test(m))m='The connection dropped (weak signal, or the AI took too long). Your changes so far are kept — just send “continue”.';
+    codeLog('step','⚠️ '+esc(m));}
   finally{
     // Code runs need OpenAI to remember the previous step; delete those stored responses once done
     if(useResp&&codeState.respIds?.length){const ids=codeState.respIds;codeState.respIds=[];codeState.respId=null;
       ids.forEach(id=>fetch('https://api.openai.com/v1/responses/'+id,{method:'DELETE',headers:{Authorization:`Bearer ${key}`}}).catch(()=>{}));}
     codeState.busy=false;document.getElementById('codeRunBtn').textContent='Send';renderCodeChanges();}
 }
+// Rebuild a chat-completions message from a streamed reply, showing progress as it arrives
+async function readToolStream(res,el){
+  const reader=res.body.getReader(), dec=new TextDecoder();let buf='',content='',usage=null;const calls=[];
+  while(true){
+    const {done,value}=await reader.read();if(done)break;
+    buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();
+    for(const line of lines){
+      if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(d==='[DONE]')continue;
+      let ev;try{ev=JSON.parse(d);}catch{continue;}
+      if(ev.usage)usage=ev.usage;
+      const delta=ev.choices?.[0]?.delta;if(!delta)continue;
+      if(delta.content)content+=delta.content;
+      for(const tc of delta.tool_calls||[]){
+        const c=calls[tc.index??calls.length]||(calls[tc.index??calls.length]={id:'',type:'function',function:{name:'',arguments:''}});
+        if(tc.id)c.id=tc.id;if(tc.function?.name)c.function.name+=tc.function.name;if(tc.function?.arguments)c.function.arguments+=tc.function.arguments;
+      }
+      const n=calls.reduce((k,c)=>k+c.function.arguments.length,0)+content.length;
+      el.textContent=calls.length?`✍️ Working… (${Math.round(n/1000)}k characters)`:'💭 Thinking…';
+    }
+  }
+  return {choices:[{message:{role:'assistant',content,tool_calls:calls.filter(Boolean).map((c,i)=>({...c,id:c.id||'call_'+i}))}}],usage};
+}
 // Line diff (LCS); falls back to a plain listing for very large files
 function lineDiff(a,b){
-  const A=a.split('\n'),B=b.split('\n');
+  let A=a.split('\n'),B=b.split('\n');
+  // skip the identical start and end, diff only the middle
+  let p=0;while(p<A.length&&p<B.length&&A[p]===B[p])p++;
+  let q=0;while(q<A.length-p&&q<B.length-p&&A[A.length-1-q]===B[B.length-1-q])q++;
+  A=A.slice(p,A.length-q);B=B.slice(p,B.length-q);
   if(A.length*B.length>4e6)return B.map(l=>'<span class="a">+ '+esc(l)+'</span>').join('');
   const n=A.length,m=B.length,L=Array.from({length:n+1},()=>new Uint16Array(m+1));
   for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[i][j]=A[i]===B[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
