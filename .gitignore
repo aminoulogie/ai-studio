@@ -1,0 +1,4 @@
+ios/www/
+ios/build/
+ios/*.xcodeproj/
+ios/AIStudio/Info.plist

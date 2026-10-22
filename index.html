@@ -328,7 +328,10 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
     <div class="s-label">Provider</div>
     <div class="provider-section">
       <div class="provider-grid" id="providerGrid">
-        <button class="provider-btn active" data-p="anthropic" onclick="selectProvider('anthropic')">
+        <button class="provider-btn" data-p="vnaipro" onclick="selectProvider('vnaipro')">
+          <span class="pb-dot" style="background:#3b82f6"></span>VNAIPro
+        </button>
+        <button class="provider-btn" data-p="anthropic" onclick="selectProvider('anthropic')">
           <span class="pb-dot" style="background:#cc785c"></span>Anthropic
         </button>
         <button class="provider-btn" data-p="openai" onclick="selectProvider('openai')">
@@ -534,7 +537,20 @@ html,body{height:100%;font-family:var(--font-sans);background:var(--sidebar-bg);
 
 <script>
 /* ===================== PROVIDERS ===================== */
+const VNAI_BASE='https://apikey.vnaipro.app/v1';
 const PROVIDERS = {
+  vnaipro: {
+    name: 'VNAIPro',
+    color: '#3b82f6',
+    placeholder: 'sk-… (paste your vnaipro key)',
+    link: 'https://apikey.vnaipro.app/dashboard/overview',
+    models: lsj('vnai_models')||[
+      {v:'claude-sonnet-4-5', l:'claude-sonnet-4-5'},
+      {v:'claude-opus-4-5',   l:'claude-opus-4-5'},
+      {v:'claude-haiku-4-5',  l:'claude-haiku-4-5'},
+    ],
+    defaultModel: 'claude-sonnet-4-5'
+  },
   anthropic: {
     name: 'Anthropic',
     color: '#cc785c',
@@ -656,7 +672,7 @@ const PROVIDERS = {
 
 /* ===================== STATE ===================== */
 let convs={}, curId=null, streaming=false, abort=null, inTok=0, outTok=0, isDark=false;
-let curProvider='anthropic';
+let curProvider='vnaipro';
 let attachments=[]; // [{name, type, content, dataUrl, isImage}]
 let ghToken='', ghUser='', ghRepos=[], ghCurRepo='', ghCurBranch='main', ghBranches=[];
 let ghOpenFile=null;
@@ -681,7 +697,7 @@ function lsj(k){try{return JSON.parse(ls(k));}catch{return null;}}
 
 /* ===================== PREFS ===================== */
 function loadPrefs(){
-  curProvider=ls('ai_provider')||'anthropic';
+  curProvider=ls('ai_provider')||'vnaipro';
   renderProviderUI();
   const key=ls('ai_key_'+curProvider)||'';
   document.getElementById('apiKey').value=key;
@@ -689,6 +705,7 @@ function loadPrefs(){
   updateDot(key);
   const dark=ls('cl_dark')==='1'; isDark=dark; applyTheme(dark);
   updateModelLabel();
+  if(curProvider==='vnaipro'&&key)loadVnaiModels(key);
 }
 
 function selectProvider(p){
@@ -701,6 +718,7 @@ function selectProvider(p){
   document.getElementById('apiKey').value=key;
   updateDot(key);
   updateModelLabel();
+  if(p==='vnaipro'&&key)loadVnaiModels(key);
 }
 
 function renderProviderUI(){
@@ -743,6 +761,28 @@ function onKeyInput(){
   const k=document.getElementById('apiKey').value.trim();
   ls('ai_key_'+curProvider,k);
   updateDot(k);
+  if(curProvider==='vnaipro'){clearTimeout(vnaiTimer);vnaiTimer=setTimeout(()=>loadVnaiModels(k),600);}
+}
+
+/* Fetch the models your vnaipro key's group can use, so the picker always matches */
+let vnaiTimer=null;
+async function loadVnaiModels(k){
+  if(!k||k.length<10)return;
+  try{
+    const res=await fetch(VNAI_BASE+'/models',{headers:{'Authorization':`Bearer ${k}`}});
+    if(!res.ok){toast(res.status===401?'Key rejected by vnaipro':'Could not load models ('+res.status+')');return;}
+    const ids=((await res.json()).data||[]).map(m=>m.id).sort();
+    if(!ids.length)return;
+    const models=ids.map(id=>({v:id,l:id}));
+    PROVIDERS.vnaipro.models=models;ls('vnai_models',models);
+    const cur=ls('ai_model_vnaipro');
+    if(!cur||!ids.includes(cur)){
+      const pick=ids.find(i=>/claude.*sonnet/i.test(i))||ids.find(i=>/claude/i.test(i))||ids[0];
+      ls('ai_model_vnaipro',pick);
+    }
+    if(curProvider==='vnaipro')renderProviderUI();
+    toast('Connected · '+ids.length+' models');
+  }catch(e){toast('Network error loading models');}
 }
 
 function saveSettings(){
@@ -1110,7 +1150,8 @@ async function callOpenAICompat(prov,apiKey,model,sys,msgs,bubble,abortCtrl){
     openai:'https://api.openai.com/v1/chat/completions',
     mistral:'https://api.mistral.ai/v1/chat/completions',
     groq:'https://api.groq.com/openai/v1/chat/completions',
-    openrouter:'https://openrouter.ai/api/v1/chat/completions'
+    openrouter:'https://openrouter.ai/api/v1/chat/completions',
+    vnaipro:VNAI_BASE+'/chat/completions'
   };
   const url=ENDPOINTS[prov];
   // Convert messages with images to OpenAI content array format

@@ -1,0 +1,38 @@
+name: Build iOS IPA
+
+on:
+  push:
+    paths: ['index.html', 'ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bundle web app
+        run: mkdir -p ios/www && cp index.html ios/www/index.html
+
+      - name: Generate Xcode project
+        run: brew install xcodegen && cd ios && xcodegen generate
+
+      - name: Build (unsigned)
+        run: |
+          cd ios
+          xcodebuild -project AIStudio.xcodeproj -scheme AIStudio -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+
+      - name: Package IPA
+        run: |
+          cd ios
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/AIStudio.app Payload/
+          zip -qry AIStudio.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AIStudio-ipa
+          path: ios/AIStudio.ipa
+          retention-days: 30
