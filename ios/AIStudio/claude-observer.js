@@ -1,4 +1,4 @@
-/* Visible Claude page observation only. No cookies, tokens, password fields or private APIs. */
+/* Visible Claude page observation, plus typing shared memory into the message box (never sending it). No cookies, tokens, password fields or private APIs. */
 (function(){
   'use strict';
   if(location.protocol!=='https:'||location.hostname!=='claude.ai')return;
