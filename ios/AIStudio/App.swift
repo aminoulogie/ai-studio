@@ -145,6 +145,9 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         case "claudeCodeRequest":
             guard let tabs = tabBarController as? StudioTabController else { replyHandler(nil, "Claude containers are unavailable"); return }
             tabs.runClaudeCode(msg, reply: replyHandler); return
+        case "claudeCodeConfirm":
+            (tabBarController as? StudioTabController)?.confirmClaudeCode(msg["id"] as? String ?? "")
+            replyHandler(true, nil); return
         case "claudeCodeCancel":
             (tabBarController as? StudioTabController)?.cancelClaudeCode(msg["id"] as? String ?? "")
             replyHandler(true, nil); return

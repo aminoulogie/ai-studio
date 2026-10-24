@@ -55,8 +55,11 @@ function status(id){
   if(!request.confirmed&&Date.now()-request.submittedAt>8000)request.phase='prepared';
   const fresh=history.length>request.baseline||(last&&last!==request.lastBefore);
   if(request.confirmed&&fresh&&last!==request.text){request.text=last;request.changedAt=Date.now();request.phase='responding';}
-  const busy=generating();
-  if(request.confirmed&&fresh&&request.text&&!busy&&Date.now()-request.changedAt>=2500)request.phase='complete';
+  const busy=generating();if(busy)request.sawGenerating=true;
+  const completedMarker=all('[data-is-streaming],[data-testid="assistant-message"]').at(-1)?.getAttribute('data-is-streaming')==='false';
+  if(request.confirmed&&fresh&&request.text&&!busy&&Date.now()-request.changedAt>=2500){
+    request.phase=request.sawGenerating||completedMarker||request.confirmedComplete?'complete':'needsConfirmation';
+  }
   if(request.phase==='prepared'&&request.confirmed)request.phase='submitted';
   return {id:request.id,phase:request.phase,text:request.text,url:location.href,generating:busy,
     model:all('[data-testid="model-selector-dropdown"],button[data-testid="model-selector"]')[0]?.innerText?.trim()||'Claude web'};
@@ -70,6 +73,11 @@ function cancel(id){
   if(stop)stop.click();
   request=null;
 }
+const watcher=new MutationObserver(()=>{if(request&&generating())request.sawGenerating=true;});
+watcher.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['data-is-streaming','aria-label']});
+root.claudeConfirmCodeReply=id=>{
+  if(request?.id===id&&request.confirmed&&request.text&&!generating())request.confirmedComplete=true;
+};
 root.claudeBeginCodeRequest=begin;
 root.claudeCodeRequestStatus=status;
 root.claudeCancelCodeRequest=cancel;

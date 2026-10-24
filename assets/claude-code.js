@@ -117,7 +117,7 @@ async function collectClaudeSource(task){
 }
 function newID(){return 'claude-code-'+Array.from(crypto.getRandomValues(new Uint8Array(12)),b=>b.toString(16).padStart(2,'0')).join('');}
 function newCard(id,title){
-  const row=codeLog('step','<div class="claude-code-card"><b class="claude-code-title"></b><p class="claude-code-detail"></p><pre class="claude-code-answer"></pre><button class="gh-btn" onclick="native({op:\'showClaude\'}).catch(e=>toast(e.message))">Open Claude tab</button><button class="gh-btn" onclick="copyClaudeCodePrompt()">Copy active request</button></div>');
+  const row=codeLog('step','<div class="claude-code-card"><b class="claude-code-title"></b><p class="claude-code-detail"></p><pre class="claude-code-answer"></pre><button class="gh-btn" onclick="native({op:\'showClaude\'}).catch(e=>toast(e.message))">Open Claude tab</button><button class="gh-btn" onclick="copyClaudeCodePrompt()">Copy active request</button><button class="gh-btn claude-confirm" hidden onclick="confirmClaudeCodeReply()">Use finished reply</button></div>');
   const card=row.querySelector('.claude-code-card');card.dataset.request=id;
   card.querySelector('.claude-code-title').textContent=title;return card;
 }
@@ -156,18 +156,20 @@ function copyClaudeCodePrompt(){
   if(!activeRequest?.prompt){toast('No active Claude request.');return;}
   navigator.clipboard.writeText(activeRequest.prompt).then(()=>toast('Request copied. Paste it into the chosen Claude container.')).catch(()=>toast('Clipboard access failed. Open the Claude tab to inspect the prepared prompt.'));
 }
+function confirmClaudeCodeReply(){if(activeRequest)native({op:'claudeCodeConfirm',id:activeRequest.id}).catch(e=>toast(e.message));}
 function onClaudeCodeEvent(event){
   if(!activeRequest||event.id!==activeRequest.id)return;
   const card=activeRequest.card;
   card.querySelector('.claude-code-title').textContent=(event.model||'Claude web')+' · Container '+event.containerNumber+' · '+event.containerName;
-  const phases={opening:'Opening Claude',needsLogin:'Sign in in the Claude tab',prepared:'Prompt ready · check Send in Claude',submitted:'Prompt sent to Claude',responding:'Claude is writing',switching:'Switching Claude account',busy:'Claude is finishing another response',draftPresent:'Existing browser draft needs attention',complete:'Claude finished',error:'Claude task paused'};
+  const phases={opening:'Opening Claude',needsLogin:'Sign in in the Claude tab',prepared:'Prompt ready · check Send in Claude',submitted:'Prompt sent to Claude',responding:'Claude is writing',switching:'Switching Claude account',busy:'Claude is finishing another response',draftPresent:'Existing browser draft needs attention',needsConfirmation:'Check that Claude has finished, then tap Use finished reply',complete:'Claude finished',error:'Claude task paused'};
   card.querySelector('.claude-code-detail').textContent=event.detail||phases[event.phase]||event.phase;
   if(event.text)card.querySelector('.claude-code-answer').textContent=event.text;
+  card.querySelector('.claude-confirm').hidden=event.phase!=='needsConfirmation';
   codeStatus(phases[event.phase]||'Working with Claude',event.phase==='error'?'warning':'working');
 }
 root.claudeEffortInstruction=claudeEffortInstruction;root.selectClaudeContextPaths=selectClaudeContextPaths;root.claudeSourceExcerpt=claudeSourceExcerpt;root.buildClaudeCodePrompt=buildClaudeCodePrompt;
 root.renderClaudeControls=renderClaudeControls;root.setClaudeCodeRoute=setClaudeCodeRoute;root.refreshClaudeCodeProfiles=refreshClaudeCodeProfiles;
 root.openClaudeCodeSettings=openClaudeCodeSettings;root.saveClaudeCodeSettings=saveClaudeCodeSettings;root.initClaudeCode=initClaudeCode;
-root.copyClaudeCodePrompt=copyClaudeCodePrompt;root.requestClaudeFromCode=requestClaudeFromCode;root.onClaudeCodeEvent=onClaudeCodeEvent;root.showSavedClaudeResult=showSavedClaudeResult;
+root.confirmClaudeCodeReply=confirmClaudeCodeReply;root.copyClaudeCodePrompt=copyClaudeCodePrompt;root.requestClaudeFromCode=requestClaudeFromCode;root.onClaudeCodeEvent=onClaudeCodeEvent;root.showSavedClaudeResult=showSavedClaudeResult;
 if(typeof module!=='undefined')module.exports={claudeEffortInstruction,selectClaudeContextPaths,claudeSourceExcerpt,buildClaudeCodePrompt};
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -26,6 +26,7 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
     func runClaudeCode(_ message: [String: Any], reply: @escaping (Any?, String?) -> Void) {
         claudeBrowser.startCodeRequest(message, reply: reply)
     }
+    func confirmClaudeCode(_ id: String) { claudeBrowser.confirmCodeReply(id) }
     func cancelClaudeCode(_ id: String) { claudeBrowser.cancelCodeRequest(id) }
     func openClaudeTab() { selectedIndex = 2 }
     func selectStudioMode(_ mode: String) {

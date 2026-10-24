@@ -488,6 +488,11 @@ extension ClaudeBrowserController {
         codeTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.pollCodeRequest() }
         pollCodeRequest()
     }
+    func confirmCodeReply(_ id: String) {
+        guard let request = codePending, request.id == id else { return }
+        browsers[request.profileID]?.callAsyncJavaScript("return globalThis.claudeConfirmCodeReply?.(id);",
+            arguments: ["id": id], in: nil, in: observerWorld, completionHandler: nil)
+    }
     func cancelCodeRequest(_ id: String) {
         guard codePending?.id == id else { return }
         finishCodeRequest(error: "Claude task stopped. No browser response was applied to repository files.")
@@ -510,12 +515,12 @@ extension ClaudeBrowserController {
                       "containerName": profile.name, "model": model])
     }
     private func pollCodeRequest() {
-        guard let request = codePending, !request.evaluating else { return }
+        guard let request = codePending else { return }
         if Date() > request.deadline {
             finishCodeRequest(error: "Claude did not finish within ten minutes. Its browser conversation is kept; no partial output was applied.")
             return
         }
-        guard let web = browsers[request.profileID], !web.isLoading else { return }
+        guard !request.evaluating, let web = browsers[request.profileID], !web.isLoading else { return }
         guard safeClaudeURL(web.url) != nil else {
             emitCode(request, phase: "needsLogin", detail: "Open Claude and finish signing in to this container."); return
         }

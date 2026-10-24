@@ -15,7 +15,7 @@ function fixture({withSend=true,draft=''}={}){
   let now=0,busy=false,messages=[],clicks=0;
   class Area {constructor(){this.tagName='TEXTAREA';this._value=draft;}get value(){return this._value;}set value(v){this._value=v;}focus(){}dispatchEvent(){}getClientRects(){return [{}];}}
   const editor=new Area(),send={getClientRects:()=>[{}],getAttribute:()=>null,disabled:false,click(){clicks++;}},stop={...send};
-  const document={addEventListener(){},querySelectorAll(s){
+  const document={documentElement:{},addEventListener(){},querySelectorAll(s){
     if(s.includes('ProseMirror'))return [editor];
     if(s.includes('send-button'))return withSend?[send]:[];
     if(s.includes('stop-button'))return busy?[stop]:[];
@@ -24,7 +24,7 @@ function fixture({withSend=true,draft=''}={}){
   }};
   const ctx={location:{protocol:'https:',hostname:'claude.ai',href:'https://claude.ai/chat/test'},document,
     HTMLTextAreaElement:Area,Event:class{},InputEvent:class{},getComputedStyle:()=>({visibility:'visible'}),
-    Date:{now:()=>now},claudeVisibleSnapshot:()=>({messages})};
+    MutationObserver:class{observe(){}},Date:{now:()=>now},claudeVisibleSnapshot:()=>({messages})};
   vm.createContext(ctx);vm.runInContext(fs.readFileSync('ios/AIStudio/claude-code-dom.js','utf8'),ctx);
   return {ctx,editor,get clicks(){return clicks;},tick:n=>now+=n,busy:v=>busy=v,messages:v=>messages=v};
 }
@@ -40,4 +40,9 @@ f=fixture({withSend:false});assert.equal(f.ctx.claudeBeginCodeRequest({id:'x',pr
 f=fixture({draft:'Keep my draft'});assert.equal(f.ctx.claudeBeginCodeRequest({id:'x',prompt:'replace'}).phase,'draftPresent');assert.equal(f.editor.value,'Keep my draft');
 f=fixture();f.ctx.claudeBeginCodeRequest({id:'x',prompt:'[AI Studio task x]\nTask'});f.tick(9000);
 assert.equal(f.ctx.claudeCodeRequestStatus('x').phase,'prepared','Unconfirmed submission needs manual Send');
+f=fixture();f.ctx.claudeBeginCodeRequest({id:'x',prompt:'[AI Studio task x]\\nTask'});
+f.messages([{role:'user',content:'[AI Studio task x]\\nTask'},{role:'assistant',content:'Very quick answer'}]);
+f.ctx.claudeCodeRequestStatus('x');f.tick(3000);
+assert.equal(f.ctx.claudeCodeRequestStatus('x').phase,'needsConfirmation','Unknown completion markup must not silently apply output');
+f.ctx.claudeConfirmCodeReply('x');assert.equal(f.ctx.claudeCodeRequestStatus('x').phase,'complete');
 console.log('Claude Code checks passed: context selection, private paths, effort, composer submission, streaming completion and manual fallbacks.');
