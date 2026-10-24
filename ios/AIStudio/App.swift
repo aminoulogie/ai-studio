@@ -10,7 +10,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = WebViewController()
+        do {
+            let browser = ClaudeBrowserController(store: try ClaudeProfileStore())
+            window?.rootViewController = UINavigationController(rootViewController: browser)
+        } catch {
+            let controller = UIViewController()
+            controller.view.backgroundColor = .systemBackground
+            let label = UILabel(frame: UIScreen.main.bounds.insetBy(dx: 24, dy: 80))
+            label.numberOfLines = 0; label.textAlignment = .center
+            label.text = "Could not load Claude profiles. Your stored containers have not been reset.\n\n" + error.localizedDescription
+            controller.view.addSubview(label); window?.rootViewController = controller
+        }
         window?.makeKeyAndVisible()
         return true
     }

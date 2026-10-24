@@ -1611,7 +1611,7 @@ async function codeOpen(){
 }
 function codeAsk(a){document.getElementById('codeTask').value=a.textContent;codeRun();}
 async function codeRepoChange(){
-  if(codeState.busy)return;
+  if(codeState.busy||codeState.committing)return;
   await saveCodeSession();
   codeState.repo=document.getElementById('codeRepo').value;ls('code_repo',codeState.repo);
   try{
@@ -1622,8 +1622,8 @@ async function codeRepoChange(){
   }catch(e){codeLog('step',e.message);}
   codeReset();await restoreCodeSession();
 }
-async function codeBranchChange(branch){if(codeState.busy)return;await saveCodeSession();codeState.branch=branch;codeReset();await restoreCodeSession();}
-function codeReset(){Object.assign(codeState,{paths:null,staged:{},orig:{},msgs:[],respId:null,pending:[]});document.getElementById('codeLog').innerHTML='';renderCodeChanges();}
+async function codeBranchChange(branch){if(codeState.busy||codeState.committing)return;await saveCodeSession();codeState.branch=branch;codeReset();await restoreCodeSession();}
+function codeReset(){Object.assign(codeState,{paths:null,staged:{},orig:{},msgs:[],respId:null,pending:[],baseSHA:null});document.getElementById('codeLog').innerHTML='';renderCodeChanges();}
 function codeLog(cls,html){const el=document.createElement('div');el.className='code-step '+cls;el.innerHTML=html;const log=document.getElementById('codeLog');log.appendChild(el);log.scrollTop=log.scrollHeight;return el;}
 const CODE_TOOLS=[
   {type:'function',function:{name:'list_files',description:'List every file path in the repository.',parameters:{type:'object',properties:{},required:[]}}},
@@ -1639,13 +1639,27 @@ async function codeFile(path){
   if(!(path in codeState.orig)){const t=await ghRaw(path);if(t===null)return null;codeState.orig[path]=t;}
   return codeState.orig[path];
 }
-async function ghRaw(path){
-  const r=await fetch(`https://api.github.com/repos/${codeState.repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(codeState.branch)}`,{headers:{Authorization:`Bearer ${ghToken}`,Accept:'application/vnd.github.raw'}});
-  if(r.status===404)return null;if(!r.ok)throw new Error('GitHub '+r.status);return r.text();
+async function codeEnsureBase(){
+  if(!codeState.baseSHA){
+    const ref=await ghFetch(`/repos/${codeState.repo}/git/ref/heads/${encodeURIComponent(codeState.branch)}`);
+    codeState.baseSHA=ref.object.sha;
+    await saveCodeSession();
+  }
+  return codeState.baseSHA;
 }
+async function ghRawAt(repo,path,ref){
+  const encoded=path.split('/').map(encodeURIComponent).join('/');
+  try{
+    const file=await ghFetch(`/repos/${repo}/contents/${encoded}?ref=${encodeURIComponent(ref)}`);
+    if(file.type!=='file'||file.encoding!=='base64')throw new Error('This file cannot be edited as text.');
+    return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(file.content.replace(/\s/g,'')),c=>c.charCodeAt(0)));
+  }catch(e){if(e.status===404)return null;throw e;}
+}
+async function ghRaw(path){return ghRawAt(codeState.repo,path,await codeEnsureBase());}
 async function codeTool(name,a){
+  await codeEnsureBase();
   if(name==='list_files'){
-    if(!codeState.paths){const t=await ghFetch(`/repos/${codeState.repo}/git/trees/${encodeURIComponent(codeState.branch)}?recursive=1`);codeState.paths=t.tree.filter(x=>x.type==='blob').map(x=>x.path);}
+    if(!codeState.paths){const t=await ghFetch(`/repos/${codeState.repo}/git/trees/${encodeURIComponent(await codeEnsureBase())}?recursive=1`);codeState.paths=t.tree.filter(x=>x.type==='blob').map(x=>x.path);}
     const all=[...new Set([...codeState.paths,...Object.keys(codeState.staged)])];
     return all.slice(0,3000).join('\n')+(all.length>3000?`\n…(${all.length-3000} more)`:'');
   }
@@ -1676,6 +1690,7 @@ async function codeTool(name,a){
   return 'ERROR: unknown tool';
 }
 async function codeRun(){
+  if(codeState.committing){toast('Wait for the commit to finish.');return;}
   if(codeState.busy){codeState.stop=true;codeState.controller?.abort();codeStatus('Stopping…','working');return;}
   const task=document.getElementById('codeTask').value.trim();if(!task)return;
   if(ghToken&&(!codeState.repo||!codeState.branch)){codeLog('step','Choose a repository and branch first.');return;}
@@ -1751,7 +1766,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
   }
 }
 function codeResume(){
-  if(codeState.busy)return;
+  if(codeState.busy||codeState.committing)return;
   const input=document.getElementById('codeTask');
   if(!input.value.trim())input.value='Continue from the last completed step. Inspect pending edits and do not repeat changes already made.';
   codeRun();
@@ -1786,22 +1801,52 @@ function renderCodeChanges(){
     `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="AI: ${esc(String(codeState.msgs.filter(m=>m.role==='user').pop()?.content||'update').slice(0,60))}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
 }
 async function codeCommit(){
-  if(codeState.busy){toast('Stop the task before committing changes.');return;}
+  if(codeState.busy||codeState.committing){toast('Wait for the current task to finish.');return;}
   const files=Object.keys(codeState.staged);if(!files.length)return;
-  const msg=document.getElementById('codeMsg').value.trim()||'Update via AI Studio';
-  if(!confirm(`Commit ${files.length} file(s) to ${codeState.repo} @ ${codeState.branch}?`))return;
+  const message=document.getElementById('codeMsg').value.trim()||'Update via AI Studio';
+  const repo=codeState.repo,branch=codeState.branch,staged={...codeState.staged};
+  if(!confirm(`Commit ${files.length} file(s) to ${repo} @ ${branch}?`))return;
+  codeState.committing=true;
+  document.getElementById('codeRepo').disabled=true;document.getElementById('codeBranch').disabled=true;
   try{
-    const R=`/repos/${codeState.repo}/git`;
-    const ref=await ghFetch(`${R}/ref/heads/${encodeURIComponent(codeState.branch)}`);
-    const base=await ghFetch(`${R}/commits/${ref.object.sha}`);
+    const R=`/repos/${repo}/git`;
+    const ref=await ghFetch(`${R}/ref/heads/${encodeURIComponent(branch)}`);
+    const head=ref.object.sha,base=await ghFetch(`${R}/commits/${head}`);
+    const remote=await ghFetch(`${R}/trees/${base.tree.sha}?recursive=1`);
+    if(remote.truncated)throw new Error('Repository tree is too large to verify safely. Commit with local Git.');
+    const entries=new Map(remote.tree.map(x=>[x.path,x]));
+    if(codeState.baseSHA){
+      const original=await ghFetch(`${R}/trees/${codeState.baseSHA}?recursive=1`);
+      if(original.truncated)throw new Error('Original tree is too large to verify safely.');
+      const old=new Map(original.tree.map(x=>[x.path,x]));
+      for(const f of files)if(entries.get(f)?.sha!==old.get(f)?.sha||entries.get(f)?.mode!==old.get(f)?.mode)
+        throw new Error('Remote changes conflict with '+f+'. Pending edits are kept. Export the session and merge this file before retrying.');
+    }else{
+      // Recovery copies made by older app versions have original text but no pinned commit.
+      for(const f of files){
+        const current=await ghRawAt(repo,f,head);
+        if((current??'')!==(codeState.orig[f]??''))throw new Error('Remote changes conflict with '+f+'. Pending edits are kept.');
+      }
+    }
     const tree=[];
-    for(const f of files){const b=await ghFetch(`${R}/blobs`,{method:'POST',body:JSON.stringify({content:codeState.staged[f],encoding:'utf-8'})});tree.push({path:f,mode:'100644',type:'blob',sha:b.sha});}
+    for(const f of files){
+      const old=entries.get(f);
+      if(old&&(!['100644','100755'].includes(old.mode)||old.type!=='blob'))throw new Error('Unsupported file type: '+f);
+      const blob=await ghFetch(`${R}/blobs`,{method:'POST',body:JSON.stringify({content:staged[f],encoding:'utf-8'})});
+      tree.push({path:f,mode:old?.mode||'100644',type:'blob',sha:blob.sha});
+    }
     const t=await ghFetch(`${R}/trees`,{method:'POST',body:JSON.stringify({base_tree:base.tree.sha,tree})});
-    const c=await ghFetch(`${R}/commits`,{method:'POST',body:JSON.stringify({message:msg,tree:t.sha,parents:[ref.object.sha]})});
-    await ghFetch(`${R}/refs/heads/${encodeURIComponent(codeState.branch)}`,{method:'PATCH',body:JSON.stringify({sha:c.sha})});
-    files.forEach(f=>codeState.orig[f]=codeState.staged[f]);codeState.staged={};codeState.paths=null;renderCodeChanges();await saveCodeSession();
-    codeLog('step',`🚀 Committed <a href="${esc(c.html_url)}" target="_blank">${esc(c.sha.slice(0,7))}</a> to ${esc(codeState.branch)}`);
-  }catch(e){codeLog('step','⚠️ Commit failed: '+esc(e.message));}
+    const commit=await ghFetch(`${R}/commits`,{method:'POST',body:JSON.stringify({message,tree:t.sha,parents:[head]})});
+    // A concurrent push makes this a non-fast-forward; GitHub rejects it. Never force.
+    await ghFetch(`${R}/refs/heads/${encodeURIComponent(branch)}`,{method:'PATCH',body:JSON.stringify({sha:commit.sha,force:false})});
+    codeState.orig={};codeState.staged={};codeState.paths=null;codeState.baseSHA=commit.sha;
+    await saveCodeSession();renderCodeChanges();
+    codeLog('step',`Committed <a href="https://github.com/${esc(repo)}/commit/${esc(commit.sha)}" target="_blank">${esc(commit.sha.slice(0,7))}</a> to ${esc(branch)}`);
+  }catch(e){codeLog('step','Commit failed: '+esc(e.message));}
+  finally{
+    codeState.committing=false;
+    document.getElementById('codeRepo').disabled=false;document.getElementById('codeBranch').disabled=false;
+  }
 }
 
 /* ===================== STATE ===================== */
@@ -2341,7 +2386,7 @@ async function send(){
     saveConvs();renderConvList();renderMessages();updateTokenCounter();updateCtx();
   }catch(err){
     trow.remove();
-    if(err.name!=='AbortError'){conv.msgs.pop();saveConvs();renderMessages();showErr(err.message);}
+    if(err.name!=='AbortError'){saveConvs();renderMessages();showErr(err.message);}
     else{const partial=trow.querySelector('.msg-bubble')?.innerText?.trim();if(partial){conv.msgs.push({role:'assistant',content:partial});saveConvs();}renderMessages();}
   }finally{streaming=false;abort=null;setSend(false);}
 }
@@ -2501,10 +2546,17 @@ function qs(btn){document.getElementById('userInput').value=btn.textContent;send
 
 /* ===================== GITHUB ===================== */
 async function ghFetch(path,opts={}){
-  const headers={'Authorization':`Bearer ${ghToken}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(opts.headers||{})};
-  const res=await fetch(`https://api.github.com${path}`,{...opts,headers});
-  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||`GitHub ${res.status}`);}
-  return res.json();
+  const headers={'Authorization':`Bearer ${ghToken}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(opts.body?{'Content-Type':'application/json'}:{}),...(opts.headers||{})};
+  const res=await fetch(`https://api.github.com${path}`,{...opts,headers,credentials:'omit',cache:'no-store'});
+  if(!res.ok){
+    const e=await res.json().catch(()=>({})),details=e.message||`GitHub ${res.status}`;
+    const help=res.status===401?'Sign in again; the GitHub token expired or was revoked.':
+      res.status===403?'Check repository Contents: read/write permission, organization SSO approval, branch rules, and API rate limits.':
+      res.status===404?'Check repository access and the selected branch.':
+      [409,422].includes(res.status)?'The branch or file changed, or branch rules rejected the commit. Your edits are kept. Refresh and resolve the conflict or use a writable branch.':'';
+    throw Object.assign(new Error(details+(help?' '+help:'')),{status:res.status});
+  }
+  return res.status===204?null:res.json();
 }
 async function connectGh(){
   const tok=document.getElementById('ghTokenInput').value.trim();
@@ -2513,7 +2565,8 @@ async function connectGh(){
   try{
     const user=await ghFetch('/user',{headers:{'Authorization':`Bearer ${tok}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});
     ghToken=tok;ghUser=user.login;ls('gh_token',tok);
-    initGhConnected();
+    document.getElementById('ghTokenInput').value='';
+    await initGhConnected();
   }catch(e){setGhStatus('Error: '+e.message,'err');}
 }
 async function initGhConnected(){
@@ -2526,7 +2579,7 @@ async function initGhConnected(){
     sel.innerHTML=ghRepos.map(r=>`<option value="${esc(r.full_name)}">${esc(r.full_name)}</option>`).join('');
     setGhStatus(`Connected as ${ghUser}`,'ok');
     if(ghRepos.length){ghCurRepo=ghRepos[0].full_name;await loadBranches();await loadTree('');}
-  }catch(e){setGhStatus('Error: '+e.message,'err');}
+  }catch(e){if(e.status===401){ghToken='';ls('gh_token',null);document.getElementById('ghConnect').style.display='';}setGhStatus('Error: '+e.message,'err');}
 }
 async function onRepoChange(){ghCurRepo=document.getElementById('repoSelect').value;ghOpenFile=null;clearEditor();await loadBranches();await loadTree('');}
 async function loadBranches(){
@@ -2534,9 +2587,9 @@ async function loadBranches(){
     const branches=await ghFetch(`/repos/${ghCurRepo}/branches?per_page=50`);
     ghBranches=branches;
     const sel=document.getElementById('branchSelect');
-    sel.innerHTML=branches.map(b=>`<option value="${esc(b.name)}" ${b.name==='main'||b.name==='master'?'selected':''}>${esc(b.name)}</option>`).join('');
+    sel.innerHTML=branches.map(b=>`<option value="${esc(b.name)}" ${b.name===(ghRepos.find(r=>r.full_name===ghCurRepo)?.default_branch||'main')?'selected':''}>${esc(b.name)}</option>`).join('');
     ghCurBranch=sel.value;
-  }catch{}
+  }catch(e){setGhStatus(e.message,'err');throw e;}
 }
 async function onBranchChange(){ghCurBranch=document.getElementById('branchSelect').value;ghOpenFile=null;clearEditor();await loadTree('');}
 async function loadTree(path){
@@ -2638,7 +2691,7 @@ async function doCommit(){
     const content=btoa(unescape(encodeURIComponent(ghOpenFile.content)));
     const body={message:fullMsg,content,branch:ghCurBranch};
     if(ghOpenFile.sha)body.sha=ghOpenFile.sha;
-    const res=await ghFetch(`/repos/${ghCurRepo}/contents/${ghOpenFile.path}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const res=await ghFetch(`/repos/${ghCurRepo}/contents/${ghOpenFile.path.split('/').map(encodeURIComponent).join('/')}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     ghOpenFile.sha=res.content.sha;ghOpenFile.editing=false;
     showViewer(ghOpenFile.content,ghOpenFile.path);
     setGhStatus('Committed ✓','ok');toast('Committed successfully!');
