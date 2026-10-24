@@ -2518,7 +2518,7 @@ async function callAPI(prov,apiKey,conv,trow,abortCtrl,modelOverride){
   if(prov==='custom') model=ls('ai_custom_model')||'';
   if(prov==='custom'&&(!model||!customBase())) throw new Error('Set your server URL and model ID in the sidebar.');
   if(prov==='openrouter'&&model==='custom') model=document.getElementById('orModelInput').value.trim()||'meta-llama/llama-3.3-70b-instruct';
-  const sys=[document.getElementById('sysPrompt').value.trim(),conv.interview?INTERVIEW_SYS:SAVER[saverMode()].sys].filter(Boolean).join('\n');
+  const sys=[document.getElementById('sysPrompt').value.trim(),sharedMemoryPrompt(),conv.interview?INTERVIEW_SYS:SAVER[saverMode()].sys].filter(Boolean).join('\n');
   // Build messages — inline images where supported; token saver filters history
   const msgs=historyFor(conv).map(m=>{
     if(!m.attachments||!m.attachments.length) return {role:m.role,content:m.content};
