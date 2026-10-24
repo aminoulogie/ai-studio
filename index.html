@@ -1697,6 +1697,8 @@ The user is NOT a programmer. Talk like a helpful person: short, simple, everyda
 Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
   codeState.msgs[0].content=codeState.msgs[0].content.replace(/\nQUESTION MODE is on[\s\S]*$/,'')+(codeInterview?'\n'+INTERVIEW_SYS+'\nWhile question mode is on, ask questions and discuss requirements only. Do not edit files.':'');
   if(codeLean())codeState.msgs[0].content=`You edit the app in GitHub repo ${codeState.repo} (branch ${codeState.branch}). Find code with search_in_file, read only the needed line range with read_file, change it with small exact edit_file replacements, then call finish with a one-sentence summary. Never write conversations, memory, tokens or session data into the repo. Reply in the user's language. ${SAVER[saverMode()].sys}`+(codeInterview?'\n'+INTERVIEW_SYS+'\nWhile question mode is on, ask questions and discuss requirements only. Do not edit files.':'');
+  codeState.msgs[0].content=codeState.msgs[0].content.replace(/\n\nShared memory \(notes[\s\S]*$/,'');
+  {const mem=globalMemoryBlock();if(mem)codeState.msgs[0].content+='\n\n'+mem;}
   const context=task+codeAttachments.filter(a=>!a.isImage).map(a=>'\n\n--- File: '+a.name+' ---\n'+a.content).join('');
   const images=codeAttachments.filter(a=>a.isImage);
   const content=images.length?[{type:'text',text:context},...images.map(a=>({type:'image_url',image_url:{url:a.dataUrl}}))]:context;
