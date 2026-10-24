@@ -1712,7 +1712,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
         if(!c.id||!c.function?.name)throw new Error('The provider returned an incomplete tool call.');
         try{JSON.parse(c.function.arguments||'{}');}catch{throw new Error('The provider returned an unfinished edit. Try a smaller change.');}
       }
-      recordUsage(prov,model,JSON.stringify(codeMessagesForRequest(codeState.msgs)).length,msg?.content||'');updateTokenCounter();
+      recordUsage(prov,model,JSON.stringify(codeMessagesForRequest(codeState.msgs,codeLean()?24000:64000)).length,msg?.content||'');updateTokenCounter();
       if(!msg)throw new Error('Empty response');
       codeState.msgs.push({role:'assistant',content:msg.content||'',...(msg.tool_calls?.length?{tool_calls:msg.tool_calls}:{})});
       if(msg.content)codeLog('step',md(msg.content));
