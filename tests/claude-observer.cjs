@@ -28,4 +28,10 @@ assert.equal(run({notice:'Usage limit reached. Try again in 2 hours 15 minutes'}
 assert.equal(run({notice:'Usage limit reached. Try again in 25 minutes'}).posted[0].retryAfterSeconds,1500);
 const {context}=run();
 assert.equal(context.claudeVisibleSnapshot().messages.map(x=>x.role).join(','),'user,assistant');
-console.log('Claude observer checks passed: notices, false positives, origins and ordered visible-text export.');
+const withBlock=run({reply:'Done.\n<<<STUDIO_MEMORY\n- Prefers French and English\n- Short answers\nSTUDIO_MEMORY>>>'}).context;
+assert.equal(withBlock.claudeMemoryProposal(),'- Prefers French and English\n- Short answers','Read the proposed memory from the last reply');
+assert.equal(run().context.claudeMemoryProposal(),null,'No block means no proposal');
+assert.equal(run({reply:'<<<STUDIO_MEMORY\n\nSTUDIO_MEMORY>>>'}).context.claudeMemoryProposal(),null,'An empty block is ignored');
+assert.equal(run({reply:'<<<STUDIO_MEMORY\n'+'x'.repeat(5000)+'\nSTUDIO_MEMORY>>>'}).context.claudeMemoryProposal().length,4000,'Proposals are capped');
+assert.equal(run().context.claudeInsertText('hello'),false,'Report failure when the message box is missing');
+console.log('Claude observer checks passed: notices, false positives, origins, ordered visible-text export and shared memory read-back.');
