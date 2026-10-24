@@ -1819,13 +1819,33 @@ function localCommitSecrets(){
 /* ===================== SHARED MEMORY ===================== */
 // One memory for the whole app. It is added to every request, so any model, provider, fallback or account switch sees the same notes.
 // It lives on this device (and in the iOS app's own storage). It is never written to GitHub.
-const MEMORY_MAX=8000;
-function globalMemory(){return (ls('ai_global_memory')||'').trim();}
+const MEMORY_MAX=4000;
+function globalMemory(){return (ls('studio_memory')||'').trim();}
 function setGlobalMemory(t){
   t=String(t||'').trim().slice(0,MEMORY_MAX);
-  ls('ai_global_memory',t);
-  try{if(window.webkit?.messageHandlers?.native)native({op:'globalMemorySet',text:t}).catch(()=>{});}catch{}
+  ls('studio_memory',t);
+  pushMemoryNative(t);
   return t;
+}
+// The iOS app keeps the master copy in a device file (memory.md) that the Claude accounts use too. Chat and Code read and write the same file through the native bridge.
+function inMemoryApp(){try{return !!window.webkit?.messageHandlers?.native;}catch{return false;}}
+function pushMemoryNative(t){if(inMemoryApp())native({op:'memorySet',text:String(t||'')}).catch(()=>{});}
+async function syncMemoryFromNative(){
+  if(!inMemoryApp())return;
+  try{
+    const remote=String((await native({op:'memoryGet'}))||'').trim();
+    const local=globalMemory();
+    let next=remote;
+    if(!remote&&local)next=local; // first run: the device file is empty, so adopt the Chat notes
+    else if(remote&&local&&remote!==local&&ls('memory_merged')!=='1'){ // one-time merge of the two older, separate memories
+      const seen=new Set(),out=[];
+      for(const line of (remote+'\n'+local).split('\n')){const k=line.replace(/^- /,'').trim();if(!k||seen.has(k))continue;seen.add(k);out.push(line.trim());}
+      next=out.join('\n').slice(0,MEMORY_MAX);
+    }
+    ls('memory_merged','1');
+    if(next!==remote)pushMemoryNative(next);
+    if(next!==local){ls('studio_memory',next);const box=document.getElementById('sharedMemory');if(box){box.value=next;updateMemoryHint();}}
+  }catch{}
 }
 function globalMemoryBlock(){
   const m=globalMemory();
