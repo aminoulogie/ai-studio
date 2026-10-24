@@ -1776,7 +1776,7 @@ function renderCodeChanges(){
   el.style.display=files.length?'':'none';if(!files.length){el.innerHTML='';return;}
   el.innerHTML=`<div style="font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:4px">📝 ${files.length} file${files.length>1?'s':''} changed — not saved yet</div>`+
     files.map((f,i)=>`<div class="code-file"><span class="grow">${esc(f)}</span><button class="gh-btn" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display?'':'none'">Details</button><button class="gh-btn" onclick="delete codeState.staged['${esc(f).replace(/'/g,"\\'")}'];renderCodeChanges();saveCodeSession()">✕</button></div><div class="diff" style="display:none">${lineDiff(codeState.orig[f]||'',codeState.staged[f])}</div>`).join('')+
-    `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="AI: ${esc(String(codeState.msgs.filter(m=>m.role==='user').pop()?.content||'update').slice(0,60))}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
+    `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="Update app source via AI Studio" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
 }
 function localCommitSecrets(){
   const values=[ghToken];
@@ -1814,7 +1814,7 @@ async function codeCommit(options={}){
   codeState.committing=true;
   document.getElementById('codeRepo').disabled=true;document.getElementById('codeBranch').disabled=true;
   try{
-    assertRepoPublishable(staged,{secrets:localCommitSecrets(),messages:codeState.msgs});
+    assertRepoPublishable({...staged,'commit-message.txt':message},{secrets:localCommitSecrets(),messages:codeState.msgs});
     const R=`/repos/${repo}/git`;
     const ref=await ghFetch(`${R}/ref/heads/${encodeURIComponent(branch)}`);
     const head=ref.object.sha,base=await ghFetch(`${R}/commits/${head}`);
