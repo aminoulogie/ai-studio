@@ -1793,6 +1793,29 @@ function localCommitSecrets(){
 function codeAutoCommitKey(){return 'code_auto_commit:'+codeState.repo;}
 function codeLean(){return ls('code_lean')==='1';}
 function setCodeLean(on){ls('code_lean',on?'1':'0');toast(on?'Lean send on.':'Lean send off.');}
+// Handover: a short summary built on the device, with no model call. Names pending files but never their contents.
+function codeHandoverText(){
+  const txt=c=>typeof c==='string'?c:(c||[]).filter(x=>x.type==='text'||x.type==='input_text').map(x=>x.text).join(' ');
+  const short=(s,n)=>{s=String(s).replace(/\s+/g,' ').trim();return s.length>n?s.slice(0,n)+'…':s;};
+  const msgs=codeState.msgs||[];
+  const asks=msgs.filter(m=>m.role==='user').slice(-3).map(m=>'- '+short(txt(m.content),300));
+  let done='';
+  for(const m of msgs)for(const c of m.tool_calls||[])if(c.function?.name==='finish'){try{done=JSON.parse(c.function.arguments||'{}').summary||done;}catch{}}
+  const files=Object.keys(codeState.staged||{});
+  let t=['Handover for the next session',
+    'Repo: '+(codeState.repo||'none')+' · branch: '+(codeState.branch||'none'),
+    'Recent requests:',...(asks.length?asks:['- none yet']),
+    'Last finished: '+(done?short(done,400):'nothing marked finished'),
+    'Pending edits not yet committed: '+(files.length?files.join(', '):'none'),
+    'Next: continue from the pending edits, re-read files before changing them, and do not repeat finished work.'].join('\n');
+  for(const s of localCommitSecrets())t=t.split(s).join('[hidden]');
+  return t;
+}
+async function copyCodeHandover(){
+  const t=codeHandoverText();
+  try{await navigator.clipboard.writeText(t);toast('Handover copied.');}
+  catch{openSheet('<h3>Handover</h3><textarea readonly style="width:100%;height:180px">'+esc(t)+'</textarea><div class="modal-btns"><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>');}
+}
 function openCodePermissions(){
   openSheet('<h3>Code permissions</h3><p>Repository: <b>'+esc(codeState.repo||'Select a repository first')+'</b></p>'+
     '<p>The assistant can read and stage edits in this repository. Enable automatic commits to save completed tasks to the selected GitHub branch without asking again.</p>'+
