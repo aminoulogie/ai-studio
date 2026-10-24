@@ -42,7 +42,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
     func sendClaudeCodeEvent(_ event: [String: Any]) {
         guard studioLoaded else { return }
         webView.callAsyncJavaScript("window.onClaudeCodeEvent?.(event);", arguments: ["event": event],
-            in: nil, contentWorld: .page, completionHandler: nil)
+            in: nil, in: .page, completionHandler: nil)
     }
     private func applyStudioTab() {
         let script = "window.STUDIO_REQUEST_TAB = '\(requestedStudioTab)'; if(window.studioInitialized) { " + (requestedStudioTab == "settings" ? "openStudioSettings()" : "switchTab('\(requestedStudioTab)')") + " }"

@@ -16,6 +16,7 @@ const server=http.createServer((req,res)=>{
   fs.mkdirSync(path.join(root,'test-artifacts'),{recursive:true});
   for(const [name,engine,viewport] of [['iphone',webkit,{width:390,height:844}],['desktop',chromium,{width:1440,height:1000}]]){
     const browser=await engine.launch();const page=await browser.newPage({viewport,deviceScaleFactor:1,isMobile:name==='iphone',hasTouch:name==='iphone'});
+    let helperRequests=0;
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.route('**/*',async route=>{
       const request=route.request(),u=new URL(request.url());
@@ -24,11 +25,20 @@ const server=http.createServer((req,res)=>{
         let data=[];
         if(u.pathname==='/user/repos')data=[{full_name:'aminoulogie/ai-studio',default_branch:'main'}];
         else if(u.pathname.endsWith('/branches'))data=[{name:'main'}];
+        else if(u.pathname.includes('/git/ref/heads/'))data={object:{sha:'test-head'}};
         else if(u.pathname.includes('/git/trees/'))data={tree:[{path:'index.html',type:'blob'}]};
-        else if(u.pathname.includes('/contents/'))data=[];
+        else if(u.pathname.includes('/contents/'))data={type:'file',encoding:'base64',content:Buffer.from('<main>Original source</main>').toString('base64')};
         await route.fulfill({json:data});return;
       }
       if(u.hostname==='openrouter.ai'){
+        const body=request.postDataJSON();
+        if(body?.messages?.some(m=>typeof m.content==='string'&&m.content.includes('<claude_response>'))){
+          helperRequests++;
+          const wrote=body.messages.some(m=>m.role==='tool'&&m.tool_call_id==='helper-write');
+          const call=wrote?{id:'helper-finish',type:'function',function:{name:'finish',arguments:JSON.stringify({summary:'Applied the Claude code.'})}}:
+            {id:'helper-write',type:'function',function:{name:'write_file',arguments:JSON.stringify({path:'demo.txt',content:'applied by helper'})}};
+          await route.fulfill({json:{choices:[{message:{role:'assistant',content:'',tool_calls:[call]},finish_reason:'tool_calls'}]}});return;
+        }
         await route.fulfill({json:{choices:[{message:{role:'assistant',content:'Ready to help.'},finish_reason:'stop'}],usage:{prompt_tokens:2,completion_tokens:3}}});return;
       }
       await route.fulfill({contentType:'text/javascript',body:'window.hljs={highlightElement(){}};'});
@@ -84,6 +94,44 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.evaluate(()=>codeState.controller.signal.aborted),true);
     await page.evaluate(()=>{codeState.busy=false;setStudioTheme('dark');});
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-dark.png'),fullPage:true});
+    // Exercise the Code author/helper boundary using a simulated native browser transport.
+    await page.evaluate(async()=>{
+      inApp=()=>true;
+      native=async msg=>{
+        if(msg.op==='claudeProfiles')return [{id:'11111111-1111-4111-8111-111111111111',number:1,name:'Test account',status:'Active',enabled:true,selected:true}];
+        if(msg.op==='claudeCodeRequest'){
+          onClaudeCodeEvent({id:msg.id,phase:'responding',containerNumber:1,containerName:'Test account',model:'Claude test',text:'Write demo.txt with the finished implementation.'});
+          return {text:'Write demo.txt with the finished implementation.',model:'Claude test',containerName:'Test account'};
+        }
+        return true;
+      };
+      setClaudeCodeRoute('claude');await refreshClaudeCodeProfiles();
+    });
+    await page.locator('#codeTask').fill('Implement the Claude plan');
+    await page.locator('#codeRunBtn').click();
+    await page.waitForFunction(()=>!codeState.busy&&codeState.staged['demo.txt']==='applied by helper');
+    assert.ok(helperRequests>=2,'Helper applies only after the completed browser answer');
+    assert.ok(await page.locator('.claude-code-answer').last().innerText());
+    const beforeReadOnly=helperRequests;
+    await page.evaluate(()=>ls('code_claude_apply','0'));
+    await page.locator('#codeTask').fill('Ask Claude without applying');
+    await page.locator('#codeRunBtn').click();
+    await page.waitForFunction(()=>!codeState.busy&&codeState.msgs.at(-1).content.includes('<claude_response>'));
+    assert.equal(helperRequests,beforeReadOnly,'Read-only Claude route never invokes the applying model');
+    await page.evaluate(()=>{
+      native=async msg=>{
+        if(msg.op==='claudeCodeRequest')return new Promise((resolve,reject)=>{window.rejectClaude=reject;});
+        if(msg.op==='claudeCodeCancel'){window.claudeCancelled=true;window.rejectClaude?.(new Error('Stopped'));return true;}
+        return [];
+      };
+    });
+    await page.locator('#codeTask').fill('This browser request will be stopped');
+    await page.locator('#codeRunBtn').click();
+    await page.waitForFunction(()=>typeof window.rejectClaude==='function');
+    await page.locator('#codeRunBtn').click();
+    await page.waitForFunction(()=>!codeState.busy);
+    assert.equal(await page.evaluate(()=>window.claudeCancelled),true);
+    assert.equal(await page.evaluate(()=>codeState.staged['demo.txt']),'applied by helper','Stop preserves completed edits');
     assert.deepEqual(errors,[],name+' browser exceptions');
     await browser.close();
   }

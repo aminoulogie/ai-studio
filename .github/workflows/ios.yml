@@ -29,6 +29,7 @@ jobs:
           node tests/repo-privacy.cjs
           node scripts/check-private-data.cjs
           node tests/claude-observer.cjs
+          node tests/claude-code.cjs
           bash -n scripts/git-setup.sh ios/scripts/build-ipa.sh
       - name: Install browser checks
         run: |

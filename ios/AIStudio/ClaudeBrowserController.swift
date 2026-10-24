@@ -525,7 +525,7 @@ extension ClaudeBrowserController {
             "return globalThis.claudeCodeRequestStatus ? globalThis.claudeCodeRequestStatus(request.id) : {phase:'notStarted'};" :
             "return globalThis.claudeBeginCodeRequest ? globalThis.claudeBeginCodeRequest(request) : {phase:'needsLogin'};"
         let expectedProfile = request.profileID
-        web.callAsyncJavaScript(script, arguments: ["request": payload], in: nil, contentWorld: observerWorld) { [weak self, weak request] result in
+        web.callAsyncJavaScript(script, arguments: ["request": payload], in: nil, in: observerWorld) { [weak self, weak request] result in
             guard let self = self, let request = request, self.codePending === request, request.profileID == expectedProfile else { return }
             request.evaluating = false
             switch result {
@@ -580,7 +580,7 @@ extension ClaudeBrowserController {
     }
     private func clearCodeDOM(_ request: ClaudeCodePending, profile: UUID) {
         browsers[profile]?.callAsyncJavaScript("globalThis.claudeCancelCodeRequest?.(id);",
-            arguments: ["id": request.id], in: nil, contentWorld: observerWorld, completionHandler: nil)
+            arguments: ["id": request.id], in: nil, in: observerWorld, completionHandler: nil)
     }
     private func finishCodeRequest(result: [String: Any]? = nil, error: String? = nil) {
         guard let request = codePending else { return }

@@ -67,6 +67,33 @@ final class ClaudeContainerTests: XCTestCase {
         XCTAssertEqual(tabs.viewControllers?.map { $0.tabBarItem.title }, ["Chat", "Code", "Claude", "Projects", "Settings"])
         XCTAssertNotNil(Bundle.main.url(forResource: "claude-observer", withExtension: "js"))
     }
+    func testCodeThreadsAreScopedAndOldMetadataStillLoads() throws {
+        let (store, defaults, directory) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = try store.add(name: "First"), second = try store.add(name: "Second")
+        let url = URL(string: "https://claude.ai/chat/code-thread")!
+        try store.saveCodeThread(profile: first.id, repo: "owner/repo", branch: "main", url: url)
+        XCTAssertEqual(store.codeThread(profile: first.id, repo: "owner/repo", branch: "main"), url)
+        XCTAssertNil(store.codeThread(profile: second.id, repo: "owner/repo", branch: "main"))
+        XCTAssertNil(store.codeThread(profile: first.id, repo: "owner/repo", branch: "other"))
+        try store.clearCodeThreads(first.id)
+        XCTAssertNil(store.codeThread(profile: first.id, repo: "owner/repo", branch: "main"))
+        defaults.set(Data("{\"profiles\":[],\"autoSwitch\":true}".utf8), forKey: "studio.claude.profiles.v1")
+        let restored = try ClaudeProfileStore(defaults: defaults, directory: directory)
+        XCTAssertTrue(restored.state.profiles.isEmpty)
+        XCTAssertTrue(restored.state.codeThreads.isEmpty)
+    }
+    func testCodeBridgeRejectsUnknownProfilesWithoutOpeningBrowser() throws {
+        let (store, _, directory) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let browser = ClaudeBrowserController(store: store)
+        var failure: String?
+        browser.startCodeRequest(["id": "test", "profileID": UUID().uuidString, "repo": "owner/repo",
+                                  "branch": "main", "prompt": "Task"]) { _, error in failure = error }
+        XCTAssertNotNil(failure)
+        XCTAssertTrue(browser.codeProfiles().isEmpty)
+        XCTAssertNotNil(Bundle.main.url(forResource: "claude-code-dom", withExtension: "js"))
+    }
     private func cookies(_ store: WKWebsiteDataStore) async -> [HTTPCookie] {
         await withCheckedContinuation { continuation in store.httpCookieStore.getAllCookies { continuation.resume(returning: $0) } }
     }
