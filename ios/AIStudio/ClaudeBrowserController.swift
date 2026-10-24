@@ -134,6 +134,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             UIAction(title: "Export visible chat · Markdown") { [weak self] _ in self?.exportContext(markdown: true) },
             UIAction(title: "Copy latest handover", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in self?.copyHandover() },
             UIAction(title: "Edit continuation notes") { [weak self] _ in self?.editNotes() },
+            UIAction(title: "Edit shared memory", image: UIImage(systemName: "brain")) { [weak self] _ in self?.editMemory() },
+            UIAction(title: "Insert shared memory in chat", image: UIImage(systemName: "text.insert")) { [weak self] _ in self?.insertMemory() },
+            UIAction(title: "Check chat for memory update", image: UIImage(systemName: "arrow.triangle.2.circlepath")) { [weak self] _ in self?.checkMemoryUpdate() },
             UIAction(title: "Import context JSON", image: UIImage(systemName: "square.and.arrow.down")) { [weak self] _ in self?.importContext() },
             UIAction(title: "About context handover", image: UIImage(systemName: "info.circle")) { [weak self] _ in
                 self?.notice("Conversation handover", "Exports contain the text currently rendered by Claude. Scroll to load earlier messages before exporting. Attachments, hidden reasoning, projects and server-side context are not included. Copy or upload the export into the next account and send it yourself. Models and free-tier limits are controlled by Claude.")
