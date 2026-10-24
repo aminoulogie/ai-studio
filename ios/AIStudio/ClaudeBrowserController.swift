@@ -289,6 +289,62 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         }
         present(UINavigationController(rootViewController: editor), animated: true)
     }
+    private func editMemory() {
+        let editor = ClaudeNotesController(text: store.masterMemory) { [weak self] text in
+            do { try self?.store.setMasterMemory(text) } catch { self?.report(error) }
+        }
+        present(UINavigationController(rootViewController: editor), animated: true)
+    }
+    private func jsLiteral(_ text: String) -> String {
+        guard let data = try? JSONEncoder().encode(text), let literal = String(data: data, encoding: .utf8) else { return "\"\"" }
+        return literal
+    }
+    /// Types the memory into the message box. The person reads it and presses send.
+    private func insertMemory() {
+        guard let web = currentBrowser, safeClaudeURL(web.url) != nil else {
+            notice("Open a Claude chat", "Open a conversation on claude.ai first."); return
+        }
+        guard !store.masterMemory.isEmpty else {
+            notice("No shared memory yet", "Use Edit shared memory first."); return
+        }
+        let text = store.memoryPrompt
+        web.evaluateJavaScript("globalThis.claudeInsertText?.(" + jsLiteral(text) + ")", in: nil, in: observerWorld) { [weak self] result in
+            switch result {
+            case .success(let value):
+                if (value as? Bool) == true {
+                    self?.notice("Memory added", "Read the text in the message box, then send it yourself.")
+                } else {
+                    UIPasteboard.general.setItems([[UIPasteboard.typeAutomatic: text]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(600)])
+                    self?.notice("Could not find the message box", "Claude may have changed its page. The memory was copied: paste it into the chat and send it.")
+                }
+            case .failure(let error): self?.report(error)
+            }
+        }
+    }
+    /// Reads the AI's last reply for a proposed memory update. Nothing changes until the person accepts it.
+    private func checkMemoryUpdate() {
+        guard let web = currentBrowser, safeClaudeURL(web.url) != nil else {
+            notice("Open a Claude chat", "Open a conversation on claude.ai first."); return
+        }
+        web.evaluateJavaScript("globalThis.claudeMemoryProposal?.()", in: nil, in: observerWorld) { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .success(let value):
+                guard let raw = value as? String, !raw.isEmpty else {
+                    self.notice("No memory update found", "The last reply has no memory block. Ask Claude to end its reply with the updated memory.")
+                    return
+                }
+                let proposal = String(raw.prefix(ClaudeProfileStore.memoryLimit))
+                let alert = UIAlertController(title: "Update shared memory?", message: String(proposal.prefix(1200)), preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "Replace memory", style: .destructive) { [weak self] _ in
+                    do { try self?.store.setMasterMemory(proposal) } catch { self?.report(error) }
+                })
+                alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                self.present(alert, animated: true)
+            case .failure(let error): self.report(error)
+            }
+        }
+    }
     private func importContext() {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: true)
         picker.delegate = self; present(picker, animated: true)
