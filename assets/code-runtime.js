@@ -73,7 +73,7 @@ async function codeRequest(url,body,key,signal){
   return response.json();
 }
 async function codeModelStep(prov,key,model,messages,signal){
-  const input=codeMessagesForRequest(messages,codeLean()?24000:64000);
+  const input=codeMessagesForRequest(messages,typeof codeLean==='function'&&codeLean()?24000:64000);
   const useResp=prov==='openai';
   const tools=codeInterview?[]:CODE_TOOLS;
   const url=useResp?'https://api.openai.com/v1/responses':chatURL(prov);
