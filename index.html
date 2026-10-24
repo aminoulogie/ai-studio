@@ -1677,6 +1677,8 @@ async function codeRun(){
   const useResp=prov==='openai';
   document.getElementById('codeTask').value='';ls('code_draft','');
   codeLog('user',esc(task));
+  const resumed=codeState.resume;codeState.resume=false;
+  if(codeLean()&&!resumed)codeState.msgs=[]; // lean send: each request starts clean; pending edits stay staged
   if(!codeState.msgs.length)codeState.msgs.push({role:'system',content:`You are a friendly assistant who builds and fixes the user's app for them. The app's code is in the GitHub repo ${codeState.repo} (branch ${codeState.branch}).
 The user is NOT a programmer. Talk like a helpful person: short, simple, everyday words — no jargon, no code, no file names unless they ask.
 - If they greet you or ask a question, just answer in plain words (you may peek at the code with list_files/read_file to answer accurately). Don't edit anything.
