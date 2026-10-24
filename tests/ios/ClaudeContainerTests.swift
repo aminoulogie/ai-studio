@@ -1,5 +1,6 @@
 import XCTest
 import WebKit
+import UIKit
 @testable import AIStudio
 
 @MainActor
@@ -57,6 +58,7 @@ final class ClaudeContainerTests: XCTestCase {
         await clear(a); await clear(b)
     }
     func testClaudeIsSeparateFromMainStudioTabs() throws {
+        XCTAssertTrue((UIApplication.shared.delegate as? AppDelegate)?.window?.rootViewController is StudioTabController)
         let (store, _, directory) = try makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let tabs = StudioTabController(store: store)

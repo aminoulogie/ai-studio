@@ -105,3 +105,5 @@ To run browser checks: `npm install --no-save playwright@1.56.1`, `npx playwrigh
 Live verification still needed: real Claude sign-in (including any OAuth/verification flow), current localized limit banners, and your repository token/branch rules. Automated checks do not use your Claude credentials.
 
 WebKit profile design: [Apple's profile API](https://webkit.org/blog/14423/building-profiles-with-new-webkit-api/).
+
+CI sets the simulator test deployment target to iOS 18.4 to work around [WebKit's Xcode 16.4 / iOS 18.5 simulator loader issue](https://bugs.webkit.org/show_bug.cgi?id=293831). The distributable app still targets iOS 17.0.
