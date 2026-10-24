@@ -64,6 +64,23 @@ final class ClaudeProfileStore {
         if let data = try? Data(contentsOf: self.directory.appendingPathComponent("latest.json")) {
             latestContext = try? JSONDecoder().decode(ClaudeContext.self, from: data)
         }
+        if let data = try? Data(contentsOf: self.directory.appendingPathComponent("memory.md")),
+           let text = String(data: data, encoding: .utf8) { masterMemory = String(text.prefix(Self.memoryLimit)) }
+    }
+    func setMasterMemory(_ text: String) throws {
+        let clean = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.memoryLimit))
+        try Data(clean.utf8).write(to: directory.appendingPathComponent("memory.md"), options: [.atomic, .completeFileProtection])
+        masterMemory = clean
+    }
+    /// Text typed into a new chat. The user reads it and presses send.
+    var memoryPrompt: String {
+        """
+        Shared memory from my AI Studio app. Follow it in this chat:
+        <memory>
+        \(masterMemory)
+        </memory>
+        If you learn a lasting preference or fact about me in this chat, end your reply with the complete updated memory, kept short, between the lines <<<STUDIO_MEMORY and STUDIO_MEMORY>>>. Otherwise leave that block out. For now, just reply "Memory loaded."
+        """
     }
     private func save() throws { defaults.set(try JSONEncoder().encode(state), forKey: stateKey) }
     @discardableResult func add(name: String) throws -> ClaudeProfile {
