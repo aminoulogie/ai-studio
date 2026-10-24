@@ -50,6 +50,8 @@ final class ClaudeProfileStore {
     /// One shared memory for every Claude container. Stays on this device, never in the repository.
     private(set) var masterMemory = ""
     static let memoryLimit = 4000
+    /// Each container keeps its own web view and sign-in, so the cap protects memory on the phone.
+    static let maxProfiles = 12
     init(defaults: UserDefaults = .standard, directory: URL? = nil) throws {
         self.defaults = defaults
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
