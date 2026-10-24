@@ -31,6 +31,7 @@ if ! git config user.email >/dev/null; then
   identity=$(gh api user --jq '(.id|tostring) + "+" + .login + "@users.noreply.github.com"')
   git config --local user.email "$identity"
 fi
+git config --local core.hooksPath .githooks
 git config --local push.default simple
 git config --local push.autoSetupRemote true
 git config --local fetch.prune true

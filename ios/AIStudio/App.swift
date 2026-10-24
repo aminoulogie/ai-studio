@@ -11,6 +11,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
         do {
+            // Keychain items can survive uninstall; a new installation must not inherit an old sign-in.
+            if !UserDefaults.standard.bool(forKey: "studio.installation.v1") {
+                try StudioCredentials.set("github", value: "")
+                UserDefaults.standard.set(true, forKey: "studio.installation.v1")
+            }
             window?.rootViewController = StudioTabController(store: try ClaudeProfileStore())
         } catch {
             let controller = UIViewController()

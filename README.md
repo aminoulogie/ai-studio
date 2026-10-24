@@ -2,6 +2,16 @@
 
 Studio remains the main interface. The iOS tab bar has **Chat, Code, Claude, Projects, Settings**. Claude is a separate official claude.ai browser; Studio model/API connections are independent.
 
+## Private device data and empty installs
+
+Fresh installs start with **no configured models, tokens, conversations, Claude profiles or memory**. Model IDs are added or fetched only on the user's device. An existing user's local data stays on their device when updating; it is not embedded in the IPA or shared by a PWA link.
+
+Chat and Code recovery history live in localStorage / IndexedDB inside that app or browser installation. Claude login state lives only in each WebKit container and Claude's service. GitHub sign-in uses the iOS Keychain. The app has no backend that shares personal sessions among visitors.
+
+GitHub commits publish source edits only. The commit path blocks known chat, memory, session, profile, export and credential files; checks staged text for this device's credentials and verbatim conversation dumps; and instructs the Code assistant to keep personal state out of the repository. Private runtime files are also excluded from local Git with .gitignore. A PWA on the same browser retains that browser's own data; another person's browser starts empty. An explicit encrypted backup remains an opt-in export to the destination the user chooses.
+
+Use **Add model on this device** in Studio settings, or add a provider key and Reload models. The official Claude tab does not need Studio models or API keys. These local settings are not sent to GitHub.
+
 ## Claude browser accounts
 
 Requires **iOS 17+** for persistent, named WebKit data stores.
@@ -52,7 +62,7 @@ git switch codex/account-rotation-context-git
 bash scripts/git-setup.sh
 ```
 
-If you already have a checkout, run the script there. It checks the repository and write access, configures GitHub's credential helper, fills missing local author identity, fetches remote branches, sets upstream tracking when available, and enables automatic upstream setup for new branches. It does not commit or push files.
+If you already have a checkout, run the script there. It checks the repository and write access, configures GitHub's credential helper, fills missing local author identity, fetches remote branches, sets upstream tracking when available, enables automatic upstream setup for new branches, and installs this repository's privacy pre-commit hook (requires Node 22+). It does not commit or push files.
 
 Normal synchronization:
 
@@ -83,6 +93,7 @@ brew install xcodegen
 node tests/optimizer.cjs
 node tests/code-runtime.cjs
 node tests/git-workflow.cjs
+node tests/repo-privacy.cjs
 node tests/claude-observer.cjs
 bash ios/scripts/build-ipa.sh
 ```

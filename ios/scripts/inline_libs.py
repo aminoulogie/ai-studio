@@ -29,7 +29,7 @@ print("inlined libraries,", len(html) // 1024, "KB")
 from pathlib import Path
 root = Path(__file__).resolve().parents[2]
 html = Path(path).read_text(encoding="utf-8")
-for asset in ["assets/code-runtime.js", "assets/studio.js"]:
+for asset in ["assets/repo-privacy.js", "assets/code-runtime.js", "assets/studio.js"]:
     tag = f'<script src="{asset}"></script>'
     assert tag in html, tag
     html = html.replace(tag, "<script>" + (root / asset).read_text().replace("</script", "<\\/script") + "</script>")

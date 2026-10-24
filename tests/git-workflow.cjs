@@ -1,5 +1,6 @@
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const html=fs.readFileSync('index.html','utf8');
+const {assertRepoPublishable}=require('../assets/repo-privacy.js');
 const block=html.slice(html.indexOf('function codeAutoCommitKey()'),html.indexOf('/* ===================== STATE'));
 async function scenario({conflict=false,race=false,automatic=false,enabled=true}={}){
   const state={repo:'owner/repo',branch:'feature/test',staged:{'run.sh':'new content'},orig:{'run.sh':'old content'},baseSHA:'old',busy:false};
@@ -15,7 +16,7 @@ async function scenario({conflict=false,race=false,automatic=false,enabled=true}
     if(path.includes('/refs/heads/')){if(race)throw new Error('Non-fast-forward');return {};}
     throw new Error('Unexpected '+path);
   };
-  const deps={codeState:state,ghFetch,toast:()=>{},confirm:()=>{confirmations++;return true;},
+  const deps={assertRepoPublishable,localCommitSecrets:()=>[],codeState:state,ghFetch,toast:()=>{},confirm:()=>{confirmations++;return true;},
     document:{getElementById:id=>id==='codeMsg'?{value:'Save task'}:{}},
     ls:()=>enabled?'1':'0',saveCodeSession:async()=>{},renderCodeChanges:()=>{},codeLog:(kind,message)=>logs.push(message),esc:x=>x};
   const api=new Function(...Object.keys(deps),block+';return {codeCommit};')(...Object.values(deps));
