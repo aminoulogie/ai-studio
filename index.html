@@ -523,6 +523,13 @@ body{overscroll-behavior:none}
       <input type="text" id="sysPrompt" placeholder="Optional instructions…" oninput="saveSettings()">
     </div>
 
+    <!-- SHARED MEMORY -->
+    <div class="s-label">Shared memory (all models)</div>
+    <div class="sys-prompt-row">
+      <textarea id="sharedMemory" rows="5" maxlength="4000" placeholder="Facts and preferences every model should know. Stays on this device." oninput="saveMemory()" style="width:100%;box-sizing:border-box;resize:vertical;font:inherit"></textarea>
+      <div class="saver-hint" id="memoryHint"></div>
+    </div>
+
     <!-- TOKEN SAVER -->
     <div class="s-label">Token saver</div>
     <div class="saver-row" id="saverRow">
