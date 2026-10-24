@@ -381,9 +381,8 @@ body{overscroll-behavior:none}
 </style>
 <link rel="stylesheet" href="assets/studio.css">
 
-<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
-
 <div class="app">
+  <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
@@ -637,6 +636,7 @@ body{overscroll-behavior:none}
       <div class="code-wrap">
         <div class="code-head">
           <div class="code-heading"><span class="eyebrow">YOUR WORKSPACE</span><h2>Make something great.</h2><p>From idea to a working app.</p></div>
+          <button class="gh-btn" id="codePermissionsBtn" onclick="openCodePermissions()">Permissions</button>
           <select aria-label="Repository" id="codeRepo" onchange="codeRepoChange()"></select>
           <select aria-label="Branch" id="codeBranch" onchange="codeBranchChange(this.value)"></select>
         </div>
@@ -678,7 +678,7 @@ body{overscroll-behavior:none}
             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/></svg>
             Connect GitHub
           </button>
-          <p style="font-size:11px;color:var(--fg3)">Token stored only in your browser. <a href="https://github.com/settings/tokens/new?scopes=repo&description=AI+Studio" target="_blank" style="color:var(--brand)">Create token ↗</a></p>
+          <p style="font-size:11px;color:var(--fg3)">Token saved in iOS Keychain, or in this browser on desktop. <a href="https://github.com/settings/tokens/new?scopes=repo&description=AI+Studio" target="_blank" style="color:var(--brand)">Create token ↗</a></p>
         </div>
       </div>
       <div id="ghBrowser" style="display:none;flex:1;flex-direction:column;overflow:hidden">
@@ -1251,10 +1251,10 @@ async function openPrivacy(){
     <div style="font-size:11px;color:var(--fg3)">Your keys and chats stay inside this app on your phone — they're only ever sent to the provider you pick. Make an encrypted backup in 💾 Backup.</div>
     <div class="modal-btns"><button class="gh-btn" style="color:#dc2626" onclick="wipeAll()">Delete all data</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
 }
-function wipeAll(){
-  if(!confirm('Delete ALL chats, keys and settings from this phone? This cannot be undone.'))return;
+async function wipeAll(){
+  if(!confirm('Delete Studio chats, keys and settings? Manage Claude browser accounts separately in the Claude tab. This cannot be undone.'))return;
   if(!confirm('Really delete everything?'))return;
-  try{localStorage.clear();}catch{}location.reload();
+  try{if(inApp())await native({op:'credentialSet',name:'github',value:''});localStorage.clear();location.reload();}catch(e){showErr('Could not clear Studio data: '+e.message);}
 }
 
 /* ===================== ENCRYPTED BACKUP ===================== */
@@ -1278,6 +1278,7 @@ async function makeBackup(){
   const pw=document.getElementById('bkPw').value;if(pw.length<8){toast('Use at least 8 characters');return;}
   const keys=document.getElementById('bkKeys').checked, data={};
   for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(keys||!SECRET_KEY(k))data[k]=localStorage.getItem(k);}
+  if(keys&&ls('gh_token'))data.gh_token=ls('gh_token');
   const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
   const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},await pwKey(pw,salt),new TextEncoder().encode(JSON.stringify(data)));
   const text=JSON.stringify({app:'AI Studio',v:1,kdf:'PBKDF2-SHA256-310000',salt:b64(salt),iv:b64(iv),data:b64(ct)});
@@ -1722,6 +1723,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
   document.getElementById('codeRepo').disabled=true;document.getElementById('codeBranch').disabled=true;
   await saveCodeSession();
   codeStatus('Connecting to '+PROVIDERS[prov].name+'…','working');
+  let completed=false;
   try{
     for(let step=0;step<24&&!codeState.stop;step++){
       codeStatus('Thinking · step '+(step+1),'working');
@@ -1737,7 +1739,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
       if(!msg)throw new Error('Empty response');
       codeState.msgs.push({role:'assistant',content:msg.content||'',...(msg.tool_calls?.length?{tool_calls:msg.tool_calls}:{})});
       if(msg.content)codeLog('step',md(msg.content));
-      if(!msg.tool_calls?.length){await saveCodeSession();break;}
+      if(!msg.tool_calls?.length){completed=true;await saveCodeSession();break;}
       let done=false;
       for(const c of msg.tool_calls){
         let args={};try{args=JSON.parse(c.function.arguments||'{}');}catch{}
@@ -1751,7 +1753,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
         if(nm==='finish')done=true;
       }
       await saveCodeSession();
-      if(done)break;
+      if(done){completed=true;break;}
       if(step===23)codeLog('step','Paused after 24 steps. Review your pending changes, then tap Resume if more work is needed. <button class="gh-btn" onclick="codeResume()">Resume</button>');
     }
     codeStatus(codeState.stop?'Stopped · changes kept':'Ready · changes kept on this device',codeState.stop?'warning':'idle');
@@ -1759,10 +1761,12 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
     codeStatus(e.name==='AbortError'?'Stopped · changes kept':'Paused · changes kept','warning');
     codeLog('step','<div class="recovery-card"><b>'+esc(e.name==='AbortError'?'Task stopped':'Let’s get you moving again')+'</b><p>'+esc(codeErrorMessage(e))+'</p><div><button class="gh-btn primary" onclick="codeResume()">Resume</button> <button class="gh-btn" onclick="openModelPicker()">Change model</button></div></div>');
   }finally{
-    codeState.busy=false;codeState.controller=null;
+    codeState.controller=null;
+    await saveCodeSession();renderCodeChanges();
+    codeState.busy=false;
     document.getElementById('codeRunBtn').textContent='Send';
     document.getElementById('codeRepo').disabled=false;document.getElementById('codeBranch').disabled=false;
-    await saveCodeSession();renderCodeChanges();
+    if(completed&&!codeState.stop&&ls(codeAutoCommitKey())==='1'&&Object.keys(codeState.staged).length)await codeCommit({automatic:true});
   }
 }
 function codeResume(){
@@ -1800,12 +1804,31 @@ function renderCodeChanges(){
     files.map((f,i)=>`<div class="code-file"><span class="grow">${esc(f)}</span><button class="gh-btn" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display?'':'none'">Details</button><button class="gh-btn" onclick="delete codeState.staged['${esc(f).replace(/'/g,"\\'")}'];renderCodeChanges();saveCodeSession()">✕</button></div><div class="diff" style="display:none">${lineDiff(codeState.orig[f]||'',codeState.staged[f])}</div>`).join('')+
     `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="AI: ${esc(String(codeState.msgs.filter(m=>m.role==='user').pop()?.content||'update').slice(0,60))}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
 }
-async function codeCommit(){
+function codeAutoCommitKey(){return 'code_auto_commit:'+codeState.repo;}
+function openCodePermissions(){
+  openSheet('<h3>Code permissions</h3><p>Repository: <b>'+esc(codeState.repo||'Select a repository first')+'</b></p>'+
+    '<p>The assistant can read and stage edits in this repository. Enable automatic commits to save completed tasks to the selected GitHub branch without asking again.</p>'+
+    '<label class="fb-row"><input id="codeAutoCommit" type="checkbox" '+(ls(codeAutoCommitKey())==='1'?'checked':'')+' onchange="setCodeAutoCommit(this.checked)"> Automatically commit completed tasks</label>'+
+    '<p>GitHub access requires a token with <b>Contents: read and write</b> for this repository, or a classic token with <b>repo</b> scope. Organization SSO and branch protection still apply. This setting does not grant extra GitHub permissions.</p>'+
+    '<button class="gh-btn" onclick="switchTab(\'github\');closeSheet()">GitHub connection</button> <button class="gh-btn primary" onclick="closeSheet()">Done</button>');
+}
+async function setCodeAutoCommit(enabled){
+  const checkbox=document.getElementById('codeAutoCommit');
+  if(!codeState.repo){if(checkbox)checkbox.checked=false;toast('Choose a repository first.');return;}
+  if(!enabled){ls(codeAutoCommitKey(),'0');toast('Automatic commits disabled.');return;}
+  try{
+    const repo=await ghFetch('/repos/'+codeState.repo);
+    if(!repo.permissions?.push)throw new Error('This GitHub sign-in does not have write access. Use a token with Contents: read and write, then reconnect.');
+    ls(codeAutoCommitKey(),'1');toast('Completed code tasks will commit automatically.');
+  }catch(e){if(checkbox)checkbox.checked=false;showErr(e.message);toast(e.message);}
+}
+async function codeCommit(options={}){
   if(codeState.busy||codeState.committing){toast('Wait for the current task to finish.');return;}
   const files=Object.keys(codeState.staged);if(!files.length)return;
   const message=document.getElementById('codeMsg').value.trim()||'Update via AI Studio';
   const repo=codeState.repo,branch=codeState.branch,staged={...codeState.staged};
-  if(!confirm(`Commit ${files.length} file(s) to ${repo} @ ${branch}?`))return;
+  if(options.automatic){if(ls(codeAutoCommitKey())!=='1')return;}
+  else if(!confirm(`Commit ${files.length} file(s) to ${repo} @ ${branch}?`))return;
   codeState.committing=true;
   document.getElementById('codeRepo').disabled=true;document.getElementById('codeBranch').disabled=true;
   try{
@@ -1860,6 +1883,7 @@ let activeTab='chat';
 
 /* ===================== INIT ===================== */
 function init(){
+  document.body.classList.toggle('native-tabs',!!window.STUDIO_NATIVE_TABS);
   loadPrefs();initStudio();
   document.getElementById('codeTask').value=ls('code_draft')||'';
   convs=lsj('cl_convs')||{};
@@ -1872,10 +1896,25 @@ function init(){
   switchTab('chat');
   if(window.innerWidth<=680)closeSidebar();
   renderSaver();renderExtraButtons();updateCtx();
+  window.studioInitialized=true;
+  if(window.STUDIO_REQUEST_TAB==='settings')openStudioSettings();
+  else if(window.STUDIO_REQUEST_TAB)switchTab(window.STUDIO_REQUEST_TAB);
 }
 
 /* ===================== LOCAL STORAGE ===================== */
-function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch{}}
+let secureGitHubToken='';
+async function bootGitHubCredential(){
+  if(!inApp())return;
+  const legacy=localStorage.getItem('gh_token');
+  if(legacy){await native({op:'credentialSet',name:'github',value:legacy});localStorage.removeItem('gh_token');}
+  secureGitHubToken=await native({op:'credentialGet',name:'github'})||'';
+}
+function ls(k,v){try{
+  if(k==='gh_token'&&inApp()){
+    if(v===undefined)return secureGitHubToken;
+    secureGitHubToken=v||'';
+    native({op:'credentialSet',name:'github',value:secureGitHubToken}).catch(e=>showErr('Could not save GitHub sign-in: '+e.message));return;
+  }if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch{}}
 function lsj(k){try{return JSON.parse(ls(k));}catch{return null;}}
 
 /* ===================== PREFS ===================== */
@@ -2118,6 +2157,10 @@ function switchTab(tab){
 }
 
 /* ===================== SIDEBAR ===================== */
+function openStudioSettings(){
+  if(window.innerWidth<=680){document.getElementById('sidebar').classList.remove('hidden');document.getElementById('overlay').classList.add('show');}
+  else document.getElementById('sidebar').scrollTo({top:0,behavior:'smooth'});
+}
 function toggleSidebar(){const sb=document.getElementById('sidebar');const ov=document.getElementById('overlay');if(window.innerWidth<=680){sb.classList.toggle('hidden');ov.classList.toggle('show',!sb.classList.contains('hidden'));}}
 function closeSidebar(){document.getElementById('sidebar').classList.add('hidden');document.getElementById('overlay').classList.remove('show');}
 
@@ -2719,5 +2762,5 @@ function showErr(msg){const el=document.getElementById('errorStrip');el.textCont
 function hideErr(){document.getElementById('errorStrip').style.display='none';}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
-init();
+bootGitHubCredential().then(init).catch(e=>showErr('Could not load GitHub sign-in: '+e.message));
 </script>

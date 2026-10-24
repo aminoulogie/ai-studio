@@ -2,3 +2,9 @@ ios/www/
 ios/build/
 ios/*.xcodeproj/
 ios/AIStudio/Info.plist
+ios/test-build/
+ios/Payload/
+ios/*.ipa
+.art-tools/
+node_modules/
+test-artifacts/

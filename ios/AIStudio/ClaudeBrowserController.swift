@@ -21,6 +21,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     init(store: ClaudeProfileStore) { self.store = store; super.init(nibName: nil, bundle: nil) }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated); navigationController?.setToolbarHidden(false, animated: false)
+    }
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
@@ -104,6 +107,8 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             web.topAnchor.constraint(equalTo: surface.topAnchor), web.bottomAnchor.constraint(equalTo: surface.bottomAnchor)
         ])
         empty.isHidden = true
+        if automatic { web.load(URLRequest(url: URL(string: "https://claude.ai/new")!)) }
+        else { web.evaluateJavaScript("globalThis.claudeCheckLimits?.()", in: nil, in: observerWorld, completionHandler: nil) }
         refreshMenus()
     }
 
@@ -130,19 +135,12 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             UIAction(title: "Copy latest handover", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in self?.copyHandover() },
             UIAction(title: "Edit continuation notes") { [weak self] _ in self?.editNotes() },
             UIAction(title: "Import context JSON", image: UIImage(systemName: "square.and.arrow.down")) { [weak self] _ in self?.importContext() },
-            UIAction(title: "Studio & GitHub tools", image: UIImage(systemName: "chevron.left.forwardslash.chevron.right")) { [weak self] _ in
-                let studio = UINavigationController(rootViewController: WebViewController())
-                studio.modalPresentationStyle = .fullScreen
-                studio.navigationBar.topItem?.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(ClaudeBrowserController.closeStudio))
-                self?.present(studio, animated: true)
-            },
             UIAction(title: "About context handover", image: UIImage(systemName: "info.circle")) { [weak self] _ in
                 self?.notice("Conversation handover", "Exports contain the text currently rendered by Claude. Scroll to load earlier messages before exporting. Attachments, hidden reasoning, projects and server-side context are not included. Copy or upload the export into the next account and send it yourself. Models and free-tier limits are controlled by Claude.")
             }
         ])
     }
 
-    @objc private func closeStudio() { dismiss(animated: true) }
     @objc private func back() { currentBrowser?.goBack() }
     @objc private func forward() { currentBrowser?.goForward() }
     @objc private func reloadPage() { rotationVisited.removeAll(); currentBrowser?.reload() }
@@ -316,7 +314,8 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         defer { switching = false }
         do {
             // Save before moving away, including when no accounts remain.
-            try store.capture(context)
+            let handover = context.messages.isEmpty ? (store.latestContext ?? context) : context
+            try store.capture(handover)
             try store.update(id) { $0.status = .rateLimited; $0.limitedUntil = Date().addingTimeInterval(5 * 3600) }
             rotationVisited.insert(id); refreshMenus()
             guard manual || store.state.autoSwitch else {
@@ -326,7 +325,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                 notice("No active account remains", "Your context was saved. Wait for Claude's reset, or sign in to another account. Use Reset limit if Claude already allows messages again."); return
             }
             show(next.id, automatic: true)
-            let message = context.messages.isEmpty ?
+            let message = handover.messages.isEmpty ?
                 "Switched to " + next.name + ". No conversation text was detected. Use continuation notes or copy the conversation from the previous account." :
                 "Switched to " + next.name + ". Context is saved. Tap Copy context, then paste it into a Claude chat and send it. Reattach any files."
             let alert = UIAlertController(title: "Account switched", message: message, preferredStyle: .alert)

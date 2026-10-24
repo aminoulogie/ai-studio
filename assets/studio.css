@@ -124,3 +124,11 @@ button:disabled{opacity:.5;cursor:wait}
 @media(max-height:650px){.code-heading{display:none}.welcome{min-height:340px}.studio-orbit{height:80px;width:90px}.orbit-core{width:56px;height:56px;font-size:34px;border-radius:18px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(prefers-contrast:more){:root{--border:#9ca2bd;--border2:#8086a0;--glass:var(--surface)}.main::before{opacity:.1}}
+
+/* Keep the mobile drawer above its scrim inside the same stacking context. */
+.sidebar{overflow-y:auto;overscroll-behavior:contain}
+.sidebar>*{flex-shrink:0}
+.sidebar-convs{min-height:80px}
+.sidebar .nav-item{width:calc(100% - 20px)}
+body.native-tabs .studio-tabs{display:none}
+@media(max-width:680px){.sidebar{z-index:30}.overlay{z-index:20}}

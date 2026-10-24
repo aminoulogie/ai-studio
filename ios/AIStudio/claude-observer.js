@@ -39,6 +39,7 @@
       signedIn=true;bridge.postMessage({event:'signedIn'});
     }
   }
+  globalThis.claudeCheckLimits=()=>{lastLimit='';check();};
   const observer=new MutationObserver(()=>{
     if(scheduled)return;scheduled=true;setTimeout(check,800);
   });
