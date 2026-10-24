@@ -1,0 +1,86 @@
+name: Publish tested IPA
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-tested-ipa.yml']
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-tested-ipa
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      TESTED_RUN: '40120945144'
+      SOURCE_COMMIT: '2afda1eff6017d49bf91518c8c7683fd1826dec2'
+      RELEASE_TAG: 'v1.0.42'
+    steps:
+      - name: Verify successful checks and identical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          assert re.fullmatch(r'[0-9]+', os.environ['TESTED_RUN'])
+          assert re.fullmatch(r'[0-9a-f]{40}', os.environ['SOURCE_COMMIT'])
+          assert re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', os.environ['RELEASE_TAG'])
+          PY
+          gh api "repos/$REPOSITORY/actions/runs/$TESTED_RUN" > tested-run.json
+          python3 - <<'PY'
+          import json
+          run = json.load(open('tested-run.json'))
+          assert run['conclusion'] == 'success', 'The selected workflow run did not pass'
+          assert run['name'] == 'Build iOS IPA', 'Select the IPA build workflow'
+          PY
+          TESTED_COMMIT=$(python3 -c "import json; print(json.load(open('tested-run.json'))['head_sha'])")
+          TESTED_TREE=$(gh api "repos/$REPOSITORY/git/commits/$TESTED_COMMIT" --jq .tree.sha)
+          SOURCE_TREE=$(gh api "repos/$REPOSITORY/git/commits/$SOURCE_COMMIT" --jq .tree.sha)
+          test "$TESTED_TREE" = "$SOURCE_TREE"
+          printf 'Verified tested source tree: %s\n' "$SOURCE_TREE"
+
+      - name: Download the tested IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download "$TESTED_RUN" --repo "$REPOSITORY" --name AIStudio-ipa --dir release-assets
+          test -s release-assets/AIStudio.ipa
+          shasum -a 256 release-assets/AIStudio.ipa
+
+      - name: Publish release and IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'NOTES'
+          iOS 17+ app. Download AIStudio.ipa below, then sign and install with your existing Apple signing setup (AltStore, Sideloadly, ESign, or Feather). This IPA is unsigned.
+
+          Changes:
+          - Separate Claude tab with up to six isolated, persistent official claude.ai logins.
+          - Usage-limit detection, account rotation, and JSON/Markdown conversation handover.
+          - Fixed side-panel taps and GitHub commits; optional automatic commits in Code permissions.
+          - Fresh installs start with no configured models, tokens, profiles, or conversations.
+          - Chats, memory, credentials, and model settings stay on the device or in the Claude account; private-state publishing checks are included.
+
+          Validation: JavaScript and browser checks, four native simulator tests (including WebKit cookie isolation), and the Release IPA build passed. The published IPA is taken directly from that successful run, and its tested source tree was verified against the release commit.
+
+          Context export includes visible conversation text. Paste/upload the handover and reattach files in the next account. Actual Claude sign-in, current limit banners, and model availability depend on Claude and need verification with your accounts.
+
+          Build and Git setup instructions: https://github.com/aminoulogie/ai-studio/blob/main/README.md
+          NOTES
+          if gh release view "$RELEASE_TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            RELEASE_COMMIT=$(gh api "repos/$REPOSITORY/commits/$RELEASE_TAG" --jq .sha)
+            test "$RELEASE_COMMIT" = "$SOURCE_COMMIT"
+            gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json url,assets
+            exit 0
+          fi
+          gh release create "$RELEASE_TAG" release-assets/AIStudio.ipa --repo "$REPOSITORY" \
+            --target "$SOURCE_COMMIT" --title "AI Studio $RELEASE_TAG" --notes-file release-notes.md --latest
+          gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json url,assets
