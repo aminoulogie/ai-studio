@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('ios/AIStudio/claude-observer.js','utf8');
-function run({host='claude.ai',notice='',insideChat=false,loggedIn=false}={}){
+function run({host='claude.ai',notice='',insideChat=false,loggedIn=false,reply='Work completed'}={}){
   const posted=[];
   const node=(role,text)=>({innerText:text,getAttribute:k=>k==='data-testid'?role:null,
     getClientRects:()=>[{}],parentElement:{closest:()=>null},closest:()=>insideChat?{}:null});
