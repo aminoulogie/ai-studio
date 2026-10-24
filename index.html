@@ -1748,6 +1748,24 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
     if(completed&&!codeState.stop&&ls(codeAutoCommitKey())==='1'&&Object.keys(codeState.staged).length)await codeCommit({automatic:true});
   }
 }
+// Limit reached: tell the user, then one tap switches to the next ready provider and continues the same task.
+function codeNextProvider(){
+  const bad=codeState.limited||[];
+  return fallbackChain(curProvider).find(p=>!bad.includes(p)&&PROVIDERS[p]&&(OPENAI_COMPAT(p)||p==='puter')&&privacyAllows(p)&&(PROVIDERS[p].models.length||ls('ai_model_'+p)));
+}
+function codeLimitCard(prov,model,e){
+  (codeState.limited=codeState.limited||[]).push(prov);
+  const next=codeNextProvider();
+  codeLog('step','<div class="recovery-card"><b>Limit reached</b><p>'+esc((PROVIDERS[prov]?.name||prov)+(model?' · '+model:'')+': '+codeErrorMessage(e))+'</p><div>'+(next?'<button class="gh-btn primary" onclick="codeContinueNext()">Continue on '+esc(PROVIDERS[next].name)+'</button> ':'')+'<button class="gh-btn" onclick="openModelPicker()">Choose model</button></div>'+(next?'':'<p>No other provider is ready. Add a key for another provider in Settings, or choose a model.</p>')+'</div>');
+}
+function codeContinueNext(){
+  if(codeState.busy||codeState.committing)return;
+  const next=codeNextProvider();
+  if(!next){codeLog('step','No other provider is ready. Add a key in Settings or tap Choose model.');codeState.limited=[];return;}
+  selectProvider(next);
+  codeLog('step','Switched to '+esc(PROVIDERS[next].name)+'. Continuing where it stopped.');
+  codeResume();
+}
 function codeResume(){
   if(codeState.busy||codeState.committing)return;
   const input=document.getElementById('codeTask');
