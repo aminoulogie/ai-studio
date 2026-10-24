@@ -37,6 +37,22 @@ In the Claude actions menu:
 
 Automatic switching does not submit a message. Exports contain **rendered conversation text only** and are marked partial. Scroll to load older messages first. Attachments, hidden reasoning, project knowledge, browser credentials and Claude's private server-side context are not transferred. Model context limits still apply. The latest snapshot is stored locally with iOS file protection; exported files contain your conversation text, so choose their destination deliberately.
 
+## Code → Claude browser → helper model
+
+In the **Code** tab choose **Workflow → Claude browser → helper**, then select **Container 1, 2, …** and an effort guidance level.
+
+1. Sign in to the desired official Claude account in the Claude tab. Pick the actual Claude model there; the app reports its visible model label when available.
+2. Connect your repository in Studio and select a branch. GitHub writes use Studio's token with Contents read/write; Claude's connector can stay read-only.
+3. Select the helper provider/model in Studio settings. You can use a free model you have access to, but the helper provider controls its availability and pricing. Claude free-tier web access does not provide free API credits.
+4. In **Claude & context settings**, optionally list the source files to send. Otherwise the app chooses up to eight relevant text files. Large files are excerpted; private paths are omitted and known local credentials are redacted.
+5. Send a task in Code. The prompt and source context go into the selected browser container, and Claude's visible reply is mirrored in Code. Each repository/branch/account retains its own coding conversation URL on the phone.
+6. After a confirmed, finished browser reply, the helper verifies current source files and applies the requested edits. Review the diff and Commit, or enable the existing per-repository automatic-commit setting.
+7. To see Claude without applying changes, disable **Apply completed Claude answers with the helper**, or use question mode. No helper call or automatic commit is made for that response.
+
+Effort is an instruction in the prompt, not a promise to control Claude's hidden reasoning settings. Browser automation uses the visible composer and Send button; no cookies, tokens or private Claude endpoints are accessed. If sign-in is needed, an existing draft is present, or Send markup changes, open Claude and complete the step manually. **Copy active request** provides the prepared prompt as a fallback. If Claude's completion indicator is not recognized, inspect the answer and tap **Use finished reply**; stable text alone never triggers helper edits. Do not send unrelated messages in that coding conversation while a Code task is running.
+
+At a detected account limit, the original task/source context is resent to the next eligible container. Helper edits wait for its completed answer. Stop cancels the request and prevents partial browser text from being applied; completed staged edits remain local. Requests time out after ten minutes without applying incomplete text. Live official-site compatibility still needs testing with your accounts; DOM fixtures and native lifecycle checks do not replace that verification.
+
 ## Code edits and GitHub commits
 
 The Code tab can stage model edits and commit them through the GitHub API; a local Git executable is not involved.
@@ -95,6 +111,7 @@ node tests/code-runtime.cjs
 node tests/git-workflow.cjs
 node tests/repo-privacy.cjs
 node tests/claude-observer.cjs
+node tests/claude-code.cjs
 bash ios/scripts/build-ipa.sh
 ```
 

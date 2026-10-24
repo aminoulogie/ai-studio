@@ -12,6 +12,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     private var currentID: UUID?
     private var rotationVisited: Set<UUID> = []
     private var switching = false
+    private var codePending: ClaudeCodePending?
+    private var codeTimer: Timer?
+    var onCodeEvent: (([String: Any]) -> Void)?
     private let surface = UIView()
     private let empty = UILabel()
     private var accountsButton: UIBarButtonItem!
@@ -78,6 +81,11 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             configuration.userContentController.addUserScript(WKUserScript(
                 source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: observerWorld))
         }
+        if let url = Bundle.main.url(forResource: "claude-code-dom", withExtension: "js"),
+           let script = try? String(contentsOf: url, encoding: .utf8) {
+            configuration.userContentController.addUserScript(WKUserScript(
+                source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: observerWorld))
+        }
         let web = WKWebView(frame: .zero, configuration: configuration)
         web.navigationDelegate = self; web.uiDelegate = self
         web.allowsBackForwardNavigationGestures = true
@@ -94,6 +102,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
 
     private func show(_ id: UUID, automatic: Bool = false) {
         guard let profile = store.state.profiles.first(where: { $0.id == id }) else { return }
+        if let request = codePending, request.profileID != id {
+            notice("Code task is using another container", "Stop the Code task before manually changing its Claude account."); return
+        }
         do { try store.select(id) } catch { report(error); return }
         currentBrowser?.removeFromSuperview()
         if !automatic { rotationVisited.removeAll() }
@@ -163,6 +174,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     }
 
     private func accountSettings() {
+        if codePending != nil { notice("Code task is running", "Stop it in the Code tab before changing account settings."); return }
         guard let id = currentID, let p = store.state.profiles.first(where: { $0.id == id }) else { addAccount(); return }
         let sheet = UIAlertController(title: p.name, message: store.status(p).rawValue + "\nLimit reset defaults to five hours from detection; use Reset limit when Claude allows messages again.", preferredStyle: .actionSheet)
         sheet.addAction(UIAlertAction(title: "Mark signed in / Reset limit", style: .default) { [weak self] _ in
@@ -213,6 +225,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         dataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { [weak self] in
             guard let self = self else { return }
             do {
+                try self.store.clearCodeThreads(id)
                 if remove { try self.store.remove(id) }
                 else { try self.store.update(id) { $0.status = .loggedOut; $0.limitedUntil = nil; $0.lastURL = nil } }
                 if self.currentID == id {
@@ -344,6 +357,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             if let profile = store.state.profiles.first(where: { $0.id == id }), store.status(profile) == .loggedOut {
                 change(id) { $0.status = .active }
             }
+        } else if event == "limit", id == codePending?.profileID {
+            rotateCodeRequest(id: id, context: context(from: payload["snapshot"] as? [String: Any], url: web.url),
+                              retryAfter: payload["retryAfterSeconds"] as? TimeInterval)
         } else if event == "limit", id == currentID {
             handleLimit(id: id, context: context(from: payload["snapshot"] as? [String: Any], url: web.url), manual: false, retryAfter: payload["retryAfterSeconds"] as? TimeInterval)
         }
@@ -418,4 +434,184 @@ final class ClaudeNotesController: UIViewController {
     }
     @objc private func done() { save(editor.text); dismiss(animated: true) }
     @objc private func cancel() { dismiss(animated: true) }
+}
+
+private final class ClaudeCodePending {
+    let id: String
+    let repo: String
+    let branch: String
+    let prompt: String
+    let reply: (Any?, String?) -> Void
+    var profileID: UUID
+    var attempted: Set<UUID> = []
+    var deadline = Date().addingTimeInterval(600)
+    var started = false
+    var evaluating = false
+    var lastPhase = ""
+    var lastText = ""
+    init(id: String, repo: String, branch: String, prompt: String, profileID: UUID,
+         reply: @escaping (Any?, String?) -> Void) {
+        self.id = id; self.repo = repo; self.branch = branch; self.prompt = prompt
+        self.profileID = profileID; self.reply = reply
+    }
+}
+
+extension ClaudeBrowserController {
+    func codeProfiles() -> [[String: Any]] {
+        store.state.profiles.enumerated().map { index, p in
+            ["id": p.id.uuidString, "number": index + 1, "name": p.name,
+             "status": store.status(p).rawValue, "enabled": p.enabled,
+             "selected": p.id == store.state.selected]
+        }
+    }
+    func startCodeRequest(_ message: [String: Any], reply: @escaping (Any?, String?) -> Void) {
+        guard codePending == nil else { reply(nil, "A Claude browser task is already running."); return }
+        guard let id = message["id"] as? String, !id.isEmpty, id.count <= 80,
+              let rawProfile = message["profileID"] as? String, let profileID = UUID(uuidString: rawProfile),
+              let profile = store.state.profiles.first(where: { $0.id == profileID }), profile.enabled,
+              let prompt = message["prompt"] as? String, !prompt.isEmpty, prompt.utf8.count <= 600_000,
+              let repo = message["repo"] as? String, !repo.isEmpty, repo.count <= 250,
+              let branch = message["branch"] as? String, !branch.isEmpty, branch.count <= 250 else {
+            reply(nil, "Choose a valid Claude container and repository first."); return
+        }
+        var chosen = profileID
+        if store.status(profile) == .rateLimited {
+            guard store.state.autoSwitch, let next = store.next(after: profileID) else {
+                reply(nil, "This Claude container is rate-limited. Choose another account or wait for reset."); return
+            }
+            chosen = next.id
+        }
+        loadViewIfNeeded()
+        let request = ClaudeCodePending(id: id, repo: repo, branch: branch, prompt: prompt, profileID: chosen, reply: reply)
+        codePending = request
+        codeTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.pollCodeRequest() }
+        openCodeProfilePreservingDraft(request)
+    }
+    func confirmCodeReply(_ id: String) {
+        guard let request = codePending, request.id == id else { return }
+        browsers[request.profileID]?.callAsyncJavaScript("return globalThis.claudeConfirmCodeReply?.(id);",
+            arguments: ["id": id], in: nil, in: observerWorld, completionHandler: nil)
+    }
+    func cancelCodeRequest(_ id: String) {
+        guard codePending?.id == id else { return }
+        finishCodeRequest(error: "Claude task stopped. No browser response was applied to repository files.")
+    }
+
+    private func openCodeProfilePreservingDraft(_ request: ClaudeCodePending) {
+        // Never navigate away from an existing user draft or active browser response.
+        if let web = browsers[request.profileID], safeClaudeURL(web.url) != nil {
+            let checkingProfile = request.profileID
+            request.evaluating = true
+            web.callAsyncJavaScript("return globalThis.claudeComposerBusyState?.() || {busy:true,hasDraft:true};",
+                arguments: [:], in: nil, in: observerWorld) { [weak self, weak request] result in
+                    guard let self = self, let request = request, self.codePending === request, request.profileID == checkingProfile else { return }
+                    request.evaluating = false
+                    guard case .success(let raw) = result, let state = raw as? [String: Any],
+                          state["busy"] as? Bool == false, state["hasDraft"] as? Bool == false else {
+                        self.show(request.profileID)
+                        self.finishCodeRequest(error: "This Claude container has a draft, is generating, or needs a page reload. Finish or clear it in the Claude tab, then send the Code task again."); return
+                    }
+                    self.prepareCodeProfile(request); self.pollCodeRequest()
+                }
+        } else { prepareCodeProfile(request); pollCodeRequest() }
+    }
+    private func prepareCodeProfile(_ request: ClaudeCodePending) {
+        show(request.profileID)
+        guard let web = browsers[request.profileID] else {
+            finishCodeRequest(error: "Could not open the selected Claude container."); return
+        }
+        let thread = safeClaudeURL(store.codeThread(profile: request.profileID, repo: request.repo, branch: request.branch))
+        web.load(URLRequest(url: thread ?? URL(string: "https://claude.ai/new")!))
+        request.started = false; request.evaluating = false; request.lastText = ""; request.lastPhase = ""
+        emitCode(request, phase: "opening", detail: "Opening the coding conversation in Claude.")
+    }
+    private func emitCode(_ request: ClaudeCodePending, phase: String, detail: String = "", text: String = "", model: String = "Claude web") {
+        guard let profile = store.state.profiles.first(where: { $0.id == request.profileID }) else { return }
+        let number = (store.state.profiles.firstIndex(where: { $0.id == profile.id }) ?? 0) + 1
+        onCodeEvent?(["id": request.id, "phase": phase, "detail": detail, "text": text,
+                      "profileID": profile.id.uuidString, "containerNumber": number,
+                      "containerName": profile.name, "model": model])
+    }
+    private func pollCodeRequest() {
+        guard let request = codePending else { return }
+        if Date() > request.deadline {
+            finishCodeRequest(error: "Claude did not finish within ten minutes. Its browser conversation is kept; no partial output was applied.")
+            return
+        }
+        guard !request.evaluating, let web = browsers[request.profileID], !web.isLoading else { return }
+        guard safeClaudeURL(web.url) != nil else {
+            emitCode(request, phase: "needsLogin", detail: "Open Claude and finish signing in to this container."); return
+        }
+        request.evaluating = true
+        let payload: [String: Any] = ["id": request.id, "prompt": request.prompt]
+        let script = request.started ?
+            "return globalThis.claudeCodeRequestStatus ? globalThis.claudeCodeRequestStatus(request.id) : {phase:'notStarted'};" :
+            "return globalThis.claudeBeginCodeRequest ? globalThis.claudeBeginCodeRequest(request) : {phase:'needsLogin'};"
+        let expectedProfile = request.profileID
+        web.callAsyncJavaScript(script, arguments: ["request": payload], in: nil, in: observerWorld) { [weak self, weak request] result in
+            guard let self = self, let request = request, self.codePending === request, request.profileID == expectedProfile else { return }
+            request.evaluating = false
+            switch result {
+            case .failure:
+                // Sign-in redirects or page navigation can temporarily replace the content world.
+                self.emitCode(request, phase: "needsLogin", detail: "Open Claude to finish sign-in or reload its page.")
+            case .success(let value):
+                guard let state = value as? [String: Any], let phase = state["phase"] as? String else { return }
+                let text = state["text"] as? String ?? ""
+                guard text.utf8.count <= 2_000_000 else { self.finishCodeRequest(error: "Claude's response is too large to apply safely."); return }
+                if ["prepared", "submitted", "responding", "complete"].contains(phase) { request.started = true }
+                if phase == "notStarted", request.started {
+                    // Never resubmit automatically after losing a document: it could duplicate a sent message.
+                    self.finishCodeRequest(error: "The Claude page changed during the request. Check its browser conversation before retrying."); return
+                }
+                if let raw = state["url"] as? String, let url = self.safeClaudeURL(URL(string: raw)), url.path.hasPrefix("/chat/") {
+                    try? self.store.saveCodeThread(profile: request.profileID, repo: request.repo, branch: request.branch, url: url)
+                }
+                let model = state["model"] as? String ?? "Claude web"
+                if phase != request.lastPhase || text != request.lastText {
+                    let detail = state["detail"] as? String ?? (phase == "prepared" ?
+                        "Your prompt is in Claude. Open its tab and tap Send if the site did not submit automatically." : "")
+                    self.emitCode(request, phase: phase, detail: detail, text: text, model: model)
+                    request.lastPhase = phase; request.lastText = text
+                }
+                if phase == "complete", !text.isEmpty {
+                    let profile = self.store.state.profiles.first { $0.id == request.profileID }
+                    self.finishCodeRequest(result: ["text": text, "profileID": request.profileID.uuidString,
+                        "containerName": profile?.name ?? "Claude", "model": model])
+                } else if phase == "stopped" {
+                    self.finishCodeRequest(error: "Claude's response was stopped in the browser. No partial output was applied.")
+                }
+            }
+        }
+    }
+    private func rotateCodeRequest(id: UUID, context: ClaudeContext, retryAfter: TimeInterval?) {
+        guard let request = codePending, request.profileID == id else { return }
+        do {
+            try store.capture(context)
+            let delay = retryAfter.flatMap { $0 > 0 && $0 <= 86400 ? $0 : nil } ?? 5 * 3600
+            try store.update(id) { $0.status = .rateLimited; $0.limitedUntil = Date().addingTimeInterval(delay) }
+            request.attempted.insert(id)
+            refreshMenus()
+            guard store.state.autoSwitch, let next = store.next(after: id, excluding: request.attempted) else {
+                finishCodeRequest(error: "Claude reached its limit and no eligible container remains. The browser context is saved; no partial answer was applied."); return
+            }
+            clearCodeDOM(request, profile: id)
+            request.profileID = next.id
+            emitCode(request, phase: "switching", detail: "Claude reached its limit. Resending the task and repository context to the next container.")
+            openCodeProfilePreservingDraft(request)
+        } catch { finishCodeRequest(error: error.localizedDescription) }
+    }
+    private func clearCodeDOM(_ request: ClaudeCodePending, profile: UUID) {
+        browsers[profile]?.callAsyncJavaScript("globalThis.claudeCancelCodeRequest?.(id);",
+            arguments: ["id": request.id], in: nil, in: observerWorld, completionHandler: nil)
+    }
+    private func finishCodeRequest(result: [String: Any]? = nil, error: String? = nil) {
+        guard let request = codePending else { return }
+        codeTimer?.invalidate(); codeTimer = nil
+        clearCodeDOM(request, profile: request.profileID)
+        codePending = nil
+        emitCode(request, phase: error == nil ? "complete" : "error", detail: error ?? "", text: result?["text"] as? String ?? "",
+                 model: result?["model"] as? String ?? "Claude web")
+        request.reply(result, error)
+    }
 }

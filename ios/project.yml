@@ -9,8 +9,10 @@ targets:
     platform: iOS
     sources:
       - path: AIStudio
-        excludes: ["claude-observer.js"]
+        excludes: ["claude-observer.js", "claude-code-dom.js"]
       - path: AIStudio/claude-observer.js
+        buildPhase: resources
+      - path: AIStudio/claude-code-dom.js
         buildPhase: resources
       - path: www
         type: folder

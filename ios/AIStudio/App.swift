@@ -39,6 +39,11 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         requestedStudioTab = mode
         if studioLoaded { applyStudioTab() }
     }
+    func sendClaudeCodeEvent(_ event: [String: Any]) {
+        guard studioLoaded else { return }
+        webView.callAsyncJavaScript("window.onClaudeCodeEvent?.(event);", arguments: ["event": event],
+            in: nil, in: .page, completionHandler: nil)
+    }
     private func applyStudioTab() {
         let script = "window.STUDIO_REQUEST_TAB = '\(requestedStudioTab)'; if(window.studioInitialized) { " + (requestedStudioTab == "settings" ? "openStudioSettings()" : "switchTab('\(requestedStudioTab)')") + " }"
         webView.evaluateJavaScript(script, completionHandler: nil)
@@ -135,6 +140,19 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             replyHandler(nil, "bad message"); return
         }
         switch op {
+        case "claudeProfiles":
+            replyHandler((tabBarController as? StudioTabController)?.claudeProfiles() ?? [], nil); return
+        case "claudeCodeRequest":
+            guard let tabs = tabBarController as? StudioTabController else { replyHandler(nil, "Claude containers are unavailable"); return }
+            tabs.runClaudeCode(msg, reply: replyHandler); return
+        case "claudeCodeConfirm":
+            (tabBarController as? StudioTabController)?.confirmClaudeCode(msg["id"] as? String ?? "")
+            replyHandler(true, nil); return
+        case "claudeCodeCancel":
+            (tabBarController as? StudioTabController)?.cancelClaudeCode(msg["id"] as? String ?? "")
+            replyHandler(true, nil); return
+        case "showClaude":
+            (tabBarController as? StudioTabController)?.openClaudeTab(); replyHandler(true, nil); return
         case "selectStudioTab":
             guard let tab = msg["tab"] as? String, ["chat", "code", "github", "settings"].contains(tab) else {
                 replyHandler(nil, "Unsupported tab"); return

@@ -29,12 +29,14 @@ jobs:
           node tests/repo-privacy.cjs
           node scripts/check-private-data.cjs
           node tests/claude-observer.cjs
+          node tests/claude-code.cjs
           bash -n scripts/git-setup.sh ios/scripts/build-ipa.sh
       - name: Install browser checks
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps webkit chromium
       - name: Verify iPhone and desktop layouts
+        timeout-minutes: 5
         run: node tests/browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()

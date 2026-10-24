@@ -132,3 +132,11 @@ button:disabled{opacity:.5;cursor:wait}
 .sidebar .nav-item{width:calc(100% - 20px)}
 body.native-tabs .studio-tabs{display:none}
 @media(max-width:680px){.sidebar{z-index:30}.overlay{z-index:20}}
+
+.code-route{padding:0 22px 8px;display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;font-size:12px}
+.code-route label{display:flex;gap:6px;align-items:center}.code-route select{max-width:230px;padding:7px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--fg)}
+#claudeCodeControls:not([hidden]){display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#codeHelperLabel{color:var(--fg2)}
+.claude-code-card{display:flex;flex-direction:column;gap:8px;min-width:0}
+.claude-code-answer{white-space:pre-wrap;overflow-wrap:anywhere;max-height:340px;overflow:auto;font-size:12px;font-family:var(--font-mono);background:var(--code-bg);padding:10px;border-radius:10px}
+@media(max-width:680px){.code-route{padding:0 16px 8px}.code-route select{max-width:200px}}
