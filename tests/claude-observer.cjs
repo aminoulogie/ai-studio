@@ -4,7 +4,7 @@ function run({host='claude.ai',notice='',insideChat=false,loggedIn=false,reply='
   const posted=[];
   const node=(role,text)=>({innerText:text,getAttribute:k=>k==='data-testid'?role:null,
     getClientRects:()=>[{}],parentElement:{closest:()=>null},closest:()=>insideChat?{}:null});
-  const messages=[node('user-message','Original goal 🌍'),node('assistant-message','Work completed')];
+  const messages=[node('user-message','Original goal 🌍'),node('assistant-message',reply)];
   const alert=node('usage-limit',notice);
   const context={location:{protocol:'https:',hostname:host,href:'https://'+host+'/chat/example'},
     window:{webkit:{messageHandlers:{claudeObserver:{postMessage:m=>posted.push(m)}}}},
