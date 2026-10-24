@@ -390,6 +390,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                 "Switched to " + next.name + ". Context is saved. Tap Copy context, then paste it into a Claude chat and send it. Reattach any files."
             let alert = UIAlertController(title: "Account switched", message: message, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "Copy context", style: .default) { [weak self] _ in self?.copyHandover() })
+            if !store.masterMemory.isEmpty {
+                alert.addAction(UIAlertAction(title: "Insert shared memory", style: .default) { [weak self] _ in self?.insertMemory() })
+            }
             alert.addAction(UIAlertAction(title: "Continue", style: .cancel))
             present(alert, animated: true)
         } catch { report(error) }
