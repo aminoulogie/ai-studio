@@ -13,9 +13,10 @@ final class ClaudeContainerTests: XCTestCase {
     func testProfileCapPersistenceCooldownAndRotation() throws {
         let (store, defaults, directory) = try makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let profiles = try (1...6).map { try store.add(name: "Account \($0)") }
-        XCTAssertThrowsError(try store.add(name: "Seventh"))
-        XCTAssertEqual(Set(profiles.map(\.id)).count, 6)
+        let profiles = try (1...ClaudeProfileStore.maxProfiles).map { try store.add(name: "Account \($0)") }
+        XCTAssertThrowsError(try store.add(name: "Over the limit"))
+        XCTAssertEqual(Set(profiles.map(\.id)).count, ClaudeProfileStore.maxProfiles)
+        XCTAssertGreaterThan(ClaudeProfileStore.maxProfiles, 6)
         for p in profiles { try store.update(p.id) { $0.status = .active } }
         try store.update(profiles[1].id) { $0.enabled = false }
         try store.update(profiles[2].id) { $0.status = .rateLimited; $0.limitedUntil = Date().addingTimeInterval(3600) }
