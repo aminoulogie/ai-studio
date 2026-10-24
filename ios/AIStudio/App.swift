@@ -154,6 +154,15 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
                 }
             } catch { replyHandler(nil, error.localizedDescription) }
             return
+        case "memoryGet":
+            replyHandler(memoryStore?.masterMemory ?? "", nil); return
+        case "memorySet":
+            guard let store = memoryStore, let text = msg["text"] as? String, text.utf8.count <= 40_000 else {
+                replyHandler(nil, "Memory unavailable"); return
+            }
+            do { try store.setMasterMemory(text); replyHandler(store.masterMemory, nil) }
+            catch { replyHandler(nil, error.localizedDescription) }
+            return
         case "aiRequest":
             studioRequests.send(msg, reply: replyHandler); return
         case "cancelRequest":
