@@ -41,6 +41,16 @@ final class ClaudeProfileStore {
         var profiles: [ClaudeProfile] = []
         var selected: UUID?
         var autoSwitch = true
+        var codeThreads: [String: URL] = [:]
+        enum CodingKeys: String, CodingKey { case profiles, selected, autoSwitch, codeThreads }
+        init() {}
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            profiles = try c.decodeIfPresent([ClaudeProfile].self, forKey: .profiles) ?? []
+            selected = try c.decodeIfPresent(UUID.self, forKey: .selected)
+            autoSwitch = try c.decodeIfPresent(Bool.self, forKey: .autoSwitch) ?? true
+            codeThreads = try c.decodeIfPresent([String: URL].self, forKey: .codeThreads) ?? [:]
+        }
     }
     private(set) var state: State
     private let defaults: UserDefaults
@@ -81,9 +91,22 @@ final class ClaudeProfileStore {
         guard state.profiles.contains(where: { $0.id == id }) else { throw problem("Account not found.") }
         state.selected = id; try save()
     }
+    func codeThread(profile: UUID, repo: String, branch: String) -> URL? {
+        state.codeThreads[profile.uuidString + ":" + repo + "@" + branch]
+    }
+    func saveCodeThread(profile: UUID, repo: String, branch: String, url: URL) throws {
+        guard url.scheme == "https", url.host == "claude.ai", url.path.hasPrefix("/chat/") else { return }
+        state.codeThreads[profile.uuidString + ":" + repo + "@" + branch] = url
+        try save()
+    }
+    func clearCodeThreads(_ id: UUID) throws {
+        state.codeThreads = state.codeThreads.filter { !$0.key.hasPrefix(id.uuidString + ":") }
+        try save()
+    }
     func setAutoSwitch(_ enabled: Bool) throws { state.autoSwitch = enabled; try save() }
     func remove(_ id: UUID) throws {
         state.profiles.removeAll { $0.id == id }
+        state.codeThreads = state.codeThreads.filter { !$0.key.hasPrefix(id.uuidString + ":") }
         if state.selected == id { state.selected = state.profiles.first?.id }
         try save()
     }

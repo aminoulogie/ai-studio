@@ -2,14 +2,17 @@ import UIKit
 
 /// Reuse the existing Studio document across Chat/Code/Projects/Settings; Claude has its own native tab.
 final class StudioTabController: UITabBarController, UITabBarControllerDelegate {
+    private let claudeBrowser: ClaudeBrowserController
     init(store: ClaudeProfileStore) {
+        claudeBrowser = ClaudeBrowserController(store: store)
         super.init(nibName: nil, bundle: nil)
         let studio = WebViewController()
         let chat = StudioTabHost(studio: studio, mode: "chat")
         chat.tabBarItem = UITabBarItem(title: "Chat", image: UIImage(systemName: "bubble.left.and.bubble.right"), tag: 0)
         let code = StudioTabHost(studio: studio, mode: "code")
         code.tabBarItem = UITabBarItem(title: "Code", image: UIImage(systemName: "chevron.left.forwardslash.chevron.right"), tag: 1)
-        let claude = UINavigationController(rootViewController: ClaudeBrowserController(store: store))
+        let claude = UINavigationController(rootViewController: claudeBrowser)
+        claudeBrowser.onCodeEvent = { [weak studio] event in studio?.sendClaudeCodeEvent(event) }
         claude.tabBarItem = UITabBarItem(title: "Claude", image: UIImage(systemName: "globe"), tag: 2)
         let projects = StudioTabHost(studio: studio, mode: "github")
         projects.tabBarItem = UITabBarItem(title: "Projects", image: UIImage(systemName: "folder"), tag: 3)
@@ -19,6 +22,12 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         selectedIndex = 0
         delegate = self
     }
+    func claudeProfiles() -> [[String: Any]] { claudeBrowser.codeProfiles() }
+    func runClaudeCode(_ message: [String: Any], reply: @escaping (Any?, String?) -> Void) {
+        claudeBrowser.startCodeRequest(message, reply: reply)
+    }
+    func cancelClaudeCode(_ id: String) { claudeBrowser.cancelCodeRequest(id) }
+    func openClaudeTab() { selectedIndex = 2 }
     func selectStudioMode(_ mode: String) {
         let indexes = ["chat": 0, "code": 1, "github": 3, "settings": 4]
         guard let index = indexes[mode], selectedIndex != index else { return }

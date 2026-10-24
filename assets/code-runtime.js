@@ -180,7 +180,7 @@ function codeDB(){
 async function saveCodeSession(){
   if(!codeState.repo||!codeState.branch)return;
   const key=codeState.repo+'@'+codeState.branch;
-  const snapshot={repo:codeState.repo,branch:codeState.branch,staged:{...codeState.staged},orig:{...codeState.orig},msgs:codeState.msgs,baseSHA:codeState.baseSHA,interview:codeInterview,ts:Date.now()};
+  const snapshot={repo:codeState.repo,branch:codeState.branch,staged:{...codeState.staged},orig:{...codeState.orig},msgs:codeState.msgs,baseSHA:codeState.baseSHA,claudeResult:codeState.claudeResult,interview:codeInterview,ts:Date.now()};
   try{
     const db=await codeDB();
     await new Promise((resolve,reject)=>{
@@ -197,10 +197,11 @@ async function restoreCodeSession(){
       const req=db.transaction('sessions').objectStore('sessions').get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
     });
     if(!saved||key!==codeState.repo+'@'+codeState.branch||codeState.busy)return;
-    Object.assign(codeState,{staged:saved.staged||{},orig:saved.orig||{},msgs:saved.msgs||[],baseSHA:saved.baseSHA||null});
+    Object.assign(codeState,{staged:saved.staged||{},orig:saved.orig||{},msgs:saved.msgs||[],baseSHA:saved.baseSHA||null,claudeResult:saved.claudeResult||null});
     codeInterview=!!saved.interview;document.getElementById('codeAskBtn').classList.toggle('lit',codeInterview);
     if(codeState.msgs.length)codeLog('step','Your last session is restored. Pending changes are ready to review; send a message to continue.');
     renderCodeChanges();
+    if(saved.claudeResult&&typeof showSavedClaudeResult==='function')showSavedClaudeResult(saved.claudeResult);
   }catch{}
 }
 function codeStatus(text,state='idle'){
