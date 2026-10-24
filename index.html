@@ -1737,6 +1737,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
     codeStatus(codeState.stop?'Stopped · changes kept':'Ready · changes kept on this device',codeState.stop?'warning':'idle');
   }catch(e){
     codeStatus(e.name==='AbortError'?'Stopped · changes kept':'Paused · changes kept','warning');
+    if(e.name!=='AbortError'&&isOutOfCredit(e)){codeLimitCard(prov,model,e);return;}
     codeLog('step','<div class="recovery-card"><b>'+esc(e.name==='AbortError'?'Task stopped':'Let’s get you moving again')+'</b><p>'+esc(codeErrorMessage(e))+'</p><div><button class="gh-btn primary" onclick="codeResume()">Resume</button> <button class="gh-btn" onclick="openModelPicker()">Change model</button></div></div>');
   }finally{
     codeState.controller=null;
