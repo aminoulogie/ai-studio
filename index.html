@@ -2166,6 +2166,11 @@ async function loadVnaiModels(k,loud){
   connStatus('bad','✗ '+firstErr);
 }
 
+/* Shared memory: one device-local store read at send time, so every model and provider sees the same text. */
+function sharedMemoryText(){return (ls('studio_memory')||'').trim();}
+function sharedMemoryPrompt(){const m=sharedMemoryText();return m?'Shared memory about the user (same for every model; treat as true and follow it):\n'+m:'';}
+function updateMemoryHint(){const h=document.getElementById('memoryHint');if(h)h.textContent=(document.getElementById('sharedMemory').value.length)+' / 4000 characters · stored only on this device';}
+function saveMemory(){ls('studio_memory',document.getElementById('sharedMemory').value);updateMemoryHint();}
 function saveSettings(){
   const sel=document.getElementById('modelSelect');
   ls('ai_model_'+curProvider,sel.value);
