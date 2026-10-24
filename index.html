@@ -1749,7 +1749,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
 function codeResume(){
   if(codeState.busy||codeState.committing)return;
   const input=document.getElementById('codeTask');
-  if(!input.value.trim())input.value='Continue from the last completed step. Inspect pending edits and do not repeat changes already made.';
+  if(!input.value.trim())input.value='Continue from the last completed step. Inspect pending edits and do not repeat changes already made.';codeState.resume=true;
   codeRun();
 }
 function openCodeHelp(){
