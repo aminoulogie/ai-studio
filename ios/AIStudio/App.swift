@@ -42,7 +42,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         if studioLoaded { applyStudioTab() }
     }
     private func applyStudioTab() {
-        let script = "window.STUDIO_REQUEST_TAB = '\(requestedStudioTab)'; if(window.studioInitialized) { " + (requestedStudioTab == "settings" ? "openStudioSettings()" : "switchTab('\(requestedStudioTab)')") + " }"
+        let script = "window.STUDIO_REQUEST_TAB = '\(requestedStudioTab)'; if(window.studioInitialized) { " + (requestedStudioTab == "settings" ? "openStudioSettings()" : "switchTab('\(requestedStudioTab)')") + "; window.syncMemoryFromNative && window.syncMemoryFromNative(); }"
         webView.evaluateJavaScript(script, completionHandler: nil)
     }
 
