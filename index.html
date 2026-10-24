@@ -1996,6 +1996,7 @@ function loadPrefs(){
   const key=ls('ai_key_'+curProvider)||'';
   document.getElementById('apiKey').value=key;
   document.getElementById('sysPrompt').value=ls('cl_sys')||'';
+  document.getElementById('sharedMemory').value=ls('studio_memory')||'';updateMemoryHint();
   updateDot(key);
   const dark=ls('cl_dark')==='1'; isDark=dark; applyTheme(dark);
   updateModelLabel();
