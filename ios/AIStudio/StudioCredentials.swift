@@ -3,6 +3,13 @@ import Security
 
 /// Device-only, available after device unlock. Never synchronized to iCloud.
 enum StudioCredentials {
+    static func prepareInstallation() throws {
+        // Keychain can survive uninstall. Never reuse a previous installation's GitHub token.
+        if !UserDefaults.standard.bool(forKey: "studio.installation.v1") {
+            try set("github", value: "")
+            UserDefaults.standard.set(true, forKey: "studio.installation.v1")
+        }
+    }
     static func query(_ name: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: "app.aistudio.credentials.v1",

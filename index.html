@@ -2749,5 +2749,5 @@ function showErr(msg){const el=document.getElementById('errorStrip');el.textCont
 function hideErr(){document.getElementById('errorStrip').style.display='none';}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
-bootGitHubCredential().then(init).catch(e=>showErr('Could not load GitHub sign-in: '+e.message));
+bootGitHubCredential().catch(e=>showErr('GitHub secure sign-in is unavailable: '+e.message)).then(init);
 </script>

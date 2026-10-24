@@ -58,7 +58,8 @@ final class ClaudeContainerTests: XCTestCase {
         await clear(a); await clear(b)
     }
     func testClaudeIsSeparateFromMainStudioTabs() throws {
-        XCTAssertTrue((UIApplication.shared.delegate as? AppDelegate)?.window?.rootViewController is StudioTabController)
+        let root = (UIApplication.shared.delegate as? AppDelegate)?.window?.rootViewController
+        XCTAssertTrue(root is StudioTabController, "Unexpected root: \(String(describing: root)); \(root?.view.subviews.compactMap { ($0 as? UILabel)?.text }.joined(separator: "; ") ?? "")")
         let (store, _, directory) = try makeStore()
         defer { try? FileManager.default.removeItem(at: directory) }
         let tabs = StudioTabController(store: store)

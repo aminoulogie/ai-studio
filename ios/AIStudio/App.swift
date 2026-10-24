@@ -11,11 +11,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
         do {
-            // Keychain items can survive uninstall; a new installation must not inherit an old sign-in.
-            if !UserDefaults.standard.bool(forKey: "studio.installation.v1") {
-                try StudioCredentials.set("github", value: "")
-                UserDefaults.standard.set(true, forKey: "studio.installation.v1")
-            }
+            // GitHub storage must not prevent the independent Claude browser from opening.
+            // An unsigned simulator can lack Keychain access; credential operations retry preparation.
+            try? StudioCredentials.prepareInstallation()
             window?.rootViewController = StudioTabController(store: try ClaudeProfileStore())
         } catch {
             let controller = UIViewController()
@@ -146,6 +144,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         case "credentialGet", "credentialSet":
             guard msg["name"] as? String == "github" else { replyHandler(nil, "Unsupported credential"); return }
             do {
+                try StudioCredentials.prepareInstallation()
                 if op == "credentialGet" { replyHandler(try StudioCredentials.get("github"), nil) }
                 else {
                     guard let value = msg["value"] as? String, value.utf8.count <= 32_000 else {
