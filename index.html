@@ -1809,6 +1809,39 @@ function localCommitSecrets(){
   }
   return values.filter(v=>typeof v==='string'&&v.length>=8);
 }
+/* ===================== SHARED MEMORY ===================== */
+// One memory for the whole app. It is added to every request, so any model, provider, fallback or account switch sees the same notes.
+// It lives on this device (and in the iOS app's own storage). It is never written to GitHub.
+const MEMORY_MAX=8000;
+function globalMemory(){return (ls('ai_global_memory')||'').trim();}
+function setGlobalMemory(t){
+  t=String(t||'').trim().slice(0,MEMORY_MAX);
+  ls('ai_global_memory',t);
+  try{if(window.webkit?.messageHandlers?.native)native({op:'globalMemorySet',text:t}).catch(()=>{});}catch{}
+  return t;
+}
+function globalMemoryBlock(){
+  const m=globalMemory();
+  return m?'Shared memory (notes the user keeps across every model and account; treat them as background facts and preferences, and do not repeat them back unless asked):\n'+m:'';
+}
+function rememberNote(note){
+  note=String(note||'').replace(/\s+/g,' ').trim().slice(0,400);
+  if(!note)return 'ERROR: nothing to remember.';
+  if(/\b(?:sk-|ghp_|github_pat_|AIza)[A-Za-z0-9_-]{10,}/.test(note)||localCommitSecrets().some(s=>note.includes(s)))return 'ERROR: that looks like a key or token. Never store secrets in shared memory.';
+  const cur=globalMemory();
+  if(cur.split('\n').some(l=>l.replace(/^- /,'').trim()===note))return 'Already remembered.';
+  const next=(cur?cur+'\n':'')+'- '+note;
+  if(next.length>MEMORY_MAX)return 'ERROR: shared memory is full ('+MEMORY_MAX+' characters). Ask the user to tidy it in Shared memory.';
+  setGlobalMemory(next);
+  return 'OK, remembered.';
+}
+function openMemory(){
+  openSheet('<h3>🧠 Shared memory</h3><p>One memory for every model, provider and account. It is added to each request and to the handover summary, so switching models never loses it. It stays on this device and is never committed to GitHub.</p><p>It is sent to whichever provider you are using, so keep passwords and private documents out of it. Type <b>/remember something</b> in Chat to add a line.</p><textarea id="memoryText" rows="10" style="width:100%" maxlength="'+MEMORY_MAX+'">'+esc(globalMemory())+'</textarea><div class="modal-btns"><button class="gh-btn" onclick="closeSheet()">Cancel</button><button class="gh-btn primary" onclick="saveMemoryFromSheet()">Save</button></div>');
+}
+function saveMemoryFromSheet(){
+  const t=setGlobalMemory(document.getElementById('memoryText').value);
+  closeSheet();toast(t?'Shared memory saved.':'Shared memory cleared.');
+}
 function codeAutoCommitKey(){return 'code_auto_commit:'+codeState.repo;}
 function codeLean(){return ls('code_lean')==='1';}
 function setCodeLean(on){ls('code_lean',on?'1':'0');toast(on?'Lean send on.':'Lean send off.');}
