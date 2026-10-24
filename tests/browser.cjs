@@ -106,6 +106,7 @@ const server=http.createServer((req,res)=>{
         }
         if(msg.op==='claudeProfiles')return [{id:'11111111-1111-4111-8111-111111111111',number:1,name:'Test account',status:'Active',enabled:true,selected:true}];
         if(msg.op==='claudeCodeRequest'){
+          window.testClaudeRequestId=msg.id;
           onClaudeCodeEvent({id:msg.id,phase:'responding',containerNumber:1,containerName:'Test account',model:'Claude test',text:'Write demo.txt with the finished implementation.'});
           return {text:'Write demo.txt with the finished implementation.',model:'Claude test',containerName:'Test account'};
         }
@@ -117,7 +118,12 @@ const server=http.createServer((req,res)=>{
     await page.locator('#codeRunBtn').click();
     await page.waitForFunction(()=>!codeState.busy&&codeState.staged['demo.txt']==='applied by helper');
     assert.ok(helperRequests>=2,'Helper applies only after the completed browser answer');
-    assert.ok(await page.locator('.claude-code-answer').last().innerText());
+    const mirrored=await page.evaluate(()=>({
+      activeTab,requestID:window.testClaudeRequestId,result:codeState.claudeResult,
+      cards:[...document.querySelectorAll('.claude-code-card')].map(e=>({id:e.dataset.request,text:e.querySelector('.claude-code-answer')?.textContent}))
+    }));
+    console.log('CLAUDE_MIRROR_CHECK',JSON.stringify(mirrored));
+    assert.ok(mirrored.cards.some(c=>c.id===mirrored.requestID&&c.text?.includes('Write demo.txt with the finished implementation.')),'Completed Claude answer must remain in its Code response card');
     const beforeReadOnly=helperRequests;
     await page.evaluate(()=>ls('code_claude_apply','0'));
     await page.locator('#codeTask').fill('Ask Claude without applying');
