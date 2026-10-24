@@ -12,7 +12,7 @@ Requires **iOS 17+** for persistent, named WebKit data stores.
 4. The actions menu contains account settings: rename, pause rotation, reorder, reset limit, log out/clear one container, or remove an account.
 5. A visible limit banner marks the account Rate-Limited and rotates to the next enabled Active account. The app saves context before switching and opens a new Claude chat. If no account is available, it stops. **Limit → Next** is the manual fallback.
 
-Accounts start Logged Out. A Claude composer marks them Active, or use **Account settings → Mark signed in / Reset limit** after confirming sign-in. Paused accounts can be opened manually but are skipped in rotation. The fallback cooldown is **five hours after detection**, not Claude's authoritative reset time. Check Claude's displayed reset time and reset the app's status when appropriate.
+Accounts start Logged Out. A Claude composer marks them Active, or use **Account settings → Mark signed in / Reset limit** after confirming sign-in. Paused accounts can be opened manually but are skipped in rotation. A visible relative reset notice (such as “try again in 25 minutes”) is used when recognized. Otherwise the fallback cooldown is **five hours after detection**, not Claude's authoritative reset time. Check Claude's displayed reset time and reset the app's status when appropriate.
 
 Detection observes visible alert/status/limit notices with a debounce; it does not scan arbitrary chat text for “limit” and does not call private Claude endpoints. Claude's HTML, languages, authentication policies and limits can change. Embedded login must be tested with your real accounts. The app cannot bypass a sign-in restriction, grant a model, or guarantee a particular Sonnet version on the free tier.
 

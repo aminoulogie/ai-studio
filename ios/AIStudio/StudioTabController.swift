@@ -19,6 +19,11 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         selectedIndex = 0
         delegate = self
     }
+    func selectStudioMode(_ mode: String) {
+        let indexes = ["chat": 0, "code": 1, "github": 3, "settings": 4]
+        guard let index = indexes[mode], selectedIndex != index else { return }
+        selectedIndex = index
+    }
     func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
         (viewController as? StudioTabHost)?.activate()
     }

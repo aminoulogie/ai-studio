@@ -2154,6 +2154,7 @@ function switchTab(tab){
   document.getElementById('searchRow').style.display=tab==='chat'?'':'none';
   document.getElementById('topbarTitle').textContent=tab==='chat'?(convs[curId]?.title||'AI Studio'):tab==='code'?'Code':'GitHub';
   if(window.innerWidth<=680)closeSidebar();
+  if(window.STUDIO_NATIVE_TABS&&window.studioInitialized)native({op:'selectStudioTab',tab}).catch(()=>{});
 }
 
 /* ===================== SIDEBAR ===================== */

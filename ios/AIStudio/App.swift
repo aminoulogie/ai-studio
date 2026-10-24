@@ -132,6 +132,12 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             replyHandler(nil, "bad message"); return
         }
         switch op {
+        case "selectStudioTab":
+            guard let tab = msg["tab"] as? String, ["chat", "code", "github", "settings"].contains(tab) else {
+                replyHandler(nil, "Unsupported tab"); return
+            }
+            (tabBarController as? StudioTabController)?.selectStudioMode(tab)
+            replyHandler(true, nil); return
         case "credentialGet", "credentialSet":
             guard msg["name"] as? String == "github" else { replyHandler(nil, "Unsupported credential"); return }
             do {

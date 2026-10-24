@@ -302,11 +302,11 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         } catch { report(error) }
     }
 
-    private func handleLimit(id: UUID, context: ClaudeContext, manual: Bool) {
+    private func handleLimit(id: UUID, context: ClaudeContext, manual: Bool, retryAfter: TimeInterval? = nil) {
         guard id == currentID, !switching else { return }
         if presentedViewController != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-                self?.handleLimit(id: id, context: context, manual: manual)
+                self?.handleLimit(id: id, context: context, manual: manual, retryAfter: retryAfter)
             }
             return
         }
@@ -316,7 +316,8 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             // Save before moving away, including when no accounts remain.
             let handover = context.messages.isEmpty ? (store.latestContext ?? context) : context
             try store.capture(handover)
-            try store.update(id) { $0.status = .rateLimited; $0.limitedUntil = Date().addingTimeInterval(5 * 3600) }
+            let delay = retryAfter.flatMap { $0 > 0 && $0 <= 86400 ? $0 : nil } ?? 5 * 3600
+            try store.update(id) { $0.status = .rateLimited; $0.limitedUntil = Date().addingTimeInterval(delay) }
             rotationVisited.insert(id); refreshMenus()
             guard manual || store.state.autoSwitch else {
                 notice("Claude usage limit", "Context was saved. Select another account from Accounts or wait for Claude's reset."); return
@@ -344,7 +345,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                 change(id) { $0.status = .active }
             }
         } else if event == "limit", id == currentID {
-            handleLimit(id: id, context: context(from: payload["snapshot"] as? [String: Any], url: web.url), manual: false)
+            handleLimit(id: id, context: context(from: payload["snapshot"] as? [String: Any], url: web.url), manual: false, retryAfter: payload["retryAfterSeconds"] as? TimeInterval)
         }
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

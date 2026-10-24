@@ -8,6 +8,12 @@
   const isLimit=text=>
     /(?:you(?:'|’)?ve reached (?:your|the) (?:message |usage )?limit|(?:message|usage|rate) limit (?:reached|exceeded)|out of (?:free )?messages|(?:hit|reached) your (?:free )?(?:plan )?limit)/i.test(text)||
     /(?:limit|messages|usage)[\s\S]{0,100}(?:try again|resets? (?:at|in)|come back)/i.test(text);
+  function resetDelay(text){
+    const match=text.match(/(?:try again|resets?|come back) in\s+(?:(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)\s*)?(?:(\d+)\s*(?:minutes?|mins?))?/i);
+    if(!match||(!match[1]&&!match[2]))return null;
+    const seconds=(Number(match[1]||0)*3600)+(Number(match[2]||0)*60);
+    return seconds>0&&seconds<=86400?seconds:null;
+  }
   function messages(){
     const items=[];
     // Keep document order. These selectors are best-effort public DOM markers, not an API.
@@ -33,7 +39,7 @@
     if(!text){lastLimit='';}
     else if(text!==lastLimit){
       lastLimit=text;
-      bridge.postMessage({event:'limit',notice:text,snapshot:snapshot()});
+      bridge.postMessage({event:'limit',notice:text,retryAfterSeconds:resetDelay(text),snapshot:snapshot()});
     }
     if(!signedIn&&document.querySelector('[contenteditable="true"][role="textbox"],textarea[placeholder*="Claude"]')){
       signedIn=true;bridge.postMessage({event:'signedIn'});

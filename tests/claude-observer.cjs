@@ -24,6 +24,8 @@ assert.equal(run({notice:'Usage limit reached',insideChat:true}).posted.length,0
 assert.equal(run({notice:'You are approaching your usage limit'}).posted.length,0,'Do not rotate on a warning');
 assert.equal(run({host:'accounts.google.com',notice:"You've reached your limit"}).posted.length,0,'No observer on login pages');
 assert.equal(run({loggedIn:true}).posted[0].event,'signedIn');
+assert.equal(run({notice:'Usage limit reached. Try again in 2 hours 15 minutes'}).posted[0].retryAfterSeconds,8100);
+assert.equal(run({notice:'Usage limit reached. Try again in 25 minutes'}).posted[0].retryAfterSeconds,1500);
 const {context}=run();
 assert.equal(context.claudeVisibleSnapshot().messages.map(x=>x.role).join(','),'user,assistant');
 console.log('Claude observer checks passed: notices, false positives, origins and ordered visible-text export.');
