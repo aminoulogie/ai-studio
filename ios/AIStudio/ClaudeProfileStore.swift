@@ -47,6 +47,9 @@ final class ClaudeProfileStore {
     private let stateKey = "studio.claude.profiles.v1"
     let directory: URL
     var latestContext: ClaudeContext?
+    /// One shared memory for every Claude container. Stays on this device, never in the repository.
+    private(set) var masterMemory = ""
+    static let memoryLimit = 4000
     init(defaults: UserDefaults = .standard, directory: URL? = nil) throws {
         self.defaults = defaults
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
