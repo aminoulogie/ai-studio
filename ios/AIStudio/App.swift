@@ -10,7 +10,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = WebViewController()
+        do {
+            // GitHub storage must not prevent the independent Claude browser from opening.
+            // An unsigned simulator can lack Keychain access; credential operations retry preparation.
+            try? StudioCredentials.prepareInstallation()
+            window?.rootViewController = StudioTabController(store: try ClaudeProfileStore())
+        } catch {
+            let controller = UIViewController()
+            controller.view.backgroundColor = .systemBackground
+            let label = UILabel(frame: UIScreen.main.bounds.insetBy(dx: 24, dy: 80))
+            label.numberOfLines = 0; label.textAlignment = .center
+            label.text = "Could not load Claude profiles. Your stored containers have not been reset.\n\n" + error.localizedDescription
+            controller.view.addSubview(label); window?.rootViewController = controller
+        }
         window?.makeKeyAndVisible()
         return true
     }
@@ -21,10 +33,21 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
     private let studioRequests = StudioRequests()
     private let studioArtwork = StudioArtwork()
     private var launchView: StudioLaunchView?
+    private var requestedStudioTab = "chat"
+    private var studioLoaded = false
+    func selectStudioTab(_ mode: String) {
+        requestedStudioTab = mode
+        if studioLoaded { applyStudioTab() }
+    }
+    private func applyStudioTab() {
+        let script = "window.STUDIO_REQUEST_TAB = '\(requestedStudioTab)'; if(window.studioInitialized) { " + (requestedStudioTab == "settings" ? "openStudioSettings()" : "switchTab('\(requestedStudioTab)')") + " }"
+        webView.evaluateJavaScript(script, completionHandler: nil)
+    }
 
     override func loadView() {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(studioArtwork, forURLScheme: "studio-art")
+        config.userContentController.addUserScript(WKUserScript(source: "window.STUDIO_NATIVE_TABS = true;", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.websiteDataStore = .default() // keeps your key + chats between launches
         config.allowsInlineMediaPlayback = true
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
@@ -52,6 +75,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard webView === self.webView else { return }
+        studioLoaded = true; applyStudioTab()
         UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.3, animations: {
             self.launchView?.alpha = 0
         }, completion: { _ in self.launchView?.removeFromSuperview(); self.launchView = nil })
@@ -105,10 +129,31 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {
         guard message.webView === webView, message.frameInfo.isMainFrame,
+              message.frameInfo.securityOrigin.protocol == "https",
+              message.frameInfo.securityOrigin.host == "aistudio.app",
               let msg = message.body as? [String: Any], let op = msg["op"] as? String else {
             replyHandler(nil, "bad message"); return
         }
         switch op {
+        case "selectStudioTab":
+            guard let tab = msg["tab"] as? String, ["chat", "code", "github", "settings"].contains(tab) else {
+                replyHandler(nil, "Unsupported tab"); return
+            }
+            (tabBarController as? StudioTabController)?.selectStudioMode(tab)
+            replyHandler(true, nil); return
+        case "credentialGet", "credentialSet":
+            guard msg["name"] as? String == "github" else { replyHandler(nil, "Unsupported credential"); return }
+            do {
+                try StudioCredentials.prepareInstallation()
+                if op == "credentialGet" { replyHandler(try StudioCredentials.get("github"), nil) }
+                else {
+                    guard let value = msg["value"] as? String, value.utf8.count <= 32_000 else {
+                        replyHandler(nil, "Invalid credential"); return
+                    }
+                    try StudioCredentials.set("github", value: value); replyHandler(true, nil)
+                }
+            } catch { replyHandler(nil, error.localizedDescription) }
+            return
         case "aiRequest":
             studioRequests.send(msg, reply: replyHandler); return
         case "cancelRequest":

@@ -36,20 +36,36 @@ const server=http.createServer((req,res)=>{
     await page.goto(url);
     await page.waitForSelector('.welcome h1');
     assert.ok(await page.locator('.welcome h1').innerText());
+    assert.equal(await page.evaluate(()=>Object.keys(convs).length),0,'Fresh install has no saved conversations');
+    assert.equal(await page.evaluate(()=>document.getElementById('modelSelect').options.length),0,'Fresh install has no configured models');
+    assert.equal(await page.evaluate(()=>ghToken),'','Fresh install has no GitHub token');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'No page overflow');
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-chat.png'),fullPage:true});
     if(name==='iphone')console.log('STUDIO_PREVIEW_BASE64:'+ (await page.screenshot({type:'jpeg',quality:65})).toString('base64'));
+    // The drawer must receive real pointer events above its scrim.
+    if(name==='iphone'){
+      await page.locator('.studio-tab').last().click();
+      await page.locator('#sidebar .provider-btn[data-p="openrouter"]').click();
+      assert.equal(await page.evaluate(()=>curProvider),'openrouter');
+      await page.locator('#sidebar .nav-item').filter({hasText:'Code'}).click();
+      await page.waitForFunction(()=>activeTab==='code'&&!document.getElementById('overlay').classList.contains('show'));
+      await page.locator('.studio-tab[data-tab="chat"]').click();
+    }
     await page.evaluate(()=>{openAppearance();});
     await page.locator('.appearance-card').nth(1).click();
     assert.equal(await page.evaluate(()=>localStorage.getItem('studio_art')),'lagoon');
     await page.evaluate(()=>closeSheet());
     await page.evaluate(()=>{
       localStorage.setItem('ai_provider','openrouter');localStorage.setItem('ai_key_openrouter','test-key');
+      localStorage.setItem('ai_models_openrouter',JSON.stringify([{v:'test-model',l:'Test model'}]));localStorage.setItem('ai_model_openrouter','test-model');
       localStorage.setItem('gh_token','test-gh');localStorage.setItem('code_repo','aminoulogie/ai-studio');
     });
     await page.reload();await page.locator('.studio-tab[data-tab="code"]').click();
     await page.waitForFunction(()=>document.getElementById('codeBranch').value==='main');
     for(const id of ['codeMicBtn','codeAskBtn','codeOptBtn','codeRunBtn'])assert.ok(await page.locator('#'+id).isVisible());
+    await page.locator('#codePermissionsBtn').click();
+    assert.ok(await page.locator('#codeAutoCommit').isVisible());
+    await page.evaluate(()=>closeSheet());
     await page.locator('#codeTask').fill('Tell me about this project');
     await page.locator('#codeRunBtn').click();
     await page.waitForFunction(()=>!codeState.busy&&codeState.msgs.some(m=>m.content==='Ready to help.'));

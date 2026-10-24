@@ -381,9 +381,8 @@ body{overscroll-behavior:none}
 </style>
 <link rel="stylesheet" href="assets/studio.css">
 
-<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
-
 <div class="app">
+  <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
@@ -513,6 +512,7 @@ body{overscroll-behavior:none}
     <div class="s-label">Model</div>
     <div class="model-select-wrap">
       <select id="modelSelect" onchange="saveSettings()"></select>
+      <button class="gh-btn" onclick="addLocalModel(curProvider)">Add model on this device</button>
     </div>
     <button class="btn-new-chat" id="vnaiRefresh" style="margin-top:6px" onclick="loadModels(curProvider,true)">↻ Reload my models</button>
     <button class="btn-new-chat" id="removeProvBtn" style="display:none" onclick="removeExtraProvider()">✕ Remove this provider</button>
@@ -637,6 +637,7 @@ body{overscroll-behavior:none}
       <div class="code-wrap">
         <div class="code-head">
           <div class="code-heading"><span class="eyebrow">YOUR WORKSPACE</span><h2>Make something great.</h2><p>From idea to a working app.</p></div>
+          <button class="gh-btn" id="codePermissionsBtn" onclick="openCodePermissions()">Permissions</button>
           <select aria-label="Repository" id="codeRepo" onchange="codeRepoChange()"></select>
           <select aria-label="Branch" id="codeBranch" onchange="codeBranchChange(this.value)"></select>
         </div>
@@ -678,7 +679,7 @@ body{overscroll-behavior:none}
             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/></svg>
             Connect GitHub
           </button>
-          <p style="font-size:11px;color:var(--fg3)">Token stored only in your browser. <a href="https://github.com/settings/tokens/new?scopes=repo&description=AI+Studio" target="_blank" style="color:var(--brand)">Create token ↗</a></p>
+          <p style="font-size:11px;color:var(--fg3)">Token saved in iOS Keychain, or in this browser on desktop. <a href="https://github.com/settings/tokens/new?scopes=repo&description=AI+Studio" target="_blank" style="color:var(--brand)">Create token ↗</a></p>
         </div>
       </div>
       <div id="ghBrowser" style="display:none;flex:1;flex-direction:column;overflow:hidden">
@@ -759,187 +760,150 @@ body{overscroll-behavior:none}
 
 <div class="toast" id="toast"></div>
 
+<script src="assets/repo-privacy.js"></script>
 <script src="assets/code-runtime.js"></script>
 <script src="assets/studio.js"></script>
 <script>
 /* ===================== PROVIDERS ===================== */
 const VNAI_BASE='https://apikey.vnaipro.app/v1';
-const PROVIDERS = {
-  vnaipro: {
-    name: 'VNAIPro',
-    color: '#3b82f6',
-    placeholder: 'sk-… (paste your vnaipro key)',
-    link: 'https://apikey.vnaipro.app/dashboard/overview',
-    models: lsj('vnai_models')||['claude-sonnet-5','claude-opus-5-5','claude-opus-5','claude-fable-5-1','claude-fable-5','claude-opus-4-8','claude-opus-4-7','claude-opus-4-6','claude-sonnet-4-6'].map(v=>({v,l:v})),
-    defaultModel: 'claude-sonnet-5'
+const PROVIDERS={
+  "vnaipro": {
+    "name": "VNAIPro",
+    "color": "#3b82f6",
+    "placeholder": "sk-… (paste your vnaipro key)",
+    "link": "https://apikey.vnaipro.app/dashboard/overview",
+    "models": [],
+    "defaultModel": ""
   },
-  anthropic: {
-    name: 'Anthropic',
-    color: '#cc785c',
-    placeholder: 'sk-ant-api03-…',
-    link: 'https://console.anthropic.com/account/keys',
-    models: [
-      {v:'claude-opus-4-5',   l:'Claude Opus 4.5'},
-      {v:'claude-sonnet-4-5', l:'Claude Sonnet 4.5'},
-      {v:'claude-haiku-4-5',  l:'Claude Haiku 4.5'},
-      {v:'claude-sonnet-4-6', l:'Claude Sonnet 4.6'},
-      {v:'claude-opus-5-5',   l:'Claude Opus 5.5'},
-      {v:'claude-sonnet-5-5', l:'Claude Sonnet 5.5'},
-      {v:'claude-haiku-5-5',  l:'Claude Haiku 5.5'},
-    ],
-    defaultModel: 'claude-sonnet-4-5'
+  "anthropic": {
+    "name": "Anthropic",
+    "color": "#cc785c",
+    "placeholder": "sk-ant-api03-…",
+    "link": "https://console.anthropic.com/account/keys",
+    "models": [],
+    "defaultModel": ""
   },
-  openai: {
-    name: 'OpenAI',
-    color: '#10a37f',
-    placeholder: 'sk-…',
-    link: 'https://platform.openai.com/api-keys',
-    models: lsj('ai_models_openai')||[
-      {v:'gpt-5',        l:'gpt-5'},
-      {v:'gpt-5-mini',   l:'gpt-5-mini'},
-      {v:'gpt-5-codex',  l:'gpt-5-codex'},
-      {v:'o3',           l:'o3'},
-      {v:'o4-mini',      l:'o4-mini'},
-      {v:'gpt-4o',       l:'GPT-4o'},
-      {v:'gpt-4o-mini',  l:'GPT-4o mini'},
-      {v:'gpt-4-turbo',  l:'GPT-4 Turbo'},
-      {v:'gpt-4',        l:'GPT-4'},
-      {v:'gpt-3.5-turbo',l:'GPT-3.5 Turbo'},
-    ],
-    defaultModel: 'gpt-5'
+  "openai": {
+    "name": "OpenAI",
+    "color": "#10a37f",
+    "placeholder": "sk-…",
+    "link": "https://platform.openai.com/api-keys",
+    "models": [],
+    "defaultModel": ""
   },
-  gemini: {
-    name: 'Gemini',
-    color: '#4285f4',
-    placeholder: 'AIza…',
-    link: 'https://aistudio.google.com/app/apikey',
-    models: [
-      {v:'gemini-2.5-pro-preview-05-06',   l:'Gemini 2.5 Pro Preview'},
-      {v:'gemini-2.5-flash-preview-04-17', l:'Gemini 2.5 Flash Preview'},
-      {v:'gemini-2.0-flash',               l:'Gemini 2.0 Flash'},
-      {v:'gemini-2.0-flash-lite',          l:'Gemini 2.0 Flash Lite'},
-      {v:'gemini-1.5-pro',                 l:'Gemini 1.5 Pro'},
-      {v:'gemini-1.5-flash',               l:'Gemini 1.5 Flash'},
-    ],
-    defaultModel: 'gemini-2.0-flash'
+  "gemini": {
+    "name": "Gemini",
+    "color": "#4285f4",
+    "placeholder": "AIza…",
+    "link": "https://aistudio.google.com/app/apikey",
+    "models": [],
+    "defaultModel": ""
   },
-  mistral: {
-    name: 'Mistral',
-    color: '#ff7000',
-    placeholder: 'Enter Mistral API key…',
-    link: 'https://console.mistral.ai/api-keys',
-    models: [
-      {v:'mistral-large-latest',   l:'Mistral Large'},
-      {v:'mistral-medium-latest',  l:'Mistral Medium'},
-      {v:'mistral-small-latest',   l:'Mistral Small'},
-      {v:'codestral-latest',       l:'Codestral'},
-      {v:'open-mistral-nemo',      l:'Mistral Nemo'},
-      {v:'open-mixtral-8x22b',     l:'Mixtral 8x22B'},
-    ],
-    defaultModel: 'mistral-large-latest'
+  "mistral": {
+    "name": "Mistral",
+    "color": "#ff7000",
+    "placeholder": "Enter Mistral API key…",
+    "link": "https://console.mistral.ai/api-keys",
+    "models": [],
+    "defaultModel": ""
   },
-  groq: {
-    name: 'Groq',
-    color: '#f55036',
-    placeholder: 'gsk_…',
-    link: 'https://console.groq.com/keys',
-    models: [
-      {v:'llama-3.3-70b-versatile',      l:'Llama 3.3 70B'},
-      {v:'llama-3.1-70b-versatile',      l:'Llama 3.1 70B'},
-      {v:'llama-3.1-8b-instant',         l:'Llama 3.1 8B'},
-      {v:'llama3-70b-8192',              l:'Llama 3 70B'},
-      {v:'llama3-8b-8192',               l:'Llama 3 8B'},
-      {v:'mixtral-8x7b-32768',           l:'Mixtral 8x7B'},
-      {v:'gemma2-9b-it',                 l:'Gemma 2 9B'},
-      {v:'deepseek-r1-distill-llama-70b',l:'DeepSeek R1 70B'},
-      {v:'qwen-qwq-32b',                 l:'Qwen QwQ 32B'},
-    ],
-    defaultModel: 'llama-3.3-70b-versatile'
+  "groq": {
+    "name": "Groq",
+    "color": "#f55036",
+    "placeholder": "gsk_…",
+    "link": "https://console.groq.com/keys",
+    "models": [],
+    "defaultModel": ""
   },
-  openrouter: {
-    name: 'OpenRouter',
-    color: '#6366f1',
-    placeholder: 'sk-or-v1-…',
-    link: 'https://openrouter.ai/keys',
-    models: [
-      {v:'anthropic/claude-sonnet-5.5',              l:'Claude Sonnet 5.5'},
-      {v:'anthropic/claude-opus-5.5',                l:'Claude Opus 5.5'},
-      {v:'anthropic/claude-fable-5.1',               l:'Claude Fable 5.1'},
-      {v:'meta-llama/llama-3.3-70b-instruct',        l:'Llama 3.3 70B'},
-      {v:'meta-llama/llama-3.1-405b-instruct',       l:'Llama 3.1 405B'},
-      {v:'deepseek/deepseek-chat',                   l:'DeepSeek V3'},
-      {v:'deepseek/deepseek-r1',                     l:'DeepSeek R1'},
-      {v:'google/gemma-3-27b-it',                    l:'Gemma 3 27B'},
-      {v:'qwen/qwen-2.5-72b-instruct',               l:'Qwen 2.5 72B'},
-      {v:'microsoft/phi-4',                          l:'Phi-4'},
-      {v:'x-ai/grok-3-beta',                         l:'Grok-3 Beta'},
-      {v:'cohere/command-r-plus',                    l:'Command R+'},
-      {v:'openrouter/free', l:'Free models · automatic routing'},
-      {v:'qwen/qwen3-coder:free', l:'Qwen3 Coder · free (limited)'},
-      {v:'custom',                                   l:'Custom model ID…'},
-    ],
-    defaultModel: 'meta-llama/llama-3.3-70b-instruct'
+  "openrouter": {
+    "name": "OpenRouter",
+    "color": "#6366f1",
+    "placeholder": "sk-or-v1-…",
+    "link": "https://openrouter.ai/keys",
+    "models": [],
+    "defaultModel": ""
   },
-  pollinations: {
-    name: 'Pollinations',
-    color: '#22c55e',
-    placeholder: '— no API key needed —',
-    link: 'https://pollinations.ai',
-    models: lsj('ai_models_pollinations')||[{v:'openai',l:'openai'},{v:'openai-fast',l:'openai-fast'},{v:'mistral',l:'mistral'}],
-    defaultModel: 'openai'
+  "pollinations": {
+    "name": "Pollinations",
+    "color": "#22c55e",
+    "placeholder": "— no API key needed —",
+    "link": "https://pollinations.ai",
+    "models": [],
+    "defaultModel": ""
   },
-  vercel: {
-    name: 'Vercel AI Gateway', color: '#e5e5e5', placeholder: 'vck_… ($5 free credit / month)', link: 'https://vercel.com/ai-gateway',
-    base: 'https://ai-gateway.vercel.sh/v1',
-    models: lsj('ai_models_vercel')||['anthropic/claude-sonnet-5.5','anthropic/claude-opus-5.5','anthropic/claude-fable-5.1','anthropic/claude-haiku-5.5'].map(v=>({v,l:v})), defaultModel: 'anthropic/claude-sonnet-5.5'
+  "vercel": {
+    "name": "Vercel AI Gateway",
+    "color": "#e5e5e5",
+    "placeholder": "vck_… ($5 free credit / month)",
+    "link": "https://vercel.com/ai-gateway",
+    "base": "https://ai-gateway.vercel.sh/v1",
+    "models": [],
+    "defaultModel": ""
   },
-  cerebras: {
-    name: 'Cerebras', color: '#f97316', placeholder: 'csk-… (free key)', link: 'https://cloud.cerebras.ai',
-    models: lsj('ai_models_cerebras')||[{v:'gpt-oss-120b',l:'gpt-oss-120b'},{v:'llama-3.3-70b',l:'llama-3.3-70b'},{v:'qwen-3-32b',l:'qwen-3-32b'}], defaultModel: 'gpt-oss-120b'
+  "cerebras": {
+    "name": "Cerebras",
+    "color": "#f97316",
+    "placeholder": "csk-… (free key)",
+    "link": "https://cloud.cerebras.ai",
+    "models": [],
+    "defaultModel": ""
   },
-  huggingface: {
-    name: 'HuggingFace', color: '#facc15', placeholder: 'hf_… (free token)', link: 'https://huggingface.co/settings/tokens',
-    models: lsj('ai_models_huggingface')||[{v:'meta-llama/Llama-3.3-70B-Instruct',l:'meta-llama/Llama-3.3-70B-Instruct'},{v:'deepseek-ai/DeepSeek-V3-0324',l:'deepseek-ai/DeepSeek-V3-0324'},{v:'Qwen/Qwen3-32B',l:'Qwen/Qwen3-32B'}], defaultModel: 'meta-llama/Llama-3.3-70B-Instruct'
+  "huggingface": {
+    "name": "HuggingFace",
+    "color": "#facc15",
+    "placeholder": "hf_… (free token)",
+    "link": "https://huggingface.co/settings/tokens",
+    "models": [],
+    "defaultModel": ""
   },
-  sambanova: {
-    name: 'SambaNova', color: '#ef4444', placeholder: 'free SambaNova key', link: 'https://cloud.sambanova.ai/apis',
-    models: lsj('ai_models_sambanova')||[{v:'Meta-Llama-3.3-70B-Instruct',l:'Meta-Llama-3.3-70B-Instruct'},{v:'DeepSeek-V3-0324',l:'DeepSeek-V3-0324'},{v:'Llama-4-Maverick-17B-128E-Instruct',l:'Llama-4-Maverick-17B-128E-Instruct'}], defaultModel: 'Meta-Llama-3.3-70B-Instruct'
+  "sambanova": {
+    "name": "SambaNova",
+    "color": "#ef4444",
+    "placeholder": "free SambaNova key",
+    "link": "https://cloud.sambanova.ai/apis",
+    "models": [],
+    "defaultModel": ""
   },
-  github: {
-    name: 'GitHub Models', color: '#a3a3a3', placeholder: 'github_pat_… (models:read)', link: 'https://github.com/settings/personal-access-tokens/new',
-    models: lsj('ai_models_github')||[{v:'openai/gpt-4.1-mini',l:'openai/gpt-4.1-mini'},{v:'openai/gpt-4.1',l:'openai/gpt-4.1'},{v:'meta/Llama-3.3-70B-Instruct',l:'meta/Llama-3.3-70B-Instruct'},{v:'deepseek/DeepSeek-V3-0324',l:'deepseek/DeepSeek-V3-0324'}], defaultModel: 'openai/gpt-4.1-mini'
+  "github": {
+    "name": "GitHub Models",
+    "color": "#a3a3a3",
+    "placeholder": "github_pat_… (models:read)",
+    "link": "https://github.com/settings/personal-access-tokens/new",
+    "models": [],
+    "defaultModel": ""
   },
-  cohere: {
-    name: 'Cohere', color: '#14b8a6', placeholder: 'free trial key', link: 'https://dashboard.cohere.com/api-keys',
-    models: [{v:'command-a-03-2025',l:'command-a-03-2025'},{v:'command-r-plus-08-2024',l:'command-r-plus-08-2024'},{v:'command-r7b-12-2024',l:'command-r7b-12-2024'}], defaultModel: 'command-a-03-2025'
+  "cohere": {
+    "name": "Cohere",
+    "color": "#14b8a6",
+    "placeholder": "free trial key",
+    "link": "https://dashboard.cohere.com/api-keys",
+    "models": [],
+    "defaultModel": ""
   },
-  custom: {
-    name: 'Own server',
-    color: '#eab308',
-    placeholder: 'API key (leave empty for Ollama)',
-    link: 'https://ollama.com/download',
-    models: lsj('ai_models_custom')||[],
-    defaultModel: ''
+  "custom": {
+    "name": "Own server",
+    "color": "#eab308",
+    "placeholder": "API key (leave empty for Ollama)",
+    "link": "https://ollama.com/download",
+    "models": [],
+    "defaultModel": ""
   },
-  puter: {
-    name: 'Puter',
-    color: '#06b6d4',
-    placeholder: '— no API key needed —',
-    link: 'https://puter.com',
-    models: [
-      {v:'claude-sonnet-5-5', l:'Claude Sonnet 5.5'},
-      {v:'claude-opus-5-5',   l:'Claude Opus 5.5'},
-      {v:'claude-haiku-5-5',  l:'Claude Haiku 5.5'},
-      {v:'claude-fable-5-1',  l:'Claude Fable 5.1'},
-      {v:'claude-sonnet-4-6', l:'Claude Sonnet 4.6'},
-      {v:'claude-opus-5',     l:'Claude Opus 5'},
-      {v:'gpt-4o',            l:'GPT-4o'},
-      {v:'gpt-4o-mini',       l:'GPT-4o mini'},
-      {v:'gemini-2.0-flash',  l:'Gemini 2.0 Flash'},
-    ],
-    defaultModel: 'claude-sonnet-5-5'
+  "puter": {
+    "name": "Puter",
+    "color": "#06b6d4",
+    "placeholder": "— no API key needed —",
+    "link": "https://puter.com",
+    "models": [],
+    "defaultModel": ""
   }
 };
+// User model catalogs and selections are loaded exclusively from this device.
+for(const [id,provider] of Object.entries(PROVIDERS)){
+  provider.models=lsj('ai_models_'+id)||(id==='vnaipro'?lsj('vnai_models'):null)||[];
+  const saved=ls('ai_model_'+id)||'';
+  if(saved&&!provider.models.some(m=>m.v===saved))provider.models.push({v:saved,l:saved});
+  provider.defaultModel=saved;
+}
 
 /* ===================== TOKEN SAVER ===================== */
 // keep: messages of history sent · trim: max chars per older message · out: max reply tokens
@@ -1251,10 +1215,10 @@ async function openPrivacy(){
     <div style="font-size:11px;color:var(--fg3)">Your keys and chats stay inside this app on your phone — they're only ever sent to the provider you pick. Make an encrypted backup in 💾 Backup.</div>
     <div class="modal-btns"><button class="gh-btn" style="color:#dc2626" onclick="wipeAll()">Delete all data</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
 }
-function wipeAll(){
-  if(!confirm('Delete ALL chats, keys and settings from this phone? This cannot be undone.'))return;
+async function wipeAll(){
+  if(!confirm('Delete Studio chats, keys and settings? Manage Claude browser accounts separately in the Claude tab. This cannot be undone.'))return;
   if(!confirm('Really delete everything?'))return;
-  try{localStorage.clear();}catch{}location.reload();
+  try{if(inApp())await native({op:'credentialSet',name:'github',value:''});localStorage.clear();location.reload();}catch(e){showErr('Could not clear Studio data: '+e.message);}
 }
 
 /* ===================== ENCRYPTED BACKUP ===================== */
@@ -1278,6 +1242,7 @@ async function makeBackup(){
   const pw=document.getElementById('bkPw').value;if(pw.length<8){toast('Use at least 8 characters');return;}
   const keys=document.getElementById('bkKeys').checked, data={};
   for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(keys||!SECRET_KEY(k))data[k]=localStorage.getItem(k);}
+  if(keys&&ls('gh_token'))data.gh_token=ls('gh_token');
   const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
   const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},await pwKey(pw,salt),new TextEncoder().encode(JSON.stringify(data)));
   const text=JSON.stringify({app:'AI Studio',v:1,kdf:'PBKDF2-SHA256-310000',salt:b64(salt),iv:b64(iv),data:b64(ct)});
@@ -1453,6 +1418,14 @@ function openModelPicker(p){
     <div>${models.map(m=>`<div class="list-row" style="cursor:pointer" onclick="pickModel('${p}','${esc(m.v).replace(/'/g,"\\'")}')"><span class="grow">${esc(m.l)}<small>${priceLabel(p,m.v).replace(' · ','')||(FREE_PROVS.includes(p)?'free':'')}</small></span>${m.v===cur?'<span class="pill ok">✓</span>':''}</div>`).join('')||'<div style="font-size:13px;color:var(--fg3)">No models yet — add a key, then Reload.</div>'}</div>
     <div class="modal-btns"><button class="gh-btn" onclick="loadModels('${p}',true).then(()=>openModelPicker('${p}'))">↻ Reload</button><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
 }
+function addLocalModel(p){
+  const value=prompt('Model ID to save on this device:');if(!value?.trim())return;
+  const id=value.trim();if(!PROVIDERS[p])return;
+  if(!PROVIDERS[p].models.some(m=>m.v===id))PROVIDERS[p].models.push({v:id,l:id});
+  ls('ai_models_'+p,PROVIDERS[p].models);ls('ai_model_'+p,id);
+  if(p==='custom')ls('ai_custom_model',id);
+  selectProvider(p);closeSheet();
+}
 function pickModel(p,m){
   ls('ai_model_'+p,m);
   if(p!==curProvider)selectProvider(p);
@@ -1611,7 +1584,7 @@ async function codeOpen(){
 }
 function codeAsk(a){document.getElementById('codeTask').value=a.textContent;codeRun();}
 async function codeRepoChange(){
-  if(codeState.busy)return;
+  if(codeState.busy||codeState.committing)return;
   await saveCodeSession();
   codeState.repo=document.getElementById('codeRepo').value;ls('code_repo',codeState.repo);
   try{
@@ -1622,8 +1595,8 @@ async function codeRepoChange(){
   }catch(e){codeLog('step',e.message);}
   codeReset();await restoreCodeSession();
 }
-async function codeBranchChange(branch){if(codeState.busy)return;await saveCodeSession();codeState.branch=branch;codeReset();await restoreCodeSession();}
-function codeReset(){Object.assign(codeState,{paths:null,staged:{},orig:{},msgs:[],respId:null,pending:[]});document.getElementById('codeLog').innerHTML='';renderCodeChanges();}
+async function codeBranchChange(branch){if(codeState.busy||codeState.committing)return;await saveCodeSession();codeState.branch=branch;codeReset();await restoreCodeSession();}
+function codeReset(){Object.assign(codeState,{paths:null,staged:{},orig:{},msgs:[],respId:null,pending:[],baseSHA:null});document.getElementById('codeLog').innerHTML='';renderCodeChanges();}
 function codeLog(cls,html){const el=document.createElement('div');el.className='code-step '+cls;el.innerHTML=html;const log=document.getElementById('codeLog');log.appendChild(el);log.scrollTop=log.scrollHeight;return el;}
 const CODE_TOOLS=[
   {type:'function',function:{name:'list_files',description:'List every file path in the repository.',parameters:{type:'object',properties:{},required:[]}}},
@@ -1639,13 +1612,28 @@ async function codeFile(path){
   if(!(path in codeState.orig)){const t=await ghRaw(path);if(t===null)return null;codeState.orig[path]=t;}
   return codeState.orig[path];
 }
-async function ghRaw(path){
-  const r=await fetch(`https://api.github.com/repos/${codeState.repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(codeState.branch)}`,{headers:{Authorization:`Bearer ${ghToken}`,Accept:'application/vnd.github.raw'}});
-  if(r.status===404)return null;if(!r.ok)throw new Error('GitHub '+r.status);return r.text();
+async function codeEnsureBase(){
+  if(!codeState.baseSHA){
+    const ref=await ghFetch(`/repos/${codeState.repo}/git/ref/heads/${encodeURIComponent(codeState.branch)}`);
+    codeState.baseSHA=ref.object.sha;
+    await saveCodeSession();
+  }
+  return codeState.baseSHA;
 }
+async function ghRawAt(repo,path,ref){
+  const encoded=path.split('/').map(encodeURIComponent).join('/');
+  try{
+    const file=await ghFetch(`/repos/${repo}/contents/${encoded}?ref=${encodeURIComponent(ref)}`);
+    if(file.type!=='file'||file.encoding!=='base64')throw new Error('This file cannot be edited as text.');
+    return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(file.content.replace(/\s/g,'')),c=>c.charCodeAt(0)));
+  }catch(e){if(e.status===404)return null;throw e;}
+}
+async function ghRaw(path){return ghRawAt(codeState.repo,path,await codeEnsureBase());}
 async function codeTool(name,a){
+  if(['write_file','edit_file'].includes(name)&&repoPrivatePath(a.path))return 'ERROR: Private conversations, memory, credentials and session files must stay on the device, not in GitHub.';
+  await codeEnsureBase();
   if(name==='list_files'){
-    if(!codeState.paths){const t=await ghFetch(`/repos/${codeState.repo}/git/trees/${encodeURIComponent(codeState.branch)}?recursive=1`);codeState.paths=t.tree.filter(x=>x.type==='blob').map(x=>x.path);}
+    if(!codeState.paths){const t=await ghFetch(`/repos/${codeState.repo}/git/trees/${encodeURIComponent(await codeEnsureBase())}?recursive=1`);codeState.paths=t.tree.filter(x=>x.type==='blob').map(x=>x.path);}
     const all=[...new Set([...codeState.paths,...Object.keys(codeState.staged)])];
     return all.slice(0,3000).join('\n')+(all.length>3000?`\n…(${all.length-3000} more)`:'');
   }
@@ -1676,6 +1664,7 @@ async function codeTool(name,a){
   return 'ERROR: unknown tool';
 }
 async function codeRun(){
+  if(codeState.committing){toast('Wait for the commit to finish.');return;}
   if(codeState.busy){codeState.stop=true;codeState.controller?.abort();codeStatus('Stopping…','working');return;}
   const task=document.getElementById('codeTask').value.trim();if(!task)return;
   if(ghToken&&(!codeState.repo||!codeState.branch)){codeLog('step','Choose a repository and branch first.');return;}
@@ -1684,6 +1673,7 @@ async function codeRun(){
   if(!privacyAllows(prov)){codeLog('step','🔒 Private mode is on — pick a trusted provider (OpenAI, Anthropic, OpenRouter, Vercel or your own server).');return;}
   if(!OPENAI_COMPAT(prov)&&prov!=='puter'){codeLog('step','⚠️ The Code tab works with Puter, OpenAI (incl. Codex), VNAIPro, OpenRouter, Vercel and other OpenAI-style providers — tap the model at the top to switch.');return;}
   if(!key&&!['puter','pollinations','custom'].includes(prov)){codeLog('step','Add your provider API key in Settings first.');return;}
+  if(!model){codeLog('step','Add or load a model on this device first.');return;}
   const useResp=prov==='openai';
   document.getElementById('codeTask').value='';ls('code_draft','');
   codeLog('user',esc(task));
@@ -1691,7 +1681,7 @@ async function codeRun(){
 The user is NOT a programmer. Talk like a helpful person: short, simple, everyday words — no jargon, no code, no file names unless they ask.
 - If they greet you or ask a question, just answer in plain words (you may peek at the code with list_files/read_file to answer accurately). Don't edit anything.
 - If they describe something they want (even vaguely, like "make it look nicer" or "the button is broken"), figure out what they mean, and if it's unclear ask ONE simple question first.
-- When making a change: find the right spot (search_in_file, read_file with line ranges for big files), then change it with edit_file (small exact replacements). Use write_file only for new or small files. Keep changes safe; don't touch unrelated things.
+- Never write conversation history, user memory, session snapshots, authentication tokens, browser profiles, local model settings or personal account state into the repository. Keep those on the device or in the Claude account. Only stage application source changes.\n- When making a change: find the right spot (search_in_file, read_file with line ranges for big files), then change it with edit_file (small exact replacements). Use write_file only for new or small files. Keep changes safe; don't touch unrelated things.
 - Big requests (like a redesign): work in steps — a few focused edits at a time — and tell the user what's done and what's next.
 - When done, call finish with a summary in plain words of what will be different for them (e.g. "The send button is now bigger and easier to tap."), then remind them to tap Commit to save it.
 Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
@@ -1707,6 +1697,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
   document.getElementById('codeRepo').disabled=true;document.getElementById('codeBranch').disabled=true;
   await saveCodeSession();
   codeStatus('Connecting to '+PROVIDERS[prov].name+'…','working');
+  let completed=false;
   try{
     for(let step=0;step<24&&!codeState.stop;step++){
       codeStatus('Thinking · step '+(step+1),'working');
@@ -1722,7 +1713,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
       if(!msg)throw new Error('Empty response');
       codeState.msgs.push({role:'assistant',content:msg.content||'',...(msg.tool_calls?.length?{tool_calls:msg.tool_calls}:{})});
       if(msg.content)codeLog('step',md(msg.content));
-      if(!msg.tool_calls?.length){await saveCodeSession();break;}
+      if(!msg.tool_calls?.length){completed=true;await saveCodeSession();break;}
       let done=false;
       for(const c of msg.tool_calls){
         let args={};try{args=JSON.parse(c.function.arguments||'{}');}catch{}
@@ -1736,7 +1727,7 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
         if(nm==='finish')done=true;
       }
       await saveCodeSession();
-      if(done)break;
+      if(done){completed=true;break;}
       if(step===23)codeLog('step','Paused after 24 steps. Review your pending changes, then tap Resume if more work is needed. <button class="gh-btn" onclick="codeResume()">Resume</button>');
     }
     codeStatus(codeState.stop?'Stopped · changes kept':'Ready · changes kept on this device',codeState.stop?'warning':'idle');
@@ -1744,14 +1735,16 @@ Reply in the same language the user writes in. ${SAVER[saverMode()].sys}`});
     codeStatus(e.name==='AbortError'?'Stopped · changes kept':'Paused · changes kept','warning');
     codeLog('step','<div class="recovery-card"><b>'+esc(e.name==='AbortError'?'Task stopped':'Let’s get you moving again')+'</b><p>'+esc(codeErrorMessage(e))+'</p><div><button class="gh-btn primary" onclick="codeResume()">Resume</button> <button class="gh-btn" onclick="openModelPicker()">Change model</button></div></div>');
   }finally{
-    codeState.busy=false;codeState.controller=null;
+    codeState.controller=null;
+    await saveCodeSession();renderCodeChanges();
+    codeState.busy=false;
     document.getElementById('codeRunBtn').textContent='Send';
     document.getElementById('codeRepo').disabled=false;document.getElementById('codeBranch').disabled=false;
-    await saveCodeSession();renderCodeChanges();
+    if(completed&&!codeState.stop&&ls(codeAutoCommitKey())==='1'&&Object.keys(codeState.staged).length)await codeCommit({automatic:true});
   }
 }
 function codeResume(){
-  if(codeState.busy)return;
+  if(codeState.busy||codeState.committing)return;
   const input=document.getElementById('codeTask');
   if(!input.value.trim())input.value='Continue from the last completed step. Inspect pending edits and do not repeat changes already made.';
   codeRun();
@@ -1783,25 +1776,83 @@ function renderCodeChanges(){
   el.style.display=files.length?'':'none';if(!files.length){el.innerHTML='';return;}
   el.innerHTML=`<div style="font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:4px">📝 ${files.length} file${files.length>1?'s':''} changed — not saved yet</div>`+
     files.map((f,i)=>`<div class="code-file"><span class="grow">${esc(f)}</span><button class="gh-btn" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display?'':'none'">Details</button><button class="gh-btn" onclick="delete codeState.staged['${esc(f).replace(/'/g,"\\'")}'];renderCodeChanges();saveCodeSession()">✕</button></div><div class="diff" style="display:none">${lineDiff(codeState.orig[f]||'',codeState.staged[f])}</div>`).join('')+
-    `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="AI: ${esc(String(codeState.msgs.filter(m=>m.role==='user').pop()?.content||'update').slice(0,60))}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
+    `<div style="display:flex;gap:8px;margin-top:6px"><input id="codeMsg" placeholder="Short note (optional)" value="Update app source via AI Studio" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--fg);font-size:14px"><button class="gh-btn primary" onclick="codeCommit()">Commit (save)</button></div>`;
 }
-async function codeCommit(){
-  if(codeState.busy){toast('Stop the task before committing changes.');return;}
-  const files=Object.keys(codeState.staged);if(!files.length)return;
-  const msg=document.getElementById('codeMsg').value.trim()||'Update via AI Studio';
-  if(!confirm(`Commit ${files.length} file(s) to ${codeState.repo} @ ${codeState.branch}?`))return;
+function localCommitSecrets(){
+  const values=[ghToken];
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);
+    if(SECRET_KEY(key))values.push(ls(key));
+  }
+  return values.filter(v=>typeof v==='string'&&v.length>=8);
+}
+function codeAutoCommitKey(){return 'code_auto_commit:'+codeState.repo;}
+function openCodePermissions(){
+  openSheet('<h3>Code permissions</h3><p>Repository: <b>'+esc(codeState.repo||'Select a repository first')+'</b></p>'+
+    '<p>The assistant can read and stage edits in this repository. Enable automatic commits to save completed tasks to the selected GitHub branch without asking again.</p>'+
+    '<label class="fb-row"><input id="codeAutoCommit" type="checkbox" '+(ls(codeAutoCommitKey())==='1'?'checked':'')+' onchange="setCodeAutoCommit(this.checked)"> Automatically commit completed tasks</label>'+
+    '<p>GitHub access requires a token with <b>Contents: read and write</b> for this repository, or a classic token with <b>repo</b> scope. Organization SSO and branch protection still apply. This setting does not grant extra GitHub permissions.</p>'+
+    '<button class="gh-btn" onclick="switchTab(\'github\');closeSheet()">GitHub connection</button> <button class="gh-btn primary" onclick="closeSheet()">Done</button>');
+}
+async function setCodeAutoCommit(enabled){
+  const checkbox=document.getElementById('codeAutoCommit');
+  if(!codeState.repo){if(checkbox)checkbox.checked=false;toast('Choose a repository first.');return;}
+  if(!enabled){ls(codeAutoCommitKey(),'0');toast('Automatic commits disabled.');return;}
   try{
-    const R=`/repos/${codeState.repo}/git`;
-    const ref=await ghFetch(`${R}/ref/heads/${encodeURIComponent(codeState.branch)}`);
-    const base=await ghFetch(`${R}/commits/${ref.object.sha}`);
+    const repo=await ghFetch('/repos/'+codeState.repo);
+    if(!repo.permissions?.push)throw new Error('This GitHub sign-in does not have write access. Use a token with Contents: read and write, then reconnect.');
+    ls(codeAutoCommitKey(),'1');toast('Completed code tasks will commit automatically.');
+  }catch(e){if(checkbox)checkbox.checked=false;showErr(e.message);toast(e.message);}
+}
+async function codeCommit(options={}){
+  if(codeState.busy||codeState.committing){toast('Wait for the current task to finish.');return;}
+  const files=Object.keys(codeState.staged);if(!files.length)return;
+  const message=document.getElementById('codeMsg').value.trim()||'Update via AI Studio';
+  const repo=codeState.repo,branch=codeState.branch,staged={...codeState.staged};
+  if(options.automatic){if(ls(codeAutoCommitKey())!=='1')return;}
+  else if(!confirm(`Commit ${files.length} file(s) to ${repo} @ ${branch}?`))return;
+  codeState.committing=true;
+  document.getElementById('codeRepo').disabled=true;document.getElementById('codeBranch').disabled=true;
+  try{
+    assertRepoPublishable({...staged,'commit-message.txt':message},{secrets:localCommitSecrets(),messages:codeState.msgs});
+    const R=`/repos/${repo}/git`;
+    const ref=await ghFetch(`${R}/ref/heads/${encodeURIComponent(branch)}`);
+    const head=ref.object.sha,base=await ghFetch(`${R}/commits/${head}`);
+    const remote=await ghFetch(`${R}/trees/${base.tree.sha}?recursive=1`);
+    if(remote.truncated)throw new Error('Repository tree is too large to verify safely. Commit with local Git.');
+    const entries=new Map(remote.tree.map(x=>[x.path,x]));
+    if(codeState.baseSHA){
+      const original=await ghFetch(`${R}/trees/${codeState.baseSHA}?recursive=1`);
+      if(original.truncated)throw new Error('Original tree is too large to verify safely.');
+      const old=new Map(original.tree.map(x=>[x.path,x]));
+      for(const f of files)if(entries.get(f)?.sha!==old.get(f)?.sha||entries.get(f)?.mode!==old.get(f)?.mode)
+        throw new Error('Remote changes conflict with '+f+'. Pending edits are kept. Export the session and merge this file before retrying.');
+    }else{
+      // Recovery copies made by older app versions have original text but no pinned commit.
+      for(const f of files){
+        const current=await ghRawAt(repo,f,head);
+        if((current??'')!==(codeState.orig[f]??''))throw new Error('Remote changes conflict with '+f+'. Pending edits are kept.');
+      }
+    }
     const tree=[];
-    for(const f of files){const b=await ghFetch(`${R}/blobs`,{method:'POST',body:JSON.stringify({content:codeState.staged[f],encoding:'utf-8'})});tree.push({path:f,mode:'100644',type:'blob',sha:b.sha});}
+    for(const f of files){
+      const old=entries.get(f);
+      if(old&&(!['100644','100755'].includes(old.mode)||old.type!=='blob'))throw new Error('Unsupported file type: '+f);
+      const blob=await ghFetch(`${R}/blobs`,{method:'POST',body:JSON.stringify({content:staged[f],encoding:'utf-8'})});
+      tree.push({path:f,mode:old?.mode||'100644',type:'blob',sha:blob.sha});
+    }
     const t=await ghFetch(`${R}/trees`,{method:'POST',body:JSON.stringify({base_tree:base.tree.sha,tree})});
-    const c=await ghFetch(`${R}/commits`,{method:'POST',body:JSON.stringify({message:msg,tree:t.sha,parents:[ref.object.sha]})});
-    await ghFetch(`${R}/refs/heads/${encodeURIComponent(codeState.branch)}`,{method:'PATCH',body:JSON.stringify({sha:c.sha})});
-    files.forEach(f=>codeState.orig[f]=codeState.staged[f]);codeState.staged={};codeState.paths=null;renderCodeChanges();await saveCodeSession();
-    codeLog('step',`🚀 Committed <a href="${esc(c.html_url)}" target="_blank">${esc(c.sha.slice(0,7))}</a> to ${esc(codeState.branch)}`);
-  }catch(e){codeLog('step','⚠️ Commit failed: '+esc(e.message));}
+    const commit=await ghFetch(`${R}/commits`,{method:'POST',body:JSON.stringify({message,tree:t.sha,parents:[head]})});
+    // A concurrent push makes this a non-fast-forward; GitHub rejects it. Never force.
+    await ghFetch(`${R}/refs/heads/${encodeURIComponent(branch)}`,{method:'PATCH',body:JSON.stringify({sha:commit.sha,force:false})});
+    codeState.orig={};codeState.staged={};codeState.paths=null;codeState.baseSHA=commit.sha;
+    await saveCodeSession();renderCodeChanges();
+    codeLog('step',`Committed <a href="https://github.com/${esc(repo)}/commit/${esc(commit.sha)}" target="_blank">${esc(commit.sha.slice(0,7))}</a> to ${esc(branch)}`);
+  }catch(e){codeLog('step','Commit failed: '+esc(e.message));}
+  finally{
+    codeState.committing=false;
+    document.getElementById('codeRepo').disabled=false;document.getElementById('codeBranch').disabled=false;
+  }
 }
 
 /* ===================== STATE ===================== */
@@ -1815,22 +1866,38 @@ let activeTab='chat';
 
 /* ===================== INIT ===================== */
 function init(){
+  document.body.classList.toggle('native-tabs',!!window.STUDIO_NATIVE_TABS);
   loadPrefs();initStudio();
   document.getElementById('codeTask').value=ls('code_draft')||'';
   convs=lsj('cl_convs')||{};
   renderConvList();
   const last=ls('cl_last');
-  if(last&&convs[last]){curId=last;renderMessages();}else{newChat();}
+  if(last&&convs[last]){curId=last;renderMessages();}else{curId=null;renderMessages();}
   updateTokenCounter();
   ghToken=ls('gh_token')||'';
   if(ghToken) initGhConnected();
   switchTab('chat');
   if(window.innerWidth<=680)closeSidebar();
   renderSaver();renderExtraButtons();updateCtx();
+  window.studioInitialized=true;
+  if(window.STUDIO_REQUEST_TAB==='settings')openStudioSettings();
+  else if(window.STUDIO_REQUEST_TAB)switchTab(window.STUDIO_REQUEST_TAB);
 }
 
 /* ===================== LOCAL STORAGE ===================== */
-function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch{}}
+let secureGitHubToken='';
+async function bootGitHubCredential(){
+  if(!inApp())return;
+  const legacy=localStorage.getItem('gh_token');
+  if(legacy){await native({op:'credentialSet',name:'github',value:legacy});localStorage.removeItem('gh_token');}
+  secureGitHubToken=await native({op:'credentialGet',name:'github'})||'';
+}
+function ls(k,v){try{
+  if(k==='gh_token'&&inApp()){
+    if(v===undefined)return secureGitHubToken;
+    secureGitHubToken=v||'';
+    native({op:'credentialSet',name:'github',value:secureGitHubToken}).catch(e=>showErr('Could not save GitHub sign-in: '+e.message));return;
+  }if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));}catch{}}
 function lsj(k){try{return JSON.parse(ls(k));}catch{return null;}}
 
 /* ===================== PREFS ===================== */
@@ -1884,7 +1951,7 @@ function renderProviderUI(){
   document.getElementById('apiKey').placeholder=p.placeholder;
   // Models
   const sel=document.getElementById('modelSelect');
-  const saved=ls('ai_model_'+curProvider)||p.defaultModel;
+  const saved=ls('ai_model_'+curProvider)||p.models[0]?.v||'';
   sel.innerHTML=p.models.map(m=>`<option value="${esc(m.v)}" ${m.v===saved?'selected':''}>${esc(m.l)}${priceLabel(curProvider,m.v)}</option>`).join('');
   sel.value=saved;
   // OpenRouter custom model field
@@ -2070,9 +2137,14 @@ function switchTab(tab){
   document.getElementById('searchRow').style.display=tab==='chat'?'':'none';
   document.getElementById('topbarTitle').textContent=tab==='chat'?(convs[curId]?.title||'AI Studio'):tab==='code'?'Code':'GitHub';
   if(window.innerWidth<=680)closeSidebar();
+  if(window.STUDIO_NATIVE_TABS&&window.studioInitialized)native({op:'selectStudioTab',tab}).catch(()=>{});
 }
 
 /* ===================== SIDEBAR ===================== */
+function openStudioSettings(){
+  if(window.innerWidth<=680){document.getElementById('sidebar').classList.remove('hidden');document.getElementById('overlay').classList.add('show');}
+  else document.getElementById('sidebar').scrollTo({top:0,behavior:'smooth'});
+}
 function toggleSidebar(){const sb=document.getElementById('sidebar');const ov=document.getElementById('overlay');if(window.innerWidth<=680){sb.classList.toggle('hidden');ov.classList.toggle('show',!sb.classList.contains('hidden'));}}
 function closeSidebar(){document.getElementById('sidebar').classList.add('hidden');document.getElementById('overlay').classList.remove('show');}
 
@@ -2294,8 +2366,10 @@ async function send(){
   const text=inp.value.trim();
   if(!text)return;
   const apiKey=document.getElementById('apiKey').value.trim();
+  if(!curModel()){showErr('Add or load a model on this device first.');return;}
   if(!apiKey&&!['puter','pollinations','custom'].includes(curProvider)){showErr('Add your API key in the sidebar to start chatting.');return;}
   hideErr();
+  if(!curId)newChat();
   const conv=convs[curId];if(!conv)return;
   // Build content with any attachments
   let userContent=text;
@@ -2341,7 +2415,7 @@ async function send(){
     saveConvs();renderConvList();renderMessages();updateTokenCounter();updateCtx();
   }catch(err){
     trow.remove();
-    if(err.name!=='AbortError'){conv.msgs.pop();saveConvs();renderMessages();showErr(err.message);}
+    if(err.name!=='AbortError'){saveConvs();renderMessages();showErr(err.message);}
     else{const partial=trow.querySelector('.msg-bubble')?.innerText?.trim();if(partial){conv.msgs.push({role:'assistant',content:partial});saveConvs();}renderMessages();}
   }finally{streaming=false;abort=null;setSend(false);}
 }
@@ -2501,10 +2575,17 @@ function qs(btn){document.getElementById('userInput').value=btn.textContent;send
 
 /* ===================== GITHUB ===================== */
 async function ghFetch(path,opts={}){
-  const headers={'Authorization':`Bearer ${ghToken}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(opts.headers||{})};
-  const res=await fetch(`https://api.github.com${path}`,{...opts,headers});
-  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||`GitHub ${res.status}`);}
-  return res.json();
+  const headers={'Authorization':`Bearer ${ghToken}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(opts.body?{'Content-Type':'application/json'}:{}),...(opts.headers||{})};
+  const res=await fetch(`https://api.github.com${path}`,{...opts,headers,credentials:'omit',cache:'no-store'});
+  if(!res.ok){
+    const e=await res.json().catch(()=>({})),details=e.message||`GitHub ${res.status}`;
+    const help=res.status===401?'Sign in again; the GitHub token expired or was revoked.':
+      res.status===403?'Check repository Contents: read/write permission, organization SSO approval, branch rules, and API rate limits.':
+      res.status===404?'Check repository access and the selected branch.':
+      [409,422].includes(res.status)?'The branch or file changed, or branch rules rejected the commit. Your edits are kept. Refresh and resolve the conflict or use a writable branch.':'';
+    throw Object.assign(new Error(details+(help?' '+help:'')),{status:res.status});
+  }
+  return res.status===204?null:res.json();
 }
 async function connectGh(){
   const tok=document.getElementById('ghTokenInput').value.trim();
@@ -2513,7 +2594,8 @@ async function connectGh(){
   try{
     const user=await ghFetch('/user',{headers:{'Authorization':`Bearer ${tok}`,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});
     ghToken=tok;ghUser=user.login;ls('gh_token',tok);
-    initGhConnected();
+    document.getElementById('ghTokenInput').value='';
+    await initGhConnected();
   }catch(e){setGhStatus('Error: '+e.message,'err');}
 }
 async function initGhConnected(){
@@ -2526,7 +2608,7 @@ async function initGhConnected(){
     sel.innerHTML=ghRepos.map(r=>`<option value="${esc(r.full_name)}">${esc(r.full_name)}</option>`).join('');
     setGhStatus(`Connected as ${ghUser}`,'ok');
     if(ghRepos.length){ghCurRepo=ghRepos[0].full_name;await loadBranches();await loadTree('');}
-  }catch(e){setGhStatus('Error: '+e.message,'err');}
+  }catch(e){if(e.status===401){ghToken='';ls('gh_token',null);document.getElementById('ghConnect').style.display='';}setGhStatus('Error: '+e.message,'err');}
 }
 async function onRepoChange(){ghCurRepo=document.getElementById('repoSelect').value;ghOpenFile=null;clearEditor();await loadBranches();await loadTree('');}
 async function loadBranches(){
@@ -2534,9 +2616,9 @@ async function loadBranches(){
     const branches=await ghFetch(`/repos/${ghCurRepo}/branches?per_page=50`);
     ghBranches=branches;
     const sel=document.getElementById('branchSelect');
-    sel.innerHTML=branches.map(b=>`<option value="${esc(b.name)}" ${b.name==='main'||b.name==='master'?'selected':''}>${esc(b.name)}</option>`).join('');
+    sel.innerHTML=branches.map(b=>`<option value="${esc(b.name)}" ${b.name===(ghRepos.find(r=>r.full_name===ghCurRepo)?.default_branch||'main')?'selected':''}>${esc(b.name)}</option>`).join('');
     ghCurBranch=sel.value;
-  }catch{}
+  }catch(e){setGhStatus(e.message,'err');throw e;}
 }
 async function onBranchChange(){ghCurBranch=document.getElementById('branchSelect').value;ghOpenFile=null;clearEditor();await loadTree('');}
 async function loadTree(path){
@@ -2635,10 +2717,11 @@ async function doCommit(){
   const fullMsg=desc?msg+'\n\n'+desc:msg;
   setGhStatus('Committing…','');closeCommitModal();
   try{
+    assertRepoPublishable({[ghOpenFile.path]:ghOpenFile.content},{secrets:localCommitSecrets(),messages:codeState.msgs});
     const content=btoa(unescape(encodeURIComponent(ghOpenFile.content)));
     const body={message:fullMsg,content,branch:ghCurBranch};
     if(ghOpenFile.sha)body.sha=ghOpenFile.sha;
-    const res=await ghFetch(`/repos/${ghCurRepo}/contents/${ghOpenFile.path}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const res=await ghFetch(`/repos/${ghCurRepo}/contents/${ghOpenFile.path.split('/').map(encodeURIComponent).join('/')}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     ghOpenFile.sha=res.content.sha;ghOpenFile.editing=false;
     showViewer(ghOpenFile.content,ghOpenFile.path);
     setGhStatus('Committed ✓','ok');toast('Committed successfully!');
@@ -2666,5 +2749,5 @@ function showErr(msg){const el=document.getElementById('errorStrip');el.textCont
 function hideErr(){document.getElementById('errorStrip').style.display='none';}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
-init();
+bootGitHubCredential().catch(e=>showErr('GitHub secure sign-in is unavailable: '+e.message)).then(init);
 </script>

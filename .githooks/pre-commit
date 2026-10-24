@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+command -v node >/dev/null || { printf "Node.js is required for the repository privacy check.\n" >&2; exit 1; }
+node scripts/check-private-data.cjs --staged

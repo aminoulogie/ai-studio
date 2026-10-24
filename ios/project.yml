@@ -2,13 +2,16 @@ name: AIStudio
 options:
   bundleIdPrefix: app.aistudio
   deploymentTarget:
-    iOS: "15.0"
+    iOS: "17.0"
 targets:
   AIStudio:
     type: application
     platform: iOS
     sources:
-      - AIStudio
+      - path: AIStudio
+        excludes: ["claude-observer.js"]
+      - path: AIStudio/claude-observer.js
+        buildPhase: resources
       - path: www
         type: folder
         buildPhase: resources
@@ -33,3 +36,22 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         GENERATE_INFOPLIST_FILE: NO
+
+  AIStudioTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - ../tests/ios
+    dependencies:
+      - target: AIStudio
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  AIStudio:
+    build:
+      targets:
+        AIStudio: all
+    test:
+      targets:
+        - AIStudioTests

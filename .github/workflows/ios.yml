@@ -25,6 +25,11 @@ jobs:
         run: |
           node tests/optimizer.cjs
           node tests/code-runtime.cjs
+          node tests/git-workflow.cjs
+          node tests/repo-privacy.cjs
+          node scripts/check-private-data.cjs
+          node tests/claude-observer.cjs
+          bash -n scripts/git-setup.sh ios/scripts/build-ipa.sh
       - name: Install browser checks
         run: |
           npm install --no-save playwright@1.56.1
@@ -38,6 +43,7 @@ jobs:
           path: test-artifacts/
   build:
     runs-on: macos-15
+    needs: checks
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -59,6 +65,14 @@ jobs:
 
       - name: Generate Xcode project
         run: brew install xcodegen && cd ios && xcodegen generate
+
+      - name: Test Claude profile isolation and context state
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
+          cd ios
+          xcodebuild -project AIStudio.xcodeproj -scheme AIStudio -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath test-build \
+            IPHONEOS_DEPLOYMENT_TARGET=18.4 CODE_SIGNING_ALLOWED=NO test
 
       - name: Build (unsigned)
         run: |
@@ -93,5 +107,5 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: AI Studio v1.0.${{ github.run_number }}
           body: |
-            iPhone app (unsigned IPA). Sign/install with Sideloadly, AltStore, ESign or Feather, then paste your vnaipro key.
+            iPhone app (unsigned IPA). Sign/install with Sideloadly, AltStore, ESign or Feather, Claude tab uses isolated official claude.ai sign-ins (iOS 17+). Studio model connections remain separate.
           files: ios/AIStudio.ipa
