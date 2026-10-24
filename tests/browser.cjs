@@ -15,7 +15,9 @@ const server=http.createServer((req,res)=>{
   const url='http://127.0.0.1:'+server.address().port;
   fs.mkdirSync(path.join(root,'test-artifacts'),{recursive:true});
   for(const [name,engine,viewport] of [['iphone',webkit,{width:390,height:844}],['desktop',chromium,{width:1440,height:1000}]]){
-    const browser=await engine.launch();const page=await browser.newPage({viewport,deviceScaleFactor:1,isMobile:name==='iphone',hasTouch:name==='iphone'});
+    const browser=await engine.launch();
+    try{
+    const page=await browser.newPage({viewport,deviceScaleFactor:1,isMobile:name==='iphone',hasTouch:name==='iphone'});
     let helperRequests=0;
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.route('**/*',async route=>{
@@ -96,8 +98,12 @@ const server=http.createServer((req,res)=>{
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-dark.png'),fullPage:true});
     // Exercise the Code author/helper boundary using a simulated native browser transport.
     await page.evaluate(async()=>{
-      inApp=()=>true;
+      Object.defineProperty(window,'webkit',{configurable:true,value:{messageHandlers:{native:{postMessage:msg=>native(msg)}}}});
       native=async msg=>{
+        if(msg.op==='aiRequest'){
+          const response=await fetch(msg.url,{method:'POST',body:msg.body,headers:{'Content-Type':'application/json'}});
+          return {status:response.status,body:await response.text()};
+        }
         if(msg.op==='claudeProfiles')return [{id:'11111111-1111-4111-8111-111111111111',number:1,name:'Test account',status:'Active',enabled:true,selected:true}];
         if(msg.op==='claudeCodeRequest'){
           onClaudeCodeEvent({id:msg.id,phase:'responding',containerNumber:1,containerName:'Test account',model:'Claude test',text:'Write demo.txt with the finished implementation.'});
@@ -133,7 +139,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.evaluate(()=>window.claudeCancelled),true);
     assert.equal(await page.evaluate(()=>codeState.staged['demo.txt']),'applied by helper','Stop preserves completed edits');
     assert.deepEqual(errors,[],name+' browser exceptions');
-    await browser.close();
+    }finally{await browser.close();}
   }
   console.log('WebKit iPhone and Chromium desktop smoke tests passed.');
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>server.close());
