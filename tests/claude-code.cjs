@@ -37,7 +37,7 @@ assert.equal(f.ctx.claudeCodeRequestStatus('x').phase,'responding');
 f.tick(5000);assert.equal(f.ctx.claudeCodeRequestStatus('x').phase,'responding','Streaming output is never complete');
 f.busy(false);state=f.ctx.claudeCodeRequestStatus('x');assert.equal(state.phase,'complete');assert.equal(state.text,'First partial answer');
 f=fixture({withSend:false});assert.equal(f.ctx.claudeBeginCodeRequest({id:'x',prompt:'[AI Studio task x]\nTask'}).phase,'prepared');assert.equal(f.clicks,0);assert.ok(f.editor.value.includes('Task'));
-f=fixture({draft:'Keep my draft'});assert.equal(f.ctx.claudeBeginCodeRequest({id:'x',prompt:'replace'}).phase,'draftPresent');assert.equal(f.editor.value,'Keep my draft');
+f=fixture({draft:'Keep my draft'});assert.equal(f.ctx.claudeBeginCodeRequest({id:'x',prompt:'replace'}).phase,'draftPresent');assert.equal(f.editor.value,'Keep my draft');assert.equal(f.ctx.claudeComposerBusyState().hasDraft,true);
 f=fixture();f.ctx.claudeBeginCodeRequest({id:'x',prompt:'[AI Studio task x]\nTask'});f.tick(9000);
 assert.equal(f.ctx.claudeCodeRequestStatus('x').phase,'prepared','Unconfirmed submission needs manual Send');
 f=fixture();f.ctx.claudeBeginCodeRequest({id:'x',prompt:'[AI Studio task x]\\nTask'});

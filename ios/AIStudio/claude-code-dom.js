@@ -78,6 +78,10 @@ watcher.observe(document.documentElement,{childList:true,subtree:true,attributes
 root.claudeConfirmCodeReply=id=>{
   if(request?.id===id&&request.confirmed&&request.text&&!generating())request.confirmedComplete=true;
 };
+root.claudeComposerBusyState=()=>{
+  const el=editor();
+  return {busy:generating(),hasDraft:!!(el&&(el.value??el.innerText??el.textContent??'').trim())};
+};
 root.claudeBeginCodeRequest=begin;
 root.claudeCodeRequestStatus=status;
 root.claudeCancelCodeRequest=cancel;

@@ -484,9 +484,8 @@ extension ClaudeBrowserController {
         loadViewIfNeeded()
         let request = ClaudeCodePending(id: id, repo: repo, branch: branch, prompt: prompt, profileID: chosen, reply: reply)
         codePending = request
-        prepareCodeProfile(request)
         codeTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.pollCodeRequest() }
-        pollCodeRequest()
+        openCodeProfilePreservingDraft(request)
     }
     func confirmCodeReply(_ id: String) {
         guard let request = codePending, request.id == id else { return }
@@ -496,6 +495,25 @@ extension ClaudeBrowserController {
     func cancelCodeRequest(_ id: String) {
         guard codePending?.id == id else { return }
         finishCodeRequest(error: "Claude task stopped. No browser response was applied to repository files.")
+    }
+
+    private func openCodeProfilePreservingDraft(_ request: ClaudeCodePending) {
+        // Never navigate away from an existing user draft or active browser response.
+        if let web = browsers[request.profileID], safeClaudeURL(web.url) != nil {
+            let checkingProfile = request.profileID
+            request.evaluating = true
+            web.callAsyncJavaScript("return globalThis.claudeComposerBusyState?.() || {busy:true,hasDraft:true};",
+                arguments: [:], in: nil, in: observerWorld) { [weak self, weak request] result in
+                    guard let self = self, let request = request, self.codePending === request, request.profileID == checkingProfile else { return }
+                    request.evaluating = false
+                    guard case .success(let raw) = result, let state = raw as? [String: Any],
+                          state["busy"] as? Bool == false, state["hasDraft"] as? Bool == false else {
+                        self.show(request.profileID)
+                        self.finishCodeRequest(error: "This Claude container has a draft, is generating, or needs a page reload. Finish or clear it in the Claude tab, then send the Code task again."); return
+                    }
+                    self.prepareCodeProfile(request); self.pollCodeRequest()
+                }
+        } else { prepareCodeProfile(request); pollCodeRequest() }
     }
     private func prepareCodeProfile(_ request: ClaudeCodePending) {
         show(request.profileID)
@@ -580,7 +598,7 @@ extension ClaudeBrowserController {
             clearCodeDOM(request, profile: id)
             request.profileID = next.id
             emitCode(request, phase: "switching", detail: "Claude reached its limit. Resending the task and repository context to the next container.")
-            prepareCodeProfile(request)
+            openCodeProfilePreservingDraft(request)
         } catch { finishCodeRequest(error: error.localizedDescription) }
     }
     private func clearCodeDOM(_ request: ClaudeCodePending, profile: UUID) {
