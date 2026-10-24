@@ -5,6 +5,7 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
     init(store: ClaudeProfileStore) {
         super.init(nibName: nil, bundle: nil)
         let studio = WebViewController()
+        studio.memoryStore = store
         let chat = StudioTabHost(studio: studio, mode: "chat")
         chat.tabBarItem = UITabBarItem(title: "Chat", image: UIImage(systemName: "bubble.left.and.bubble.right"), tag: 0)
         let code = StudioTabHost(studio: studio, mode: "code")
