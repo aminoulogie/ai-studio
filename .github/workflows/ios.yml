@@ -101,6 +101,10 @@ jobs:
           path: ios/AIStudio.ipa
           retention-days: 30
 
+      - name: Name the IPA with its version
+        if: github.ref == 'refs/heads/main'
+        run: cp ios/AIStudio.ipa ios/AIStudio-v1.0.${{ github.run_number }}.ipa
+
       - name: Publish release (main only)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
