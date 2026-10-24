@@ -2,7 +2,7 @@ name: Build iOS IPA
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
     paths: ['index.html', 'assets/**', 'tests/**', 'ios/**', '.github/workflows/ios.yml']
   pull_request:
     paths: ['index.html', 'assets/**', 'tests/**', 'ios/**', '.github/workflows/ios.yml']
