@@ -1793,6 +1793,7 @@ function openCodePermissions(){
   openSheet('<h3>Code permissions</h3><p>Repository: <b>'+esc(codeState.repo||'Select a repository first')+'</b></p>'+
     '<p>The assistant can read and stage edits in this repository. Enable automatic commits to save completed tasks to the selected GitHub branch without asking again.</p>'+
     '<label class="fb-row"><input id="codeAutoCommit" type="checkbox" '+(ls(codeAutoCommitKey())==='1'?'checked':'')+' onchange="setCodeAutoCommit(this.checked)"> Automatically commit completed tasks</label>'+
+    '<label class="fb-row"><input type="checkbox" '+(codeLean()?'checked':'')+' onchange="setCodeLean(this.checked)"> Lean send: each request sends only what you type, a short instruction and the files it reads, not earlier tasks</label>'+
     '<p>GitHub access requires a token with <b>Contents: read and write</b> for this repository, or a classic token with <b>repo</b> scope. Organization SSO and branch protection still apply. This setting does not grant extra GitHub permissions.</p>'+
     '<button class="gh-btn" onclick="switchTab(\'github\');closeSheet()">GitHub connection</button> <button class="gh-btn primary" onclick="closeSheet()">Done</button>');
 }
