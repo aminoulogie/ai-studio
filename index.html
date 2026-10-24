@@ -1113,7 +1113,8 @@ function codePlus(e){
   document.getElementById('codePlusMenu')?.remove();
   const menu=document.createElement('div');menu.id='codePlusMenu';menu.className='plus-menu show';
   menu.innerHTML=document.getElementById('plusMenu').innerHTML.replace('id="infToggle"','id="codeInfToggle"')+
-    '<button onclick="openOptimizerSettings()">✨ <span>Prompt optimizer settings</span></button>';
+    '<button onclick="openOptimizerSettings()">✨ <span>Prompt optimizer settings</span></button>'+
+    '<button onclick="copyCodeHandover()">📋 <span>Copy handover summary</span></button>';
   menu.querySelector('#codeInfToggle').checked=infinityOn();
   menu.querySelector('button[onclick*="switchTab"]').setAttribute('onclick',"switchTab('chat')");
   menu.querySelector('button[onclick*="switchTab"]').innerHTML='💬 <span>Chat</span>';
