@@ -147,6 +147,10 @@ async function requestClaudeFromCode(task,signal){
     const result=await native({op:'claudeCodeRequest',id,profileID,repo:codeState.repo,branch:codeState.branch,prompt});
     if(signal.aborted)throw new DOMException('Stopped','AbortError');
     if(!result||typeof result.text!=='string'||!result.text.trim())throw new Error('Claude returned no complete answer.');
+    card.querySelector('.claude-code-title').textContent=(result.model||'Claude web')+' · '+(result.containerName||'Claude');
+    card.querySelector('.claude-code-detail').textContent='Claude finished. The answer is saved on this device.';
+    card.querySelector('.claude-code-answer').textContent=result.text;
+    card.querySelector('.claude-confirm').hidden=true;
     codeState.claudeResult=result;await saveCodeSession();
     return result;
   }catch(e){if(signal.aborted)throw new DOMException('Stopped','AbortError');throw e;}
