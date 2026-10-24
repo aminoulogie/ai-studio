@@ -45,6 +45,31 @@
       signedIn=true;bridge.postMessage({event:'signedIn'});
     }
   }
+  // Shared memory helpers. They only type into the message box (the user presses send) and read the last visible reply.
+  globalThis.claudeInsertText=text=>{
+    const box=document.querySelector('[contenteditable="true"][role="textbox"]');
+    if(box){
+      box.focus();
+      const sel=window.getSelection&&window.getSelection();
+      if(sel){const r=document.createRange();r.selectNodeContents(box);r.collapse(false);sel.removeAllRanges();sel.addRange(r);}
+      return !!document.execCommand('insertText',false,String(text));
+    }
+    const area=document.querySelector('textarea[placeholder*="Claude"]');
+    if(!area)return false;
+    area.focus();
+    const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;
+    setter.call(area,(area.value?area.value+'\n':'')+String(text));
+    area.dispatchEvent(new Event('input',{bubbles:true}));
+    return true;
+  };
+  globalThis.claudeMemoryProposal=()=>{
+    const replies=messages().filter(m=>m.role==='assistant');
+    const last=replies[replies.length-1];
+    if(!last)return null;
+    const found=[...last.content.matchAll(/<<<STUDIO_MEMORY\s*([\s\S]*?)\s*STUDIO_MEMORY>>>/g)];
+    const body=found.length?found[found.length-1][1].trim():'';
+    return body?body.slice(0,4000):null;
+  };
   globalThis.claudeCheckLimits=()=>{lastLimit='';check();};
   const observer=new MutationObserver(()=>{
     if(scheduled)return;scheduled=true;setTimeout(check,800);
