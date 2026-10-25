@@ -103,7 +103,7 @@
     return {
       users:items.filter(m=>m.role==='user').length,
       assistants:assistants.length,
-      streaming:!!(document.querySelector('[data-is-streaming="true"]')||document.querySelector('button[aria-label*="Stop"]')),
+      streaming:!!(document.querySelector('[data-is-streaming="true"]')||findButton(STOP_RE)),
       last:assistants.length?assistants[assistants.length-1].content:'',
       loggedOut:/^\/(login|logout)/.test(location.pathname||'')
     };
