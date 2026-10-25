@@ -34,10 +34,11 @@ final class StudioUpdaterTests: XCTestCase {
         func asset(_ name: String, _ id: String) -> [String: Any] {
             ["name": name, "url": "https://api.github.com/repos/o/r/releases/assets/\(id)"]
         }
+        let foreign: [String: Any] = ["name": "studio-web.json", "url": "https://evil.example/m"]
         let releases: [[String: Any]] = [
             ["tag_name": "v1.0.99", "draft": true, "assets": [asset("studio-web.json", "99m"), asset("studio-web.html", "99h")]],
             ["tag_name": "v1.0.98", "assets": [asset("AIStudio-v1.0.98.ipa", "98i")]],
-            ["tag_name": "v1.0.100", "assets": [["name": "studio-web.json", "url": "https://evil.example/m"], asset("studio-web.html", "100h")]],
+            ["tag_name": "v1.0.100", "assets": [foreign, asset("studio-web.html", "100h")]],
             ["tag_name": "v1.0.97", "assets": [asset("studio-web.json", "97m"), asset("studio-web.html", "97h")]],
             ["tag_name": "v1.0.96", "assets": [asset("studio-web.json", "96m"), asset("studio-web.html", "96h")]]
         ]
