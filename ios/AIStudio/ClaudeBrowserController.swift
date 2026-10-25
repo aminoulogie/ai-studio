@@ -17,9 +17,36 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     private var accountsButton: UIBarButtonItem!
     private var actionsButton: UIBarButtonItem!
     private var currentBrowser: WKWebView? { currentID.flatMap { browsers[$0] } }
+    private var injectedObserver = ""
 
-    init(store: ClaudeProfileStore) { self.store = store; super.init(nibName: nil, bundle: nil) }
+    init(store: ClaudeProfileStore) {
+        self.store = store; super.init(nibName: nil, bundle: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(observerChanged),
+                                               name: .studioObserverUpdated, object: nil)
+    }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    /// The verified helper script from an app update, or the one built into the app.
+    private func currentObserverScript() -> String? {
+        if let updated = StudioUpdater.shared.observerSource() { return updated }
+        guard let url = Bundle.main.url(forResource: "claude-observer", withExtension: "js") else { return nil }
+        return try? String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// A helper script that arrives (or is rolled back) through an app update applies to open pages at once.
+    @objc private func observerChanged() {
+        guard let script = currentObserverScript(), script != injectedObserver else { return }
+        injectedObserver = script
+        for web in browsers.values {
+            let content = web.configuration.userContentController
+            content.removeAllUserScripts()
+            content.addUserScript(WKUserScript(
+                source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: observerWorld))
+        }
+        // Never interrupt a message that is being sent or answered.
+        if job == nil { currentBrowser?.reload() }
+    }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated); navigationController?.setToolbarHidden(false, animated: false)
