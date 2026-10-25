@@ -238,6 +238,33 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
                 replyHandler(nil, "Nothing to send"); return
             }
             tabs.sendToClaude(text, reply: replyHandler); return
+        case "studioUpdateStatus":
+            replyHandler(updater.status(), nil); return
+        case "studioUpdateCheck":
+            updater.check(token: githubToken()) { result in
+                switch result {
+                case .success(let info): replyHandler(info, nil)
+                case .failure(let error): replyHandler(nil, error.localizedDescription)
+                }
+            }
+            return
+        case "studioUpdateInstall":
+            updater.install(token: githubToken()) { result in
+                switch result {
+                case .success(let info): replyHandler(info, nil)
+                case .failure(let error): replyHandler(nil, error.localizedDescription)
+                }
+            }
+            return
+        case "studioUpdateReload":
+            replyHandler(true, nil)
+            DispatchQueue.main.async { [weak self] in self?.reloadStudio() }
+            return
+        case "studioUpdateReset":
+            updater.reset()
+            replyHandler(true, nil)
+            DispatchQueue.main.async { [weak self] in self?.reloadStudio() }
+            return
         case "aiRequest":
             studioRequests.send(msg, reply: replyHandler); return
         case "cancelRequest":
