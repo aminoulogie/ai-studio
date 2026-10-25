@@ -429,12 +429,13 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                 prompt = self.store.memoryPrompt + "\n\n---\n\n" + current.text
             }
             self.job?.baseline = assistants
+            self.job?.baselineUsers = users
             self.insertIntoChat(prompt, attempts: 8, copyOnFail: false) { [weak self] ok in
                 guard let self = self, self.job?.id == current.id else { return }
                 guard ok else {
                     self.endJob("failed", note: "Could not find Claude's message box. Open the Claude tab and check the page."); return
                 }
-                self.submitJob(current.id, attempts: 6)
+                self.submitJob(current.id, attempts: 10)
             }
         }
     }
