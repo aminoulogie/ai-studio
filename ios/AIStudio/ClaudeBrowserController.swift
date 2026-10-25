@@ -125,6 +125,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         do { try store.select(id) } catch { report(error); return }
         currentBrowser?.removeFromSuperview()
         if !automatic { rotationVisited.removeAll() }
+        stayOnID = automatic ? nil : id
         currentID = id
         let web: WKWebView
         if let existing = browsers[id] { web = existing }
