@@ -2341,8 +2341,7 @@ function openStudioSettings(){
   const sb=document.getElementById('sidebar');
   document.body.dataset.tab='settings';
   sb.classList.remove('hidden','as-history');sb.classList.add('as-settings');
-  document.getElementById('overlay').classList.remove('show');
-  sb.scrollTo({top:0});
+  document.getElementById('overlay').classList.toggle('show',window.innerWidth<=680&&!document.body.classList.contains('native-tabs'));
 }
 function toggleSidebar(){const sb=document.getElementById('sidebar');const ov=document.getElementById('overlay');if(window.innerWidth<=680){sb.classList.toggle('hidden');ov.classList.toggle('show',!sb.classList.contains('hidden'));}}
 function closeSidebar(){document.getElementById('sidebar').classList.add('hidden');document.getElementById('overlay').classList.remove('show');}
