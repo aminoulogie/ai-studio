@@ -79,7 +79,7 @@ jobs:
               'version': int(os.environ['RUN_NUMBER']),
               'sha256': hashlib.sha256(page).hexdigest(),
               'size': len(page),
-              'min_native': 1,
+              'min_native': 2,
               'observer_sha256': hashlib.sha256(observer).hexdigest(),
               'observer_size': len(observer),
           }
