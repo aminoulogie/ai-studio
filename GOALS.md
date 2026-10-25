@@ -28,4 +28,4 @@ Build passed (run 40207609731).
 - Send: `claude-observer.js` finds Send/Stop buttons in any language, falls back to Enter, and reports which buttons it saw if it fails. The Swift side retries the button 10 times and checks the message really went.
 - In-app script update: the Claude-tab script ships as `studio-observer.js`, is checked by size and sha256 against `studio-web.json`, and is applied to open pages without a new IPA.
 - Containers: a container opened by hand stays open even when it shows the usage limit (no auto-switch, no popup). Limit → Next and Code tab jobs still switch.
-- Code tab send was confirmed working on a device (v1.0.98 build plus the observer update path). The container fix still needs a device check on the v1.0.100 IPA.
+- The user reported a Code tab message ("Test2") going through on a device; which build was installed was not stated. The container fix still needs a device check on the v1.0.100 IPA.
