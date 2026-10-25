@@ -2955,7 +2955,7 @@ async function codeRunViaClaude(task){
   codeState.claudeJob={id,el,thinkOpen:false};codeState.busy=true;
   document.getElementById('codeRunBtn').textContent='Stop';
   codeStatus('Sending to Claude…','working');
-  try{await native({op:'claudeSend',id,text:task});}
+  try{await native({op:'claudeSend',id,text:fullText,images});}
   catch(e){claudeJobEnd(String(e&&e.message||e));}
 }
 window.onClaudeStream=function(p){
