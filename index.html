@@ -2998,7 +2998,8 @@ window.onClaudeStream=function(p){
   const job=codeState.claudeJob;if(!job||!p||p.id!==job.id)return;
   const who=p.account?'<br><small>Claude · '+esc(p.account)+'</small>':'';
   if(p.state==='streaming'||p.state==='done'){
-    job.el.innerHTML=md(p.text||'')+who;
+    if(p.state==='done')job.thinkOpen=false;
+    job.el.innerHTML=claudeReplyHTML(job,p.text||'',p.state==='done')+who;
     codeStatus(p.state==='done'?'Ready':'Claude is answering…',p.state==='done'?'idle':'working');
     if(p.state==='done')claudeJobEnd();
   }else if(p.state==='switching'){
