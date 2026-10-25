@@ -532,6 +532,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             try store.update(id) { $0.status = .rateLimited; $0.limitedUntil = Date().addingTimeInterval(delay) }
             rotationVisited.insert(id); refreshMenus()
             guard manual || store.state.autoSwitch else {
+                if job != nil { endJob("failed", note: "Claude's limit was reached and auto-switch is off. Turn it on in Actions, or pick another account.") }
                 notice("Claude usage limit", "Context was saved. Select another account from Accounts or wait for Claude's reset."); return
             }
             guard let next = store.next(after: id, excluding: rotationVisited) else {
