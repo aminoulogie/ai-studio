@@ -158,6 +158,23 @@ final class StudioUpdater {
         }
     }
 
+    /// The Claude-tab helper script must match the manifest's size and SHA-256 and look like our script.
+    static func validateObserver(_ manifest: StudioWebManifest, data: Data) throws {
+        guard let expected = manifest.observerSha256, let size = manifest.observerSize else {
+            throw StudioUpdateError.invalid("This update has no Claude helper script.")
+        }
+        guard !data.isEmpty, data.count <= maxObserverBytes, data.count == size else {
+            throw StudioUpdateError.invalid("The Claude helper script has the wrong size.")
+        }
+        guard sha256Hex(data) == expected.lowercased() else {
+            throw StudioUpdateError.invalid("The Claude helper script failed its integrity check.")
+        }
+        guard let text = String(data: data, encoding: .utf8),
+              text.contains("claudeObserver"), text.contains("claudeSubmit") else {
+            throw StudioUpdateError.invalid("The downloaded file is not the Claude helper script.")
+        }
+    }
+
     // MARK: installed update
 
     func badVersions() -> Set<Int> {
