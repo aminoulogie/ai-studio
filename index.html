@@ -1676,8 +1676,9 @@ async function codeTool(name,a){
 }
 async function codeRun(){
   if(codeState.committing){toast('Wait for the commit to finish.');return;}
-  if(codeState.busy){codeState.stop=true;codeState.controller?.abort();codeStatus('Stopping…','working');return;}
+  if(codeState.busy){if(codeState.claudeJob){codeStopClaude();return;}codeState.stop=true;codeState.controller?.abort();codeStatus('Stopping…','working');return;}
   const task=document.getElementById('codeTask').value.trim();if(!task)return;
+  if(codeViaClaude())return codeRunViaClaude(task);
   if(ghToken&&(!codeState.repo||!codeState.branch)){codeLog('step','Choose a repository and branch first.');return;}
   if(!ghToken){codeLog('step','Connect GitHub first: + → Connectors.');openConnectors();return;}
   const prov=curProvider, key=document.getElementById('apiKey').value.trim(), model=curModel();
