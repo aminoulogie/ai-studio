@@ -156,10 +156,49 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         refreshMenus()
     }
 
+    /// The title is a pill showing container · model · effort. Tapping it switches container or opens Claude's own model and effort picker.
+    private func updateTitleButton() {
+        let name = store.state.profiles.first { $0.id == currentID }?.name ?? "Claude"
+        let label = modelText.isEmpty ? name : name + " · " + modelText
+        titleButton.setTitle(label + " ▾", for: .normal)
+        titleButton.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+        titleButton.titleLabel?.lineBreakMode = .byTruncatingTail
+        titleButton.accessibilityLabel = "Container " + name + (modelText.isEmpty ? "" : ", " + modelText)
+        titleButton.showsMenuAsPrimaryAction = true
+        let containers = store.state.profiles.map { profile in
+            UIAction(title: profile.name, image: UIImage(systemName: "person.crop.circle"),
+                     state: profile.id == currentID ? .on : .off) { [weak self] _ in self?.show(profile.id) }
+        }
+        let modelAction = UIAction(title: modelText.isEmpty ? "Model & effort" : "Model & effort · " + modelText,
+                                   image: UIImage(systemName: "slider.horizontal.3")) { [weak self] _ in self?.openModelPicker() }
+        titleButton.menu = UIMenu(children: [UIMenu(title: "Container", options: .displayInline, children: containers), modelAction])
+        titleButton.sizeToFit()
+        titleButton.frame.size.width = min(titleButton.frame.width, 260)
+        navigationItem.titleView = titleButton
+    }
+    private func pollModel() {
+        guard let web = currentBrowser, safeClaudeURL(web.url) != nil else { return }
+        web.evaluateJavaScript("globalThis.claudeModelInfo?.()", in: nil, in: observerWorld) { [weak self] result in
+            guard let self = self, case .success(let value) = result else { return }
+            let text = (value as? String) ?? ""
+            if text != self.modelText { self.modelText = text; self.updateTitleButton() }
+        }
+    }
+    private func openModelPicker() {
+        guard let web = currentBrowser, safeClaudeURL(web.url) != nil else {
+            notice("Open a Claude chat", "Open a conversation on claude.ai first."); return
+        }
+        web.evaluateJavaScript("globalThis.claudeOpenModelPicker?.()", in: nil, in: observerWorld) { [weak self] result in
+            if case .success(let value) = result, (value as? Bool) == true { return }
+            self?.notice("Could not open the model picker", "Open a Claude chat, then tap the model name next to the message box.")
+        }
+    }
+
     private func refreshMenus() {
         let selected = store.state.profiles.first { $0.id == currentID }
         title = selected?.name ?? "Claude"
         navigationItem.prompt = currentBrowser?.url?.host ?? "Official claude.ai browser"
+        updateTitleButton()
         accountsButton.menu = UIMenu(title: "Isolated Claude accounts", children:
             store.state.profiles.map { profile in
                 UIAction(title: profile.name,
