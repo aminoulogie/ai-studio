@@ -70,6 +70,32 @@
     const body=found.length?found[found.length-1][1].trim():'';
     return body?body.slice(0,4000):null;
   };
+  // Code tab bridge helpers. Button labels depend on the language of claude.ai, so several languages are matched
+  // and an unlabeled button is never guessed.
+  const SEND_RE=/\b(send|submit)\b|envoy|enviar|senden|absenden|invia|verstuur|wyślij|wyslij|отправ|发送|傳送|送信|전송|gönder|skicka|lähetä|odeslat|küld/i;
+  const STOP_RE=/\bstop\b|arr[êe]t|detener|parar|stopp|ferma|zatrzym|останов|停止|中止|중지|durdur/i;
+  const SKIP_RE=/stop|arr[êe]t|attach|upload|joindre|pi[eè]ce|adjunt|anhang|allegat|add (files|content)|ajouter|hinzuf|voice|vocal|dict|micro|\bmic\b|feedback|report|signal/i;
+  const labelOf=el=>(el.getAttribute('aria-label')||el.getAttribute('title')||el.getAttribute('data-testid')||'').trim();
+  const composerBox=()=>document.querySelector('[contenteditable="true"][role="textbox"]')||document.querySelector('textarea[placeholder*="Claude"]')||document.querySelector('textarea');
+  function findButton(re,root){
+    const list=Array.from((root||document).querySelectorAll('button,[role="button"]'));
+    for(let i=list.length-1;i>=0;i--){
+      const el=list[i];
+      if(!visible(el))continue;
+      const label=labelOf(el);
+      if(label&&re.test(label)&&(re!==SEND_RE||!SKIP_RE.test(label)))return el;
+    }
+    return null;
+  }
+  function findSendButton(){
+    let scope=composerBox();
+    for(let i=0;i<6&&scope&&scope.parentElement;i++){
+      scope=scope.parentElement;
+      const found=findButton(SEND_RE,scope);
+      if(found)return found;
+    }
+    return null;
+  }
   // Code tab bridge: report progress, press send, press stop. Only called by native code after the person sends from the Code tab.
   globalThis.claudeStatus=()=>{
     const items=messages();
