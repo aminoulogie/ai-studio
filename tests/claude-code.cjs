@@ -45,4 +45,24 @@ f.messages([{role:'user',content:'[AI Studio task x]\\nTask'},{role:'assistant',
 f.ctx.claudeCodeRequestStatus('x');f.tick(3000);
 assert.equal(f.ctx.claudeCodeRequestStatus('x').phase,'needsConfirmation','Unknown completion markup must not silently apply output');
 f.ctx.claudeConfirmCodeReply('x');assert.equal(f.ctx.claudeCodeRequestStatus('x').phase,'complete');
-console.log('Claude Code checks passed: context selection, private paths, effort, composer submission, streaming completion and manual fallbacks.');
+/* Lead + sub-agents */
+const plan=api.parseLeadPlan('```json\n{"subtasks":[{"title":"UI","instructions":"Fix the button","files":["a.js"],"mode":"edit"},{"title":"API","instructions":"Fix the call","files":["b.js"]}]}\n```',2);
+assert.equal(plan.length,2);assert.equal(plan[1].mode,'edit');assert.deepEqual(plan[0].files,['a.js']);
+assert.equal(api.parseLeadPlan('Here is the fix, no json.',2),null);
+assert.equal(api.parseLeadPlan('```json\n{"subtasks":[{"title":"x","instructions":"only one"}]}\n```',2),null,'one part is not worth delegating');
+assert.equal(api.parseLeadPlan('```json\n{"subtasks":[{"instructions":"a","files":["a.js"]},{"instructions":"b","files":["a.js"]}]}\n```',2),null,'overlapping edits are refused');
+assert.equal(api.parseLeadPlan('```json\n{"subtasks":[{"instructions":"a","files":["../x"]},{"instructions":"b","files":["/etc/passwd"]}]}\n```',2)[0].files.length,0,'unsafe paths are dropped');
+assert.ok(api.looksLikePlan('```json\n{"subtasks":[]}\n```'));assert.ok(!api.looksLikePlan('plain answer'));
+const pool=[{id:'lead',enabled:true,status:'Active',busy:false,limited:false,percent:10,number:1},
+  {id:'b',enabled:true,status:'Active',busy:false,limited:false,percent:50,number:2},
+  {id:'c',enabled:true,status:'Active',busy:false,limited:false,percent:20,number:3},
+  {id:'d',enabled:true,status:'Rate-Limited',busy:false,limited:true,percent:100,number:4},
+  {id:'e',enabled:true,status:'Active',busy:true,limited:false,percent:0,number:5},
+  {id:'f',enabled:false,status:'Active',busy:false,limited:false,percent:0,number:6}];
+assert.deepEqual(api.pickSubAgentContainers(pool,'lead',3).map(p=>p.id),['c','b'],'skips lead, limited, busy and paused containers; least used first');
+assert.equal(api.pickSubAgentContainers(pool,'lead',1).length,1);
+const merge=api.buildIntegrationPrompt({id:'m1',task:'Do it',repo:'o/r',branch:'main',base:'abc',results:[{index:1,title:'UI',mode:'edit',ok:true,container:'A',text:'done'},{index:2,title:'API',mode:'edit',ok:false,container:'B',text:'FAILED: limit'}]});
+assert.match(merge,/^\[AI Studio task m1\]/);assert.match(merge,/SUBTASK 2: API \(edit, FAILED, B\)/);
+assert.match(api.buildLeadPlanBlock(2),/2 other Claude containers/);
+assert.equal(api.formatClaudeReset(0),'');assert.equal(api.formatClaudeReset(90*60),'in 1h 30m');assert.equal(api.formatClaudeReset(20),'in 1m');
+console.log('Claude Code checks passed: context selection, private paths, effort, composer submission, streaming completion, manual fallbacks, and lead/sub-agent planning.');
