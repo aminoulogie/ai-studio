@@ -32,6 +32,18 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         claude.loadViewIfNeeded()
         claude.insertIntoChat(text) { inserted in reply(inserted ? "inserted" : "copied", nil) }
     }
+    /// Code tab -> Claude container: send the message, stream the reply back to the Code tab.
+    func startClaudeJob(id: String, text: String, reply: @escaping (Any?, String?) -> Void) {
+        guard let nav = viewControllers?.first(where: { $0 is UINavigationController }) as? UINavigationController,
+              let claude = nav.viewControllers.first as? ClaudeBrowserController else {
+            reply(nil, "Claude tab unavailable"); return
+        }
+        claude.startJob(id: id, text: text, reply: reply)
+    }
+    func stopClaudeJob() {
+        let nav = viewControllers?.first(where: { $0 is UINavigationController }) as? UINavigationController
+        (nav?.viewControllers.first as? ClaudeBrowserController)?.stopJob()
+    }
     func selectStudioMode(_ mode: String) {
         let indexes = ["chat": 0, "code": 1, "github": 3, "settings": 4]
         guard let index = indexes[mode], selectedIndex != index else { return }
