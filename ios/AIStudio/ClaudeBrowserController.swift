@@ -540,6 +540,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                 notice("No active account remains", "Your context was saved. Wait for Claude's reset, or sign in to another account. Use Reset limit if Claude already allows messages again."); return
             }
             show(next.id, automatic: true)
+            if job != nil { prepareJobResume(to: next.name); return }
             let message = handover.messages.isEmpty ?
                 "Switched to " + next.name + ". No conversation text was detected. Use continuation notes or copy the conversation from the previous account." :
                 "Switched to " + next.name + ". Context is saved. Tap Copy context, then paste it into a Claude chat and send it. Reattach any files."
