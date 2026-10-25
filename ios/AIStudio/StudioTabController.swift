@@ -38,7 +38,7 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
               let claude = nav.viewControllers.first as? ClaudeBrowserController else {
             reply(nil, "Claude tab unavailable"); return
         }
-        claude.startJob(id: id, text: text, reply: reply)
+        claude.startJob(id: id, text: text, images: images, reply: reply)
     }
     func stopClaudeJob() {
         let nav = viewControllers?.first(where: { $0 is UINavigationController }) as? UINavigationController
