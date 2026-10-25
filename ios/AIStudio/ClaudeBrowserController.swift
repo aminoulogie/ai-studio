@@ -370,6 +370,134 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             }
         }
     }
+    // MARK: Code tab -> Claude container (auto-send, live reply, resume on the next container after a limit)
+    /// Called with {id, state, text, note, account}. States: sending, streaming, switching, done, stopped, failed.
+    var onStream: (([String: Any]) -> Void)?
+    private struct ClaudeJob {
+        let id: String
+        let text: String
+        var baseline = 0
+        var lastText = ""
+        var stableTicks = 0
+        var startedAt = Date()
+        var sent = false
+    }
+    private var job: ClaudeJob?
+    private var pollTimer: Timer?
+    private var polling = false
+    private var awaitingJobLoad = false
+
+    private func emit(_ state: String, text: String = "", note: String = "") {
+        guard let current = job else { return }
+        let name = store.state.profiles.first(where: { $0.id == currentID })?.name ?? ""
+        onStream?(["id": current.id, "state": state, "text": text, "note": note, "account": name])
+    }
+    private func endJob(_ state: String, text: String = "", note: String = "") {
+        emit(state, text: text, note: note)
+        pollTimer?.invalidate(); pollTimer = nil; polling = false; awaitingJobLoad = false; job = nil
+    }
+    func startJob(id: String, text: String, reply: @escaping (Any?, String?) -> Void) {
+        loadViewIfNeeded()
+        guard job == nil else { reply(nil, "Claude is still answering the last message."); return }
+        guard currentBrowser != nil else { reply(nil, "No Claude account is open. Add one in the Claude tab and sign in."); return }
+        job = ClaudeJob(id: id, text: text)
+        reply("started", nil)
+        deliverJob(prefix: "")
+    }
+    func stopJob() {
+        guard job != nil else { return }
+        currentBrowser?.evaluateJavaScript("globalThis.claudeStop?.()", in: nil, in: observerWorld, completionHandler: nil)
+        endJob("stopped", note: "Stopped.")
+    }
+    /// Types the message (with a prefix of memory and context after a switch) and presses send.
+    private func deliverJob(prefix: String) {
+        guard let web = currentBrowser, let current = job else { return }
+        web.evaluateJavaScript("globalThis.claudeStatus?.()", in: nil, in: observerWorld) { [weak self] result in
+            guard let self = self, self.job?.id == current.id else { return }
+            var users = 0, assistants = 0
+            if case .success(let value) = result, let status = value as? [String: Any] {
+                users = status["users"] as? Int ?? 0
+                assistants = status["assistants"] as? Int ?? 0
+                if (status["loggedOut"] as? Bool) == true {
+                    self.endJob("failed", note: "This Claude account is signed out. Sign in from the Claude tab, then send again."); return
+                }
+            }
+            var prompt = prefix + current.text
+            // A brand-new chat gets the shared memory first.
+            if prefix.isEmpty && users == 0 && !self.store.masterMemory.isEmpty {
+                prompt = self.store.memoryPrompt + "\n\n---\n\n" + current.text
+            }
+            self.job?.baseline = assistants
+            self.insertIntoChat(prompt, attempts: 8, copyOnFail: false) { [weak self] ok in
+                guard let self = self, self.job?.id == current.id else { return }
+                guard ok else {
+                    self.endJob("failed", note: "Could not find Claude's message box. Open the Claude tab and check the page."); return
+                }
+                self.submitJob(current.id, attempts: 6)
+            }
+        }
+    }
+    private func submitJob(_ id: String, attempts: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self, self.job?.id == id, let web = self.currentBrowser else { return }
+            web.evaluateJavaScript("globalThis.claudeSubmit?.()", in: nil, in: self.observerWorld) { [weak self] result in
+                guard let self = self, self.job?.id == id else { return }
+                if case .success(let value) = result, (value as? Bool) == true {
+                    self.job?.sent = true; self.job?.startedAt = Date()
+                    self.emit("sending"); self.startPolling(); return
+                }
+                if attempts > 1 { self.submitJob(id, attempts: attempts - 1) }
+                else { self.endJob("failed", note: "Your message is in Claude's box but I could not press send. Open the Claude tab and press send.") }
+            }
+        }
+    }
+    private func startPolling() {
+        pollTimer?.invalidate()
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in self?.pollJob() }
+    }
+    private func pollJob() {
+        guard let current = job, current.sent, !polling, let web = currentBrowser else { return }
+        if Date().timeIntervalSince(current.startedAt) > 600 { endJob("failed", note: "Claude took too long to answer."); return }
+        polling = true
+        web.evaluateJavaScript("globalThis.claudeStatus?.()", in: nil, in: observerWorld) { [weak self] result in
+            guard let self = self else { return }
+            self.polling = false
+            guard self.job?.id == current.id, self.pollTimer != nil,
+                  case .success(let value) = result, let status = value as? [String: Any] else { return }
+            let assistants = status["assistants"] as? Int ?? 0
+            let streaming = (status["streaming"] as? Bool) == true
+            let last = status["last"] as? String ?? ""
+            if assistants <= (self.job?.baseline ?? 0) {
+                if Date().timeIntervalSince(current.startedAt) > 120 && !streaming {
+                    self.endJob("failed", note: "No reply from Claude. If this account hit its limit the app switches by itself; otherwise check the Claude tab.")
+                }
+                return
+            }
+            if last != self.job?.lastText {
+                self.job?.lastText = last; self.job?.stableTicks = 0
+                self.emit("streaming", text: last)
+            } else if !streaming {
+                self.job?.stableTicks += 1
+                if (self.job?.stableTicks ?? 0) >= 2 { self.endJob("done", text: last) }
+            }
+        }
+    }
+    /// After a limit: the next account's fresh chat is loading. Continue there once it has loaded.
+    private func prepareJobResume(to name: String) {
+        pollTimer?.invalidate(); pollTimer = nil; polling = false
+        job?.sent = false; job?.lastText = ""; job?.stableTicks = 0
+        awaitingJobLoad = true
+        emit("switching", note: "Limit reached. Switched to " + name + ". Loading memory and context…")
+    }
+    private func resumePrefix() -> String {
+        var parts: [String] = []
+        if !store.masterMemory.isEmpty { parts.append(store.memoryPrompt) }
+        if let context = store.latestContext, !context.messages.isEmpty || !context.notes.isEmpty {
+            parts.append("Context from my previous Claude conversation (partial). Continue from it:\n" + String(context.handoverText.suffix(12000)))
+        }
+        parts.append("My message now:\n")
+        return parts.joined(separator: "\n\n---\n\n")
+    }
     private func importContext() {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: true)
         picker.delegate = self; present(picker, animated: true)
