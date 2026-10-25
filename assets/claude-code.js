@@ -142,6 +142,7 @@ function renderClaudeUsage(profiles){
   }).join('');
   panel.innerHTML='<summary>Usage · '+(on.length-limited)+' ready · '+limited+' limited</summary><div class="cu-list">'+rows+'</div>';
 }
+async function refreshClaudeCodeProfiles(){
   renderClaudeControls();
   const select=document.getElementById('codeClaudeProfile');if(!select||!inApp())return;
   try{
