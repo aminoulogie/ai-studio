@@ -35,6 +35,9 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
     private var launchView: StudioLaunchView?
     private var requestedStudioTab = "chat"
     private var studioLoaded = false
+    private let updater = StudioUpdater()
+    private var probeToken = 0
+    private var probingVersion: Int?
     /// The same memory file the Claude accounts use. Set by StudioTabController.
     var memoryStore: ClaudeProfileStore?
     func selectStudioTab(_ mode: String) {
