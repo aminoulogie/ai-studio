@@ -10,7 +10,9 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         chat.tabBarItem = UITabBarItem(title: "Chat", image: UIImage(systemName: "bubble.left.and.bubble.right"), tag: 0)
         let code = StudioTabHost(studio: studio, mode: "code")
         code.tabBarItem = UITabBarItem(title: "Code", image: UIImage(systemName: "chevron.left.forwardslash.chevron.right"), tag: 1)
-        let claude = UINavigationController(rootViewController: ClaudeBrowserController(store: store))
+        let claudeBrowser = ClaudeBrowserController(store: store)
+        claudeBrowser.onStream = { [weak studio] payload in studio?.emitClaude(payload) }
+        let claude = UINavigationController(rootViewController: claudeBrowser)
         claude.tabBarItem = UITabBarItem(title: "Claude", image: UIImage(systemName: "globe"), tag: 2)
         let projects = StudioTabHost(studio: studio, mode: "github")
         projects.tabBarItem = UITabBarItem(title: "Projects", image: UIImage(systemName: "folder"), tag: 3)
