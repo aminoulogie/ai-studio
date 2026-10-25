@@ -136,6 +136,11 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         }, completion: { _ in self.launchView?.removeFromSuperview(); self.launchView = nil })
     }
 
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        guard webView === self.webView, probingVersion != nil else { return }
+        abandonUpdate()
+    }
+
     // Open external links (e.g. "Get key ↗") in Safari instead of inside the app
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
