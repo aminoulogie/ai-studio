@@ -59,6 +59,13 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated); navigationController?.setToolbarHidden(false, animated: false)
+        modelTimer?.invalidate()
+        modelTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.pollModel() }
+        pollModel()
+    }
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        modelTimer?.invalidate(); modelTimer = nil
     }
     override func viewDidLoad() {
         super.viewDidLoad()
