@@ -22,3 +22,10 @@ Limits
 - Does not remove the sideload tool's own certificate expiry.
 - The bridge trusts any page at aistudio.app (including `credentialGet`), so the bundle is checked by size and hash only. Signing the bundle in CI with a public key embedded in the app is the next hardening step.
 - Not verified on a device yet.
+
+## v1.0.100 — Claude tab fixes
+Build passed (run 40207609731).
+- Send: `claude-observer.js` finds Send/Stop buttons in any language, falls back to Enter, and reports which buttons it saw if it fails. The Swift side retries the button 10 times and checks the message really went.
+- In-app script update: the Claude-tab script ships as `studio-observer.js`, is checked by size and sha256 against `studio-web.json`, and is applied to open pages without a new IPA.
+- Containers: a container opened by hand stays open even when it shows the usage limit (no auto-switch, no popup). Limit → Next and Code tab jobs still switch.
+- Code tab send was confirmed working on a device (v1.0.98 build plus the observer update path). The container fix still needs a device check on the v1.0.100 IPA.
