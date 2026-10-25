@@ -221,3 +221,21 @@ body.native-tabs .sidebar.as-history .settings-body,
 body.native-tabs .sidebar.as-history .sidebar-bottom,
 body.native-tabs .sidebar.as-history .sidebar-nav{display:none}
 body.native-tabs .sidebar.as-history .history-title{display:block;margin:10px 16px 4px;font-size:22px;font-weight:600;color:var(--sidebar-fg)}
+
+/* ---- Fonts: one sans for the UI, serif only for page titles and Claude's answers, mono for code ---- */
+button,input,textarea,select{font-family:inherit}
+.think,.code-status,.code-head-toggle,.sheet-title,.plus-menu,.modal,.studio-tab,.s-label,.s-group{font-family:var(--font-sans)}
+.code-input textarea,.code-input #codeRunBtn{font-family:var(--font-sans)}
+
+/* ---- Thinking row: drawn spinner, no text glyph ---- */
+.think-ic{display:inline-flex;align-items:center}
+.think-ic .ic{width:16px;height:16px;color:var(--brand)}
+.think.live .think-ic .ic{animation:studio-spin 1.6s linear infinite}
+@keyframes studio-spin{to{transform:rotate(360deg)}}
+
+/* ---- Claude theme menus: grey sheet, thin dividers, one orange, no colour dots ---- */
+:root[data-theme="claude"] .pb-dot{background:var(--fg3)!important}
+:root[data-theme="claude"] .provider-btn.active .pb-dot{background:var(--brand)!important}
+:root[data-theme="claude"] .plus-menu,:root[data-theme="claude"] .modal{background:#2a2a28;border-color:#3a3936}
+.plus-menu button+button,.plus-menu .plus-toggle+button,.plus-menu button+.plus-toggle{border-top:1px solid var(--border)}
+.btn-new-chat .ic,.nav-item .ic,.gh-btn .ic{width:18px;height:18px;color:inherit}
