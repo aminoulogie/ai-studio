@@ -88,6 +88,7 @@ final class StudioUpdater {
     }
 
     private var htmlFile: URL { directory.appendingPathComponent("index.html") }
+    private var observerFile: URL { directory.appendingPathComponent("observer.js") }
     private var manifestFile: URL { directory.appendingPathComponent("manifest.json") }
 
     // MARK: bundled copy
