@@ -206,8 +206,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                          subtitle: store.status(profile).rawValue + (profile.enabled ? "" : " · Paused") + " · " + usageText(profile),
                          image: UIImage(systemName: "person.crop.circle"),
                          state: profile.id == currentID ? .on : .off) { [weak self] _ in self?.show(profile.id) }
-            } + [UIAction(title: "Add account", image: UIImage(systemName: "plus"),
-                          attributes: store.state.profiles.count >= ClaudeProfileStore.maxProfiles ? .disabled : []) { [weak self] _ in self?.addAccount() }])
+            } + [UIAction(title: "Add account", image: UIImage(systemName: "plus")) { [weak self] _ in self?.addAccount() }])
         actionsButton.menu = UIMenu(children: [
             UIAction(title: "Account settings", image: UIImage(systemName: "person.crop.circle.badge.gearshape")) { [weak self] _ in self?.accountSettings() },
             UIAction(title: "Auto-switch on detected limit", state: store.state.autoSwitch ? .on : .off) { [weak self] _ in
