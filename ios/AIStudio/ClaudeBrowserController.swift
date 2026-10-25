@@ -536,6 +536,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                 notice("Claude usage limit", "Context was saved. Select another account from Accounts or wait for Claude's reset."); return
             }
             guard let next = store.next(after: id, excluding: rotationVisited) else {
+                if job != nil { endJob("failed", note: "Every Claude account has hit its limit. Your context is saved. Try again after the reset.") }
                 notice("No active account remains", "Your context was saved. Wait for Claude's reset, or sign in to another account. Use Reset limit if Claude already allows messages again."); return
             }
             show(next.id, automatic: true)
