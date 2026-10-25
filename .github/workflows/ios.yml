@@ -66,6 +66,27 @@ jobs:
           .art-tools/bin/python ios/scripts/generate_artwork.py
           python3 ios/scripts/inline_libs.py ios/www/index.html
 
+      - name: Write web update manifest
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          page = Path('ios/www/index.html').read_bytes()
+          manifest = {
+              'version': int(os.environ['RUN_NUMBER']),
+              'sha256': hashlib.sha256(page).hexdigest(),
+              'size': len(page),
+              'min_native': 1,
+          }
+          text = json.dumps(manifest, indent=2)
+          Path('ios/www/studio-web.json').write_text(text)
+          Path('ios/studio-web.json').write_text(text)
+          Path('ios/studio-web.html').write_bytes(page)
+          print(text)
+          PY
+
       - name: Generate Xcode project
         run: brew install xcodegen && cd ios && xcodegen generate
 
