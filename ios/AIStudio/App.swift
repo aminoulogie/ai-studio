@@ -46,6 +46,13 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         webView.evaluateJavaScript(script, completionHandler: nil)
     }
 
+    /// Live Claude container updates for the Code tab.
+    func emitClaude(_ payload: [String: Any]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("window.onClaudeStream&&window.onClaudeStream(" + json + ")", completionHandler: nil)
+    }
+
     override func loadView() {
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(studioArtwork, forURLScheme: "studio-art")
