@@ -3010,7 +3010,10 @@ function claudeReplyHTML(job,text,done){
   let h='';
   if(steps.length){
     const tools=steps.filter(s=>s.tool);
-    const live=!done&&tools.length?tools[tools.length-1].text:'';
+    const live=!done&&steps.length?steps[steps.length-1].text:'';
+    if(done&&!job.tEnd)job.tEnd=Date.now();
+    const secs=Math.max(1,Math.round(((done?job.tEnd:Date.now())-(job.t0||Date.now()))/1000));
+    const elapsed=secs<60?secs+'s':Math.floor(secs/60)+'m '+(secs%60)+'s';
     const count=tools.length?tools.length+(tools.length>1?' steps':' step'):'';
     h+='<details class="think'+(done?'':' live')+'"'+(job.thinkOpen&&!done?' open':'')+' ontoggle="claudeThinkToggled(this)"><summary><span class="think-ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg></span><span>Thinking'+(done?'':'…')+'</span><small>'+esc(done?count:live)+'</small></summary><ul>'+
       steps.map(s=>'<li class="'+(s.tool?'t':'n')+'">'+esc(s.text)+'</li>').join('')+'</ul></details>';
