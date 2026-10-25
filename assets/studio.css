@@ -140,3 +140,10 @@ body.native-tabs .studio-tabs{display:none}
 .claude-code-card{display:flex;flex-direction:column;gap:8px;min-width:0}
 .claude-code-answer{white-space:pre-wrap;overflow-wrap:anywhere;max-height:340px;overflow:auto;font-size:12px;font-family:var(--font-mono);background:var(--code-bg);padding:10px;border-radius:10px}
 @media(max-width:680px){.code-route{padding:0 16px 8px}.code-route select{max-width:200px}}
+
+/* Compact, scrollable + / tools menu (Chat and Code) */
+body .plus-menu{max-height:min(44vh,360px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:4px;min-width:210px;border-radius:16px}
+body .plus-menu button,body .plus-menu .plus-toggle{min-height:34px;padding:6px 10px;gap:8px;font-size:13px;line-height:1.25;border-radius:9px}
+body .plus-menu button small,body .plus-menu .plus-toggle small{font-size:10px;line-height:1.3}
+body .plus-menu .plus-toggle input{width:16px;height:16px;flex:none}
+body .plus-menu .opt-title{padding:6px 10px 2px;font-size:12px}
