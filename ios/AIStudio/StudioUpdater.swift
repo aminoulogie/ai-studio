@@ -370,12 +370,34 @@ final class StudioUpdater {
             case .failure(let error):
                 completion(.failure(error))
             case .success(let data):
-                do {
-                    try self.store(chosen.manifest, data: data)
-                    completion(.success(self.status()))
-                } catch {
-                    completion(.failure(error))
+                self.fetchObserver(for: chosen.manifest, from: chosen.observerURL, token: token) { observerResult in
+                    switch observerResult {
+                    case .failure(let error):
+                        completion(.failure(error))
+                    case .success(let script):
+                        do {
+                            try self.store(chosen.manifest, data: data, observer: script)
+                            completion(.success(self.status()))
+                        } catch {
+                            completion(.failure(error))
+                        }
+                    }
                 }
+            }
+        }
+    }
+
+    /// The helper script is optional: older releases do not carry one.
+    private func fetchObserver(for manifest: StudioWebManifest, from url: URL?, token: String?,
+                               completion: @escaping (Result<Data?, Error>) -> Void) {
+        guard manifest.observerSha256 != nil else { completion(.success(nil)); return }
+        guard let url = url else {
+            completion(.failure(StudioUpdateError.invalid("The update is missing its Claude helper script."))); return
+        }
+        network.get(url, token: token, accept: "application/octet-stream", maxBytes: Self.maxObserverBytes) { result in
+            switch result {
+            case .failure(let error): completion(.failure(error))
+            case .success(let body): completion(.success(body))
             }
         }
     }
