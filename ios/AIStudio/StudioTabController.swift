@@ -33,7 +33,7 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         claude.insertIntoChat(text) { inserted in reply(inserted ? "inserted" : "copied", nil) }
     }
     /// Code tab -> Claude container: send the message, stream the reply back to the Code tab.
-    func startClaudeJob(id: String, text: String, reply: @escaping (Any?, String?) -> Void) {
+    func startClaudeJob(id: String, text: String, images: [[String: String]] = [], reply: @escaping (Any?, String?) -> Void) {
         guard let nav = viewControllers?.first(where: { $0 is UINavigationController }) as? UINavigationController,
               let claude = nav.viewControllers.first as? ClaudeBrowserController else {
             reply(nil, "Claude tab unavailable"); return
