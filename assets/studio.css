@@ -14,7 +14,7 @@
   --glass:rgba(20,23,41,.89);--art-opacity:.32;--shadow:0 16px 50px rgba(0,0,0,.2);
 }
 @media(prefers-color-scheme:dark){
-  :root:not([data-theme="light"]):not([data-theme="dark"]){
+  :root:not([data-theme="light"]):not([data-theme="dark"]):not([data-theme="claude"]){
     --main-bg:#0e1020;--surface:#191c30;--fg:#f3f3fd;--fg2:#b3b8d1;--fg3:#8e96b5;
     --border:#2b304c;--border2:#3b4261;--brand:#a59bff;--brand-light:#302b54;
     --code-bg:#131629;--user-bg:#302b54;--user-border:#49406e;
