@@ -8,6 +8,21 @@ struct ClaudeProfile: Codable, Identifiable {
     var enabled = true
     var limitedUntil: Date?
     var lastURL: URL?
+    // Usage tracking (optional so metadata saved by older builds still decodes).
+    var windowStart: Date?
+    var windowCount: Int?
+    var limitEstimate: Int?
+    var learnedLimits: [Int]?
+}
+
+/// Messages this app sent in the current five-hour window versus an estimated limit.
+struct ClaudeUsage {
+    var used: Int
+    var limit: Int
+    var percent: Int
+    var source: String   // "manual", "learned" or "default"
+    var limited: Bool
+    var resetsIn: TimeInterval?
 }
 
 struct ClaudeContext: Codable {
