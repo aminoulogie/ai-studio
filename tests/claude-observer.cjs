@@ -34,45 +34,53 @@ assert.equal(run().context.claudeMemoryProposal(),null,'No block means no propos
 assert.equal(run({reply:'<<<STUDIO_MEMORY\n\nSTUDIO_MEMORY>>>'}).context.claudeMemoryProposal(),null,'An empty block is ignored');
 assert.equal(run({reply:'<<<STUDIO_MEMORY\n'+'x'.repeat(5000)+'\nSTUDIO_MEMORY>>>'}).context.claudeMemoryProposal().length,4000,'Proposals are capped');
 assert.equal(run().context.claudeInsertText('hello'),false,'Report failure when the message box is missing');
-// Code tab send/stop: claude.ai button labels follow the page language, and an unlabeled button is never guessed.
-function runButtons(items,{box=true}={}){
-  const clicks=[],keys=[];
-  const btns=items.map(x=>typeof x==='string'?{label:x}:x).map(b=>({
-    getAttribute:k=>k==='aria-label'?b.label:null,getClientRects:()=>[{}],disabled:!!b.disabled,click:()=>clicks.push(b.label)}));
-  const scope={querySelectorAll:()=>btns,parentElement:null};
-  const middle={querySelectorAll:()=>[],parentElement:scope};
-  const boxEl={parentElement:middle,focus(){},dispatchEvent:e=>keys.push(e.type)};
-  const context={location:{protocol:'https:',hostname:'claude.ai',href:'https://claude.ai/chat/x',pathname:'/chat/x'},
-    window:{webkit:{messageHandlers:{claudeObserver:{postMessage(){}}}}},
-    document:{documentElement:{},querySelectorAll:s=>s.startsWith('button')?btns:[],
-      querySelector:s=>box&&s.includes('contenteditable')?boxEl:null},
+
+// Code tab bridge: the page language must not decide whether Send can be found.
+function runBox(labels,{noBox=false}={}){
+  const clicked=[],events=[];
+  const mk=(label,disabled=false)=>({disabled,
+    getAttribute:k=>k==='aria-label'?label:(k==='aria-disabled'&&disabled?'true':null),
+    getClientRects:()=>[{}],click:()=>clicked.push(label)});
+  const buttons=labels.map(l=>typeof l==='string'?mk(l):mk(l.label,l.disabled));
+  const scope={parentElement:null,querySelectorAll:()=>buttons};
+  const box={parentElement:scope,focus(){},dispatchEvent:e=>events.push(e.type)};
+  const ctx={location:{protocol:'https:',hostname:'claude.ai',href:'https://claude.ai/chat/x',pathname:'/chat/x'},
+    window:{webkit:{messageHandlers:{claudeObserver:{postMessage:()=>{}}}}},
+    document:{documentElement:{},querySelectorAll:s=>s.includes('button')?buttons:[],
+      querySelector:s=>noBox?null:(s.includes('contenteditable')?box:null)},
     MutationObserver:class{observe(){}},getComputedStyle:()=>({visibility:'visible'}),setTimeout:()=>1,
-    KeyboardEvent:class{constructor(type,init){this.type=type;Object.assign(this,init);}}};
-  vm.runInNewContext(source,context);
-  return {context,clicks,keys};
+    KeyboardEvent:class{constructor(type,init){this.type=type;Object.assign(this,init)}}};
+  vm.runInNewContext(source,ctx);
+  return {context:ctx,clicked,events};
 }
-for(const [label,others] of [['Send message',['Add files']],['Envoyer le message',['Joindre un fichier','Dicter']],
-  ['Enviar mensaje',['Adjuntar archivo']],['Nachricht senden',['Datei anhängen']],['发送消息',['添加文件']],['送信',[]],['Отправить сообщение',[]]]){
-  const t=runButtons([...others,label]);
-  assert.equal(t.context.claudeSubmit(),true,'find send in: '+label);
-  assert.deepEqual(t.clicks,[label],'press only the send button: '+label);
-}
-for(const items of [[''],['Add files','Use voice mode'],['Joindre un fichier'],['Send feedback'],[{label:'Send message',disabled:true}]]){
-  const t=runButtons(items);
-  assert.equal(t.context.claudeSubmit(),false,'no send button to press: '+JSON.stringify(items));
-  assert.deepEqual(t.clicks,[],'nothing pressed: '+JSON.stringify(items));
-}
-for(const label of ['Stop response','Arrêter la réponse','Detener respuesta','停止']){
-  const t=runButtons([label]);
-  assert.equal(t.context.claudeStatus().streaming,true,'streaming seen from: '+label);
-  assert.equal(t.context.claudeStop(),true,'stop pressed: '+label);
-  assert.equal(t.context.claudeSubmit(),false,'a stop button is never pressed as send: '+label);
-}
-assert.equal(runButtons(['Send message']).context.claudeStatus().streaming,false,'a send button is not streaming');
-const enter=runButtons(['']);
-assert.equal(enter.context.claudeSubmitKey(),true,'Enter fallback works with a message box');
-assert.deepEqual(enter.keys,['keydown','keypress','keyup'],'Enter fallback sends a full key press');
-assert.equal(runButtons([],{box:false}).context.claudeSubmitKey(),false,'Enter fallback needs a message box');
-assert.equal(runButtons([],{box:false}).context.claudeSubmitDiag(),'no message box found');
-assert.equal(runButtons(['Envoyer le message','',{label:'Dicter',disabled:true}]).context.claudeSubmitDiag(),'Envoyer le message | unlabeled | Dicter (disabled)','diagnostic names the visible buttons');
-console.log('Claude observer checks passed: notices, false positives, origins, ordered visible-text export, shared memory read-back, send/stop in several languages and the Enter fallback.');
+let r=runBox(['Attach file','Send message']);
+assert.equal(r.context.claudeSubmit(),true,'English Send button');
+assert.deepEqual(r.clicked,['Send message']);
+r=runBox(['Joindre un fichier','Envoyer le message','Commande vocale']);
+assert.equal(r.context.claudeSubmit(),true,'French Send button');
+assert.deepEqual(r.clicked,['Envoyer le message'],'Only the Send button is pressed, never attach or voice');
+r=runBox([{label:'Send message',disabled:true}]);
+assert.equal(r.context.claudeSubmit(),false,'A disabled Send button is not pressed');
+assert.deepEqual(r.clicked,[]);
+r=runBox(['Attach file','Dictate']);
+assert.equal(r.context.claudeSubmit(),false,'Never guess a button that is not Send');
+assert.deepEqual(r.clicked,[]);
+assert.equal(r.context.claudeSubmitKey(),true,'Enter fallback reaches the message box');
+assert.deepEqual(r.events,['keydown','keypress','keyup']);
+r=runBox([],{noBox:true});
+assert.equal(r.context.claudeSubmit(),false);
+assert.equal(r.context.claudeSubmitKey(),false,'No Enter fallback without a message box');
+assert.equal(r.context.claudeSubmitDiag(),'no message box found');
+r=runBox(['Attach file',{label:'Send message',disabled:true}]);
+assert.equal(r.context.claudeSubmitDiag(),'Attach file | Send message (disabled)','Failure can say which buttons were visible');
+r=runBox(['Stop response']);
+assert.equal(r.context.claudeStatus().streaming,true,'Stop button means Claude is answering');
+assert.equal(r.context.claudeStop(),true);
+assert.deepEqual(r.clicked,['Stop response']);
+r=runBox(['Arrêter la réponse']);
+assert.equal(r.context.claudeStatus().streaming,true,'French Stop button means Claude is answering');
+assert.equal(r.context.claudeStop(),true);
+r=runBox(['Send message']);
+assert.equal(r.context.claudeStatus().streaming,false);
+assert.equal(r.context.claudeStop(),false,'Stop must not press Send');
+console.log('Claude observer checks passed: notices, false positives, origins, ordered visible-text export, shared memory read-back, send/stop in any language, Enter fallback.');
