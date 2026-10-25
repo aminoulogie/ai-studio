@@ -73,8 +73,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: profile.id)
         configuration.allowsInlineMediaPlayback = true
         configuration.userContentController.add(self, contentWorld: observerWorld, name: "claudeObserver")
-        if let url = Bundle.main.url(forResource: "claude-observer", withExtension: "js"),
-           let script = try? String(contentsOf: url, encoding: .utf8) {
+        let bundledObserver = Bundle.main.url(forResource: "claude-observer", withExtension: "js")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        if let script = StudioUpdater.shared.observerSource() ?? bundledObserver {
             configuration.userContentController.addUserScript(WKUserScript(
                 source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: observerWorld))
         }
