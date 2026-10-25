@@ -2868,6 +2868,15 @@ function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrol
 function scrollDown(){const m=document.getElementById('messages');m.scrollTop=m.scrollHeight;}
 function showErr(msg){const el=document.getElementById('errorStrip');el.textContent=msg;el.style.display='block';}
 function hideErr(){document.getElementById('errorStrip').style.display='none';}
+async function codeSendToClaude(){
+  const box=document.getElementById('codeTask'),text=(box&&box.value||'').trim();
+  if(!text){toast('Type a message first');return;}
+  if(!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.native)){toast('Open this in the iPhone app to use the Claude tab');return;}
+  try{
+    const r=await native({op:'sendToClaude',text});
+    toast(r==='inserted'?'In the Claude message box: press send there':'Copied: paste it into your Claude chat');
+  }catch(e){toast('Could not reach the Claude tab');}
+}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
 bootGitHubCredential().catch(e=>showErr('GitHub secure sign-in is unavailable: '+e.message)).then(init);
