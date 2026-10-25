@@ -8,7 +8,13 @@ struct StudioWebManifest: Codable, Equatable {
     let sha256: String
     let size: Int
     let minNative: Int
-    enum CodingKeys: String, CodingKey { case version, sha256, size, minNative = "min_native" }
+    /// Optional: the Claude-tab helper script (claude-observer.js) that ships with this web version.
+    var observerSha256: String? = nil
+    var observerSize: Int? = nil
+    enum CodingKeys: String, CodingKey {
+        case version, sha256, size, minNative = "min_native"
+        case observerSha256 = "observer_sha256", observerSize = "observer_size"
+    }
 }
 
 struct StudioLaunchContent {
