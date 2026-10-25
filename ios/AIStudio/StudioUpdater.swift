@@ -27,6 +27,7 @@ struct StudioRelease {
     let version: Int
     let manifestURL: URL
     let htmlURL: URL
+    var observerURL: URL? = nil
 }
 
 enum StudioUpdateError: LocalizedError {
