@@ -2942,6 +2942,11 @@ function claudeJobEnd(note){
   if(note){codeLog('step','⚠️ '+esc(note));codeStatus('Claude did not answer','warning');}
 }
 async function codeRunViaClaude(task){
+  // Photos go to the container as real attachments; text files are added to the message as text.
+  const sendFiles=codeAttachments.slice();
+  const images=sendFiles.filter(a=>a.isImage).slice(0,4).map(a=>{const m=/^data:([^;,]+)[;,]/.exec(a.dataUrl||'');return {name:a.name||'photo.jpg',mime:m?m[1]:'image/jpeg',data:String(a.dataUrl||'').split(',')[1]||''};}).filter(i=>i.data);
+  if(images.reduce((n,i)=>n+i.data.length,0)>6000000){toast('The photos are too large to send together. Remove one.');return;}
+  const fullText=task+sendFiles.filter(a=>!a.isImage).map(a=>'\n\n--- File: '+a.name+' ---\n'+a.content).join('');
   document.getElementById('codeTask').value='';ls('code_draft','');
   const id='c'+Date.now().toString(36);
   codeLog('user',esc(task));
