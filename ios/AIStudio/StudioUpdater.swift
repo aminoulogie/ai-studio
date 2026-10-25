@@ -17,6 +17,11 @@ struct StudioWebManifest: Codable, Equatable {
     }
 }
 
+extension Notification.Name {
+    /// Posted when the verified Claude helper script changes (downloaded, reset or rolled back).
+    static let studioObserverUpdated = Notification.Name("StudioObserverUpdated")
+}
+
 struct StudioLaunchContent {
     let html: String
     let version: Int
