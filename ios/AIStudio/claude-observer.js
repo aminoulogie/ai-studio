@@ -121,6 +121,30 @@
     for(const type of ['keydown','keypress','keyup'])box.dispatchEvent(new KeyboardEvent(type,init));
     return true;
   };
+  // Photos from the Code tab: put them in Claude's file input (or paste them) so they upload like normal attachments.
+  // Returns how many were attached; native code refuses to send when this is lower than expected.
+  globalThis.claudeAttachImages=json=>{
+    try{
+      const list=JSON.parse(json);if(!Array.isArray(list)||!list.length)return 0;
+      const dt=new DataTransfer();
+      for(const item of list){
+        const bin=atob(String(item.data||''));const bytes=new Uint8Array(bin.length);
+        for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+        dt.items.add(new File([bytes],String(item.name||'photo.jpg'),{type:String(item.mime||'image/jpeg')}));
+      }
+      const input=Array.from(document.querySelectorAll('input[type="file"]')).find(el=>!el.disabled);
+      if(input){
+        input.files=dt.files;
+        input.dispatchEvent(new Event('input',{bubbles:true}));
+        input.dispatchEvent(new Event('change',{bubbles:true}));
+        return dt.files.length;
+      }
+      const box=composerBox();if(!box)return 0;
+      box.focus();
+      box.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));
+      return dt.files.length;
+    }catch(e){return 0;}
+  };
   // Names of the buttons around the message box, so a failure can say what was visible.
   globalThis.claudeSubmitDiag=()=>{
     const box=composerBox();if(!box)return 'no message box found';
