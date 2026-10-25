@@ -2974,7 +2974,7 @@ async function codeRunViaClaude(task){
   codeLog('user',esc(task));
   const el=codeLog('step','<i>Sending to your Claude container'+(images.length?' with '+images.length+' photo'+(images.length>1?'s':''):'')+'…</i>');
   codeAttachments=[];renderAttachBar('code');autoResize(document.getElementById('codeTask'));
-  codeState.claudeJob={id,el,thinkOpen:false};codeState.busy=true;
+  codeState.claudeJob={id,el,thinkOpen:false,t0:Date.now()};codeState.busy=true;
   document.getElementById('codeRunBtn').textContent='Stop';
   codeStatus('Sending to Claude…','working');
   try{await native({op:'claudeSend',id,text:fullText,images});}
