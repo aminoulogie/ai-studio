@@ -146,16 +146,29 @@ async function refreshClaudeCodeProfiles(){
   try{
     const profiles=await native({op:'claudeProfiles'});
     const selected=select.value||ls(profileKey());
-    select.innerHTML='<option value="">Choose container…</option>'+profiles.map(p=>'<option value="'+esc(p.id)+'" '+(!p.enabled?'disabled':'')+'>'+esc('Container '+p.number+' · '+p.name+' · '+p.status+' · '+p.percent+'%')+'</option>').join('');
+    select.innerHTML='<option value="">Choose container…</option>'+profiles.map(p=>'<option value="'+esc(p.id)+'" '+(!p.enabled?'disabled':'')+'>'+esc(containerLabel(p))+'</option>').join('');
     select.value=profiles.some(p=>p.id===selected)?selected:(profiles.find(p=>p.selected&&p.enabled)||profiles.find(p=>p.status==='Active'&&p.enabled)||profiles.find(p=>p.enabled))?.id||'';
     if(select.value)ls(profileKey(),select.value);
     renderClaudeUsage(profiles);
   }catch(e){toast('Could not load Claude containers: '+e.message);}
 }
+function containerLabel(p){return 'Container '+p.number+' · '+p.name+' · '+p.status+(Number.isFinite(p.percent)?' · '+p.percent+'%':'');}
+/* Lightweight refresh for the usage bars. It never rebuilds the container picker, so a running or
+   about-to-start task cannot lose its selected container. */
+async function refreshClaudeUsage(){
+  if(!route()||!inApp())return;
+  try{
+    const profiles=await native({op:'claudeProfiles'});
+    if(!Array.isArray(profiles))return;
+    renderClaudeUsage(profiles);
+    const select=document.getElementById('codeClaudeProfile');
+    if(select)for(const p of profiles){const option=[...select.options].find(o=>o.value===p.id);if(option)option.textContent=containerLabel(p);}
+  }catch(e){/* the bars simply stay as they were */}
+}
 let usageRefreshTimer=null;
 function scheduleUsageRefresh(){
   if(usageRefreshTimer||!route())return;
-  usageRefreshTimer=setTimeout(()=>{usageRefreshTimer=null;refreshClaudeCodeProfiles();},2000);
+  usageRefreshTimer=setTimeout(()=>{usageRefreshTimer=null;refreshClaudeUsage();},2000);
 }
 function openClaudeCodeSettings(){
   const max=maxSubAgents();
