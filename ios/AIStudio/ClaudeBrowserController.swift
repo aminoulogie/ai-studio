@@ -25,8 +25,6 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                                                name: .studioObserverUpdated, object: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-    deinit { NotificationCenter.default.removeObserver(self) }
-
     /// The verified helper script from an app update, or the one built into the app.
     private func currentObserverScript() -> String? {
         if let updated = StudioUpdater.shared.observerSource() { return updated }
