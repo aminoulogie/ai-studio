@@ -199,19 +199,45 @@ final class StudioUpdater {
         return (manifest, html)
     }
 
-    func store(_ manifest: StudioWebManifest, data: Data) throws {
+    func store(_ manifest: StudioWebManifest, data: Data, observer: Data? = nil) throws {
         try Self.validate(manifest, data: data)
+        if manifest.observerSha256 != nil {
+            guard let observer = observer else {
+                throw StudioUpdateError.invalid("The update is missing its Claude helper script.")
+            }
+            try Self.validateObserver(manifest, data: observer)
+        }
         let fm = FileManager.default
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
-        // Remove the old manifest first so a half-written pair is never trusted.
+        // Remove the old manifest first so a half-written set is never trusted.
         try? fm.removeItem(at: manifestFile)
+        try? fm.removeItem(at: observerFile)
+        if manifest.observerSha256 != nil, let observer = observer {
+            try observer.write(to: observerFile, options: .atomic)
+        }
         try data.write(to: htmlFile, options: .atomic)
         try JSONEncoder().encode(manifest).write(to: manifestFile, options: .atomic)
+        if manifest.observerSha256 != nil {
+            NotificationCenter.default.post(name: .studioObserverUpdated, object: nil)
+        }
+    }
+
+    /// The verified Claude-tab helper script that came with the stored update, if it is newer than the built-in one.
+    func installedObserver() -> String? {
+        guard let stored = installed(),
+              !badVersions().contains(stored.manifest.version),
+              stored.manifest.version > (builtIn()?.version ?? 0),
+              let data = try? Data(contentsOf: observerFile),
+              (try? Self.validateObserver(stored.manifest, data: data)) != nil,
+              let text = String(data: data, encoding: .utf8) else { return nil }
+        return text
     }
 
     private func removeInstalled() {
         try? FileManager.default.removeItem(at: manifestFile)
         try? FileManager.default.removeItem(at: htmlFile)
+        try? FileManager.default.removeItem(at: observerFile)
+        NotificationCenter.default.post(name: .studioObserverUpdated, object: nil)
     }
 
     private func currentVersion() -> Int {
