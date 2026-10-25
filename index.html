@@ -2950,8 +2950,9 @@ async function codeRunViaClaude(task){
   document.getElementById('codeTask').value='';ls('code_draft','');
   const id='c'+Date.now().toString(36);
   codeLog('user',esc(task));
-  const el=codeLog('step','<i>Sending to your Claude container…</i>');
-  codeState.claudeJob={id,el};codeState.busy=true;
+  const el=codeLog('step','<i>Sending to your Claude container'+(images.length?' with '+images.length+' photo'+(images.length>1?'s':''):'')+'…</i>');
+  codeAttachments=[];renderAttachBar('code');autoResize(document.getElementById('codeTask'));
+  codeState.claudeJob={id,el,thinkOpen:false};codeState.busy=true;
   document.getElementById('codeRunBtn').textContent='Stop';
   codeStatus('Sending to Claude…','working');
   try{await native({op:'claudeSend',id,text:task});}
