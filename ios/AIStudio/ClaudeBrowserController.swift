@@ -575,6 +575,16 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
 
     private func handleLimit(id: UUID, context: ClaudeContext, manual: Bool, retryAfter: TimeInterval? = nil) {
         guard id == currentID, !switching else { return }
+        // Opened on purpose and nothing is being sent: stay here. Only note the limit; no switch, no popup.
+        // The Limit → Next button (manual) and a Code tab message in progress still switch as before.
+        if !manual, job == nil, id == stayOnID {
+            if let profile = store.state.profiles.first(where: { $0.id == id }), store.status(profile) != .rateLimited {
+                let delay = retryAfter.flatMap { $0 > 0 && $0 <= 86400 ? $0 : nil } ?? 5 * 3600
+                try? store.update(id) { $0.status = .rateLimited; $0.limitedUntil = Date().addingTimeInterval(delay) }
+                refreshMenus()
+            }
+            return
+        }
         if presentedViewController != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 self?.handleLimit(id: id, context: context, manual: manual, retryAfter: retryAfter)
