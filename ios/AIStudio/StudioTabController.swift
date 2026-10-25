@@ -22,7 +22,7 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         selectedIndex = 0
         delegate = self
         // Build every tab's view up front so none starts blank/black when first opened.
-        [chat, code, projects, settings, claudeBrowser].forEach { $0.loadViewIfNeeded() }
+        ([chat, code, projects, settings, claudeBrowser] as [UIViewController]).forEach { $0.loadViewIfNeeded() }
     }
     func claudeProfiles() -> [[String: Any]] { claudeBrowser.codeProfiles() }
     func runClaudeCode(_ message: [String: Any], reply: @escaping (Any?, String?) -> Void) {
