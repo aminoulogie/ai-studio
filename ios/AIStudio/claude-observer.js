@@ -109,12 +109,28 @@
     };
   };
   globalThis.claudeSubmit=()=>{
-    const btn=document.querySelector('button[aria-label="Send message"],button[aria-label="Send Message"],button[aria-label*="Send"]');
+    const btn=findSendButton();
     if(!btn||btn.disabled||btn.getAttribute('aria-disabled')==='true')return false;
     btn.click();return true;
   };
+  // Last resort when no send button can be found: press Enter in the message box. Native code then checks the message really went.
+  globalThis.claudeSubmitKey=()=>{
+    const box=composerBox();if(!box)return false;
+    box.focus();
+    const init={key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true};
+    for(const type of ['keydown','keypress','keyup'])box.dispatchEvent(new KeyboardEvent(type,init));
+    return true;
+  };
+  // Names of the buttons around the message box, so a failure can say what was visible.
+  globalThis.claudeSubmitDiag=()=>{
+    const box=composerBox();if(!box)return 'no message box found';
+    let scope=box;
+    for(let i=0;i<4&&scope.parentElement;i++)scope=scope.parentElement;
+    return Array.from(scope.querySelectorAll('button,[role="button"]')).filter(visible)
+      .map(el=>(labelOf(el)||'unlabeled')+(el.disabled?' (disabled)':'')).slice(0,8).join(' | ').slice(0,300);
+  };
   globalThis.claudeStop=()=>{
-    const btn=document.querySelector('button[aria-label*="Stop"]');
+    const btn=findButton(STOP_RE);
     if(!btn)return false;
     btn.click();return true;
   };
