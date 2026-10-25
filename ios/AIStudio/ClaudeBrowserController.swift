@@ -502,7 +502,19 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                 guard ok else {
                     self.endJob("failed", note: "Could not find Claude's message box. Open the Claude tab and check the page."); return
                 }
-                self.submitJob(current.id, attempts: 10)
+                self.attachImages(for: current.id) { [weak self] attached in
+                    guard let self = self, self.job?.id == current.id else { return }
+                    guard attached else {
+                        self.endJob("failed", note: "Could not attach your photo, so nothing was sent. Open the Claude tab and attach it there.")
+                        return
+                    }
+                    // Give the upload time to finish; Claude keeps its send button off until then.
+                    let delay: Double = (self.job?.images.isEmpty ?? true) ? 0 : 3.0 + 1.5 * Double(self.job?.images.count ?? 0)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                        guard let self = self, self.job?.id == current.id else { return }
+                        self.submitJob(current.id, attempts: delay == 0 ? 10 : 40)
+                    }
+                }
             }
         }
     }
