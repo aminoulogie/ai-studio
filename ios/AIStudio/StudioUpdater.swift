@@ -133,7 +133,7 @@ final class StudioUpdater {
             }
             guard let manifestURL = link(manifestName), let htmlURL = link(htmlName) else { continue }
             if best == nil || number > (best?.version ?? 0) {
-                best = StudioRelease(version: number, manifestURL: manifestURL, htmlURL: htmlURL)
+                best = StudioRelease(version: number, manifestURL: manifestURL, htmlURL: htmlURL, observerURL: link(observerName))
             }
         }
         return best
