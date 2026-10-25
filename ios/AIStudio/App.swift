@@ -165,6 +165,12 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             do { try store.setMasterMemory(text); replyHandler(store.masterMemory, nil) }
             catch { replyHandler(nil, error.localizedDescription) }
             return
+        case "sendToClaude":
+            guard let text = msg["text"] as? String, !text.isEmpty, text.utf8.count <= 40_000,
+                  let tabs = tabBarController as? StudioTabController else {
+                replyHandler(nil, "Nothing to send"); return
+            }
+            tabs.sendToClaude(text, reply: replyHandler); return
         case "aiRequest":
             studioRequests.send(msg, reply: replyHandler); return
         case "cancelRequest":
