@@ -144,3 +144,4 @@ jobs:
             ios/AIStudio-v1.0.${{ github.run_number }}.ipa
             ios/studio-web.html
             ios/studio-web.json
+            ios/studio-observer.js
