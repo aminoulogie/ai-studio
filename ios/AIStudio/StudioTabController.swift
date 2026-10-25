@@ -48,6 +48,14 @@ private final class StudioTabHost: UIViewController {
     init(studio: WebViewController, mode: String) { self.studio = studio; self.mode = mode; super.init(nibName: nil, bundle: nil) }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     func activate() { studio.selectStudioTab(mode) }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+    }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        studio.view.setNeedsLayout(); studio.view.layoutIfNeeded()
+    }
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         if studio.parent !== self {
