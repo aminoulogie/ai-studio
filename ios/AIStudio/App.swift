@@ -229,7 +229,17 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
                   let tabs = tabBarController as? StudioTabController else {
                 replyHandler(nil, "Nothing to send"); return
             }
-            tabs.startClaudeJob(id: id, text: text, reply: replyHandler); return
+            var images: [[String: String]] = []
+            if let raw = msg["images"] as? [[String: Any]] {
+                for item in raw.prefix(4) {
+                    guard let data = item["data"] as? String, !data.isEmpty, data.utf8.count <= 3_000_000 else { continue }
+                    let mime = (item["mime"] as? String) ?? "image/jpeg"
+                    guard ["image/jpeg", "image/png", "image/webp", "image/gif"].contains(mime) else { continue }
+                    let name = String(((item["name"] as? String) ?? "photo.jpg").prefix(80))
+                    images.append(["data": data, "mime": mime, "name": name])
+                }
+            }
+            tabs.startClaudeJob(id: id, text: text, images: images, reply: replyHandler); return
         case "claudeStop":
             (tabBarController as? StudioTabController)?.stopClaudeJob(); replyHandler(true, nil); return
         case "sendToClaude":
