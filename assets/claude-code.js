@@ -130,8 +130,9 @@ function setClaudeCodeRoute(value){
 function renderClaudeUsage(profiles){
   const controls=document.getElementById('claudeCodeControls');if(!controls)return;
   let panel=document.getElementById('claudeUsagePanel');
-  if(!panel){panel=document.createElement('div');panel.id='claudeUsagePanel';controls.appendChild(panel);}
-  panel.innerHTML=profiles.filter(p=>p.enabled).map(p=>{
+  if(!panel){panel=document.createElement('details');panel.id='claudeUsagePanel';controls.appendChild(panel);}
+  const on=profiles.filter(p=>p.enabled),limited=on.filter(p=>p.limited||p.percent>=100).length;
+  const rows=on.map(p=>{
     const cls=p.percent>=100?'cu-full':p.percent>=70?'cu-warn':'cu-ok';
     const limit=(p.limitSource==='manual'?'':'~')+p.limit;
     const reset=p.resetsIn>0?' · resets '+formatClaudeReset(p.resetsIn):'';
