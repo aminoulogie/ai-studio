@@ -549,7 +549,7 @@ private final class ClaudeCodePending {
 
 extension ClaudeBrowserController {
     func codeProfiles() -> [[String: Any]] {
-        store.state.profiles.enumerated().map { index, p in
+        store.state.profiles.enumerated().map { index, p -> [String: Any] in
             let usage = store.usage(p)
             return ["id": p.id.uuidString, "number": index + 1, "name": p.name,
                     "status": store.status(p).rawValue, "enabled": p.enabled,
