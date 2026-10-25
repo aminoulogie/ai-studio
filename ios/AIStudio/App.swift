@@ -130,6 +130,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard webView === self.webView else { return }
         studioLoaded = true; applyStudioTab()
+        if let version = probingVersion { probe(version: version, token: probeToken, remaining: 20) }
         UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.3, animations: {
             self.launchView?.alpha = 0
         }, completion: { _ in self.launchView?.removeFromSuperview(); self.launchView = nil })
