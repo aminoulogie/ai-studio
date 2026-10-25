@@ -30,6 +30,7 @@ jobs:
           node scripts/check-private-data.cjs
           node tests/claude-observer.cjs
           node tests/shared-memory.cjs
+          node tests/claude-bridge.cjs
           bash -n scripts/git-setup.sh ios/scripts/build-ipa.sh
       - name: Install browser checks
         run: |
