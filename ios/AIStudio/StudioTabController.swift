@@ -20,6 +20,16 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         selectedIndex = 0
         delegate = self
     }
+    /// Code tab -> Claude tab: switch tabs and type the text into the open chat. The person presses send.
+    func sendToClaude(_ text: String, reply: @escaping (Any?, String?) -> Void) {
+        guard let nav = viewControllers?.first(where: { $0 is UINavigationController }) as? UINavigationController,
+              let claude = nav.viewControllers.first as? ClaudeBrowserController else {
+            reply(nil, "Claude tab unavailable"); return
+        }
+        selectedIndex = 2
+        claude.loadViewIfNeeded()
+        claude.insertIntoChat(text) { inserted in reply(inserted ? "inserted" : "copied", nil) }
+    }
     func selectStudioMode(_ mode: String) {
         let indexes = ["chat": 0, "code": 1, "github": 3, "settings": 4]
         guard let index = indexes[mode], selectedIndex != index else { return }
