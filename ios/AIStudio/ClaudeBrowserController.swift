@@ -323,24 +323,26 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     }
     /// Types text into the open Claude chat; the person presses send. Falls back to the clipboard.
     /// Calls back with true when the text is in the message box, false when it was copied instead.
-    func insertIntoChat(_ text: String, attempts: Int = 3, completion: @escaping (Bool) -> Void) {
+    func insertIntoChat(_ text: String, attempts: Int = 3, copyOnFail: Bool = true, completion: @escaping (Bool) -> Void) {
         if let web = currentBrowser, safeClaudeURL(web.url) != nil {
             web.evaluateJavaScript("globalThis.claudeInsertText?.(" + jsLiteral(text) + ")", in: nil, in: observerWorld) { [weak self] result in
                 if case .success(let value) = result, (value as? Bool) == true { completion(true); return }
-                self?.retryInsert(text, attempts: attempts, completion: completion)
+                self?.retryInsert(text, attempts: attempts, copyOnFail: copyOnFail, completion: completion)
             }
         } else {
-            retryInsert(text, attempts: attempts, completion: completion)
+            retryInsert(text, attempts: attempts, copyOnFail: copyOnFail, completion: completion)
         }
     }
-    private func retryInsert(_ text: String, attempts: Int, completion: @escaping (Bool) -> Void) {
+    private func retryInsert(_ text: String, attempts: Int, copyOnFail: Bool, completion: @escaping (Bool) -> Void) {
         if attempts > 1 {
-            // The page may still be loading right after switching to this tab.
+            // The page may still be loading right after switching to this tab or account.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-                self?.insertIntoChat(text, attempts: attempts - 1, completion: completion)
+                self?.insertIntoChat(text, attempts: attempts - 1, copyOnFail: copyOnFail, completion: completion)
             }
         } else {
-            UIPasteboard.general.setItems([[UIPasteboard.typeAutomatic: text]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(600)])
+            if copyOnFail {
+                UIPasteboard.general.setItems([[UIPasteboard.typeAutomatic: text]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(600)])
+            }
             completion(false)
         }
     }
