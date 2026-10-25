@@ -3,7 +3,8 @@
 ## v1.0.96 — done
 Code tab "Send to Claude" bridge (types into Claude's message box, user presses send). Build passed, release published.
 
-## v1.0.97 — App updates from Settings (no new signed IPA)
+## v1.0.98 — App updates from Settings (no new signed IPA)
+Planned as v1.0.97; that run failed on a stale test, so it shipped as v1.0.98 (build passed, release published with studio-web.html and studio-web.json).
 
 Settings → App updates updates the Studio web layer without re-signing or reinstalling the IPA.
 
