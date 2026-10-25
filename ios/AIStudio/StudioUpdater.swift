@@ -287,7 +287,7 @@ final class StudioUpdater {
                               remote.version == release.version else {
                             completion(.failure(StudioUpdateError.invalid("The update manifest is unreadable."))); return
                         }
-                        self.candidate = (remote, release.htmlURL)
+                        self.candidate = (remote, release.htmlURL, release.observerURL)
                         completion(.success(self.report(for: remote)))
                     }
                 }
