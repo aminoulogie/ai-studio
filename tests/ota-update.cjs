@@ -85,4 +85,7 @@ assert.match(wf,/files: \|[\s\S]*studio-observer\.js/,'the release must carry th
 const observerSrc=read('ios/AIStudio/claude-observer.js');
 assert.ok(observerSrc.length<Number(upd.match(/maxObserverBytes = ([\d_]+)/)[1].replace(/_/g,'')),'the observer must fit the download limit');
 for(const marker of ['claudeObserver','claudeSubmit'])assert.ok(observerSrc.includes(marker),'the observer must contain '+marker+' (the updater requires it)');
+// A container the person opened by hand stays open even when it shows a limit notice
+assert.match(browser,/stayOnID = automatic \? nil : id/,'opening a container by hand must remember it');
+assert.match(browser,/if !manual, job == nil, id == stayOnID \{/,'a limit notice must not move the person out of a container they opened');
 console.log('App update checks passed: verified web bundle, native-level gate, rollback, release assets, Claude-tab script update.');
