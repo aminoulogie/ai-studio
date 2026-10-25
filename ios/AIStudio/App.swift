@@ -79,10 +79,52 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         let splash = StudioLaunchView(frame: view.bounds)
         splash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(splash); launchView = splash
-        // Load with a real https origin (not file://) so Puter sign-in and CORS work
-        guard let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "www"),
-              let html = try? String(contentsOf: url, encoding: .utf8) else { return }
-        webView.loadHTMLString(html, baseURL: URL(string: "https://aistudio.app/"))
+        updater.recoverFromInterruptedLaunch()
+        loadStudio()
+    }
+
+    /// Loads the newest verified web bundle, or the one built into the app.
+    /// A real https origin (not file://) keeps Puter sign-in and CORS working.
+    private func loadStudio() {
+        guard let content = updater.launchContent() else { return }
+        probeToken += 1
+        probingVersion = content.isUpdate ? content.version : nil
+        webView.loadHTMLString(content.html, baseURL: URL(string: "https://aistudio.app/"))
+    }
+
+    private func reloadStudio() {
+        studioLoaded = false
+        loadStudio()
+    }
+
+    /// A downloaded bundle must prove itself: Studio sets window.studioInitialized when it starts.
+    /// If that does not happen within about 10 seconds the update is dropped and the built-in page loads.
+    private func probe(version: Int, token: Int, remaining: Int) {
+        guard token == probeToken else { return }
+        webView.evaluateJavaScript("window.studioInitialized === true") { [weak self] result, _ in
+            guard let self = self, token == self.probeToken else { return }
+            if (result as? Bool) == true {
+                self.updater.confirmHealthy()
+                self.probingVersion = nil
+                return
+            }
+            if remaining <= 0 { self.abandonUpdate(); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.probe(version: version, token: token, remaining: remaining - 1)
+            }
+        }
+    }
+
+    private func abandonUpdate() {
+        updater.rollBack()
+        probingVersion = nil
+        reloadStudio()
+    }
+
+    private func githubToken() -> String? {
+        try? StudioCredentials.prepareInstallation()
+        guard let token = try? StudioCredentials.get("github"), !token.isEmpty else { return nil }
+        return token
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
