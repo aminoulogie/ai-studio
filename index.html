@@ -3018,6 +3018,26 @@ window.onClaudeStream=function(p){
 function codeStopClaude(){codeStatus('Stopping…','working');native({op:'claudeStop'}).catch(()=>{});}
 document.addEventListener('DOMContentLoaded',renderCodeViaClaude);
 setTimeout(renderCodeViaClaude,0);
+function renderCodeHeadSum(){
+  const r=document.getElementById('codeRepo'),b=document.getElementById('codeBranch'),el=document.getElementById('codeHeadSum');
+  if(!r||!b||!el)return;
+  const repo=(r.value||'').split('/').pop();
+  el.textContent=repo?repo+(b.value?' · '+b.value:''):'Choose a repository';
+}
+function toggleCodeHead(force){
+  const body=document.getElementById('codeHeadBody'),btn=document.getElementById('codeHeadToggle');if(!body||!btn)return;
+  const open=typeof force==='boolean'?force:body.hidden;
+  body.hidden=!open;btn.setAttribute('aria-expanded',open?'true':'false');
+  try{ls('code_head_open',open?'1':'0');}catch(e){}
+  renderCodeHeadSum();
+}
+document.addEventListener('DOMContentLoaded',()=>{toggleCodeHead(ls('code_head_open')==='1');setInterval(renderCodeHeadSum,2000);});
+// Tapping the dimmed area above a bottom sheet closes it.
+document.addEventListener('click',ev=>{
+  const m=ev.target;
+  if(!m||!m.classList||!m.classList.contains('plus-menu'))return;
+  if(ev.clientY<m.getBoundingClientRect().top){ev.stopPropagation();if(m.id==='codePlusMenu')m.remove();else m.classList.remove('show');}
+},true);
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
 bootGitHubCredential().catch(e=>showErr('GitHub secure sign-in is unavailable: '+e.message)).then(init);
