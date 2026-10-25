@@ -2868,15 +2868,57 @@ function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrol
 function scrollDown(){const m=document.getElementById('messages');m.scrollTop=m.scrollHeight;}
 function showErr(msg){const el=document.getElementById('errorStrip');el.textContent=msg;el.style.display='block';}
 function hideErr(){document.getElementById('errorStrip').style.display='none';}
-async function codeSendToClaude(){
-  const box=document.getElementById('codeTask'),text=(box&&box.value||'').trim();
-  if(!text){toast('Type a message first');return;}
-  if(!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.native)){toast('Open this in the iPhone app to use the Claude tab');return;}
-  try{
-    const r=await native({op:'sendToClaude',text});
-    toast(r==='inserted'?'In the Claude message box: press send there':'Copied: paste it into your Claude chat');
-  }catch(e){toast('Could not reach the Claude tab');}
+// Code tab -> your real Claude container (claude.ai). On by default inside the iPhone app.
+function codeViaClaude(){const v=ls('code_via_claude');return !!(window.STUDIO_NATIVE_TABS)&&v!=='0';}
+function renderCodeViaClaude(){
+  const b=document.getElementById('codeToClaudeBtn');if(!b)return;
+  const on=codeViaClaude();b.setAttribute('aria-pressed',on?'true':'false');b.style.color=on?'#d97757':'';
+  b.title=on?'Code is talking to my Claude container (tap for model provider)':'Code uses my model provider (tap for Claude container)';
 }
+function toggleCodeViaClaude(){
+  if(!window.STUDIO_NATIVE_TABS){toast('Only works in the iPhone app');return;}
+  ls('code_via_claude',codeViaClaude()?'0':'1');renderCodeViaClaude();
+  toast(codeViaClaude()?'Code now talks to your Claude container':'Code now uses your model provider');
+}
+function claudeJobEnd(note){
+  codeState.claudeJob=null;codeState.busy=false;
+  document.getElementById('codeRunBtn').textContent='Send';
+  if(note){codeLog('step','⚠️ '+esc(note));codeStatus('Claude did not answer','warning');}
+}
+async function codeRunViaClaude(task){
+  document.getElementById('codeTask').value='';ls('code_draft','');
+  const id='c'+Date.now().toString(36);
+  codeLog('user',esc(task));
+  const el=codeLog('step','<i>Sending to your Claude container…</i>');
+  codeState.claudeJob={id,el};codeState.busy=true;
+  document.getElementById('codeRunBtn').textContent='Stop';
+  codeStatus('Sending to Claude…','working');
+  try{await native({op:'claudeSend',id,text:task});}
+  catch(e){claudeJobEnd(String(e&&e.message||e));}
+}
+window.onClaudeStream=function(p){
+  const job=codeState.claudeJob;if(!job||!p||p.id!==job.id)return;
+  const who=p.account?'<br><small>Claude · '+esc(p.account)+'</small>':'';
+  if(p.state==='streaming'||p.state==='done'){
+    job.el.innerHTML=md(p.text||'')+who;
+    codeStatus(p.state==='done'?'Ready':'Claude is answering…',p.state==='done'?'idle':'working');
+    if(p.state==='done')claudeJobEnd();
+  }else if(p.state==='switching'){
+    codeLog('tool','🔄 '+esc(p.note||'Switching to the next Claude container…'));
+    job.el=codeLog('step','<i>Sending to the next container…</i>');
+    codeStatus('Switching container…','working');
+  }else if(p.state==='sending'){
+    codeStatus('Claude is answering…','working');
+  }else if(p.state==='stopped'){
+    codeStatus('Stopped','warning');claudeJobEnd();
+  }else if(p.state==='failed'){
+    claudeJobEnd(p.note||'Claude did not answer.');
+  }
+  const log=document.getElementById('codeLog');log.scrollTop=log.scrollHeight;
+};
+function codeStopClaude(){codeStatus('Stopping…','working');native({op:'claudeStop'}).catch(()=>{});}
+document.addEventListener('DOMContentLoaded',renderCodeViaClaude);
+setTimeout(renderCodeViaClaude,0);
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
 bootGitHubCredential().catch(e=>showErr('GitHub secure sign-in is unavailable: '+e.message)).then(init);
