@@ -668,6 +668,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     }
     private func report(_ error: Error) { notice("Could not complete action", error.localizedDescription) }
     deinit {
+        NotificationCenter.default.removeObserver(self)
         for web in browsers.values {
             web.configuration.userContentController.removeScriptMessageHandler(forName: "claudeObserver", contentWorld: observerWorld)
         }
