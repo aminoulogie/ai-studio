@@ -431,7 +431,39 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         emit(state, text: text, note: note)
         pollTimer?.invalidate(); pollTimer = nil; polling = false; awaitingJobLoad = false; job = nil
     }
-    func startJob(id: String, text: String, reply: @escaping (Any?, String?) -> Void) {
+    // MARK: leaving the app while Claude answers
+    // The answer is written on Claude's servers, so it is not lost. iOS only lets this app run for a short
+    // while after you leave it, so ask for that grace time, and catch up as soon as you come back.
+    private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+    @objc private func appDidEnterBackground() {
+        guard job != nil, backgroundTask == .invalid else { return }
+        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "ClaudeJob") { [weak self] in self?.endBackgroundTask() }
+    }
+    @objc private func appWillEnterForeground() {
+        endBackgroundTask()
+        guard let current = job, current.sent else { return }
+        // Time spent away does not count against Claude's answer time.
+        job?.startedAt = Date()
+        polling = false
+        startPolling()
+    }
+    private func endBackgroundTask() {
+        guard backgroundTask != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(backgroundTask)
+        backgroundTask = .invalid
+    }
+    /// Puts the Code tab's photos into Claude's message box. Calls back false when they could not all be attached.
+    private func attachImages(for id: String, completion: @escaping (Bool) -> Void) {
+        guard let images = job?.images, !images.isEmpty else { completion(true); return }
+        guard let web = currentBrowser,
+              let data = try? JSONSerialization.data(withJSONObject: images),
+              let json = String(data: data, encoding: .utf8) else { completion(false); return }
+        web.evaluateJavaScript("globalThis.claudeAttachImages?.(" + jsLiteral(json) + ")", in: nil, in: observerWorld) { result in
+            if case .success(let value) = result, (value as? Int ?? 0) >= images.count { completion(true) }
+            else { completion(false) }
+        }
+    }
+    func startJob(id: String, text: String, images: [[String: String]] = [], reply: @escaping (Any?, String?) -> Void) {
         loadViewIfNeeded()
         guard job == nil else { reply(nil, "Claude is still answering the last message."); return }
         guard currentBrowser != nil else { reply(nil, "No Claude account is open. Add one in the Claude tab and sign in."); return }
