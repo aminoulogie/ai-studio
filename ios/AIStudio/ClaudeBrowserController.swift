@@ -575,6 +575,10 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             }
         }
         refreshMenus()
+        if awaitingJobLoad, webView === currentBrowser, job != nil {
+            awaitingJobLoad = false
+            deliverJob(prefix: resumePrefix())
+        }
     }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         if (error as NSError).code != NSURLErrorCancelled {
