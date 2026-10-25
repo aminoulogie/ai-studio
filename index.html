@@ -1233,6 +1233,56 @@ async function wipeAll(){
   try{if(inApp())await native({op:'credentialSet',name:'github',value:''});localStorage.clear();location.reload();}catch(e){showErr('Could not clear Studio data: '+e.message);}
 }
 
+/* ===================== APP UPDATES (web layer, no new IPA) ===================== */
+// The page never downloads code itself: the app checks GitHub, verifies the file and loads it.
+function appUpdatesSheet(s,note){
+  const running=s.running||0,built=s.builtIn||0,pending=!!s.installed&&s.installed!==s.running;
+  const row=(t,d)=>`<div class="list-row"><span class="grow"><b>${t}</b><small>${d}</small></span></div>`;
+  let rows=row('Running v'+running,(running>built?'Downloaded update':'Built into this app')+' · built-in v'+built);
+  if(pending)rows+=row('v'+s.installed+' is downloaded','Restart to apply it. Chats and keys stay on this phone.');
+  if(s.available&&s.needsNewApp)rows+=row('v'+s.available+' needs a new IPA','It uses native features this build doesn’t have. Install the latest IPA once.');
+  else if(s.canInstall)rows+=row('v'+s.available+' is available','Downloads the new Studio screens. No re-signing.');
+  else if(s.available)rows+=row('Up to date','Latest published web version is v'+s.available+'.');
+  const main=pending?`<button class="gh-btn primary" onclick="appUpdateReload()">Restart to apply</button>`
+    :s.canInstall?`<button class="gh-btn primary" onclick="appUpdateInstall()">Download v${s.available}</button>`
+    :`<button class="gh-btn primary" onclick="appUpdateCheck()">Check for updates</button>`;
+  const reset=(running>built||s.installed)?`<button class="gh-btn" style="color:#dc2626" onclick="appUpdateReset()">Reset to built-in</button>`:'';
+  return `<h3>📲 App updates</h3>
+    <div style="font-size:12px;color:var(--fg2);line-height:1.5">Updates Studio’s screens (Chat, Code, Settings) without re-signing or reinstalling the IPA. Changes to the native app (tabs, Claude browser, sign-in) still need a new IPA.</div>
+    <div>${rows}</div>
+    ${note?`<div style="font-size:12px;color:var(--fg2)">${esc(note)}</div>`:''}
+    <div class="modal-btns">${reset}${main}<button class="gh-btn" onclick="closeSheet()">Done</button></div>`;
+}
+let _appUpd={};
+function appUpdShow(note){openSheet(appUpdatesSheet(_appUpd,note||''));}
+async function openAppUpdates(){
+  if(!inApp()){
+    openSheet(`<h3>📲 App updates</h3><div style="font-size:12px;color:var(--fg2);line-height:1.5">In-app updates are available in the iPhone app. A browser or home-screen page loads the newest version when you reload it.</div><div class="modal-btns"><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>`);
+    return;
+  }
+  try{_appUpd=(await native({op:'studioUpdateStatus'}))||{};}catch(e){_appUpd={};}
+  appUpdShow('');
+}
+async function appUpdateCheck(){
+  appUpdShow('Checking…');
+  try{_appUpd=(await native({op:'studioUpdateCheck'}))||_appUpd;appUpdShow(_appUpd.canInstall||_appUpd.needsNewApp?'':'You have the latest version.');}
+  catch(e){appUpdShow('⚠️ '+((e&&e.message)||e));}
+}
+async function appUpdateInstall(){
+  appUpdShow('Downloading and verifying…');
+  try{_appUpd=(await native({op:'studioUpdateInstall'}))||_appUpd;appUpdShow('Downloaded and verified.');}
+  catch(e){appUpdShow('⚠️ '+((e&&e.message)||e));}
+}
+async function appUpdateReload(){
+  if(!confirm('Restart Studio now to apply the update? Your chats and keys stay on this phone.'))return;
+  try{await native({op:'studioUpdateReload'});}catch(e){appUpdShow('⚠️ '+((e&&e.message)||e));}
+}
+async function appUpdateReset(){
+  if(!confirm('Go back to the web version built into this app?'))return;
+  try{await native({op:'studioUpdateReset'});}catch(e){appUpdShow('⚠️ '+((e&&e.message)||e));}
+}
+/* end app updates */
+
 /* ===================== ENCRYPTED BACKUP ===================== */
 // AES-256-GCM, key from your password (PBKDF2-SHA256, 310k rounds). Without the password the file is unreadable.
 const b64=a=>btoa(String.fromCharCode(...new Uint8Array(a))), ub64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
