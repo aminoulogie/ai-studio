@@ -75,6 +75,16 @@ git push --set-upstream origin HEAD
 
 If a push is rejected because the remote moved, commit or stash local work, then `git fetch origin` and `git rebase @{upstream}`, resolve conflicts, and push again. Do not force-push to fix an ordinary synchronization failure. For an expired token, reconnect with `gh auth login`; for permission or protected-branch errors, use a writable branch/token. If local signing fails, repair the configured signing key or explicitly choose unsigned commits with `git -c commit.gpgsign=false commit ...`.
 
+## Update Studio without a new IPA
+
+**Settings → App updates** replaces only Studio's web layer (the single `index.html` the app shows). Every CI build also publishes `studio-web.html` and `studio-web.json` (version, SHA-256, size, `min_native`) next to the IPA. The app reads the GitHub releases API for this repository, downloads the newest bundle, checks its size and hash, stores it in Application Support and loads it after **Restart to apply**. Your chats, keys and Claude accounts stay on the phone.
+
+- The first IPA that contains this feature must be signed and installed once. Later web changes need no re-signing.
+- Safety: a downloaded page must set `window.studioInitialized` within about 10 seconds of loading. If it does not, or the app is killed before it is confirmed, that version is marked bad and the page built into the IPA loads again. **Reset to built-in** does the same on demand.
+- Native code (Swift, `Info.plist`, icons, `claude-observer.js`, new native ops) still needs a new IPA. Whenever the set of native ops changes, bump `nativeLevel` in `StudioUpdater.swift` and `min_native` in `.github/workflows/ios.yml`; `tests/ota-update.cjs` fails until both match. A bundle that needs a newer level shows "needs a new IPA" instead of installing.
+- Private repository: the update check uses the GitHub token already stored in the Keychain. The token is only sent to `api.github.com` and never follows a redirect to another host.
+- This does not extend your sideload tool's own certificate lifetime (for example 7 days on a free Apple account).
+
 ## Build and install the IPA
 
 ### GitHub Actions (no Mac needed)
