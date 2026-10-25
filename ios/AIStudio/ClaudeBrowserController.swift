@@ -26,6 +26,10 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         self.store = store; super.init(nibName: nil, bundle: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(observerChanged),
                                                name: .studioObserverUpdated, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(appDidEnterBackground),
+                                               name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground),
+                                               name: UIApplication.willEnterForegroundNotification, object: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     /// The verified helper script from an app update, or the one built into the app.
