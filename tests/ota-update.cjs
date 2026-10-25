@@ -52,7 +52,8 @@ const studioOps=[...app.matchAll(/^\s*case ((?:"[A-Za-z]+"(?:,\s*)?)+):/gm)].fla
 
 // Native level: a page published for level N must only use ops that level N has.
 // If this list changes, bump nativeLevel in StudioUpdater.swift AND min_native in ios.yml, then list the ops under the new level.
-const LEVEL_1=['aiRequest','cancelRequest','claudeSend','claudeStop','credentialGet','credentialSet','github'+'DeviceCode','githubToken','google','googleRefresh','memoryGet','memorySet','selectStudioTab','sendToClaude','share',...OPS].sort();
+// Level 2: same ops as level 1, but claudeSend now carries photos (images). A page that sends photos needs a level 2 app.
+const LEVEL_2=['aiRequest','cancelRequest','claudeSend','claudeStop','credentialGet','credentialSet','github'+'DeviceCode','githubToken','google','googleRefresh','memoryGet','memorySet','selectStudioTab','sendToClaude','share',...OPS].sort();
 assert.deepEqual(studioOps,LEVEL_1,'native ops changed: bump nativeLevel (StudioUpdater.swift) and min_native (ios.yml), then update this list');
 const level=Number(upd.match(/static let nativeLevel = (\d+)/)[1]);
 const ciLevel=Number(wf.match(/'min_native':\s*(\d+)/)[1]);
