@@ -80,7 +80,7 @@ final class ClaudeProfileStore {
         try FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
         if let raw = defaults.data(forKey: stateKey) {
             self.state = try JSONDecoder().decode(State.self, from: raw)
-            guard state.profiles.count <= 6, Set(state.profiles.map(\.id)).count == state.profiles.count else {
+            guard state.profiles.count <= Self.maxProfiles, Set(state.profiles.map(\.id)).count == state.profiles.count else {
                 throw NSError(domain: "ClaudeProfiles", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid profile metadata"])
             }
         } else { self.state = State() }
