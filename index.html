@@ -2982,7 +2982,7 @@ async function codeRunViaClaude(task){
 // Claude's reply mixes tool steps ("Using Mcp: Read lines") with the answer. Steps go into a Thinking dropdown;
 // the answer after the last step stays visible. Nothing is ever hidden: if no answer follows the steps, the last prose is shown.
 function splitClaudeReply(text,done){
-  const lines=String(text||'').replace(/\r/g,'').split('\n').map(l=>l.trim());
+  const lines=String(text||'').replace(/\r/g,'').split('\n').map(l=>l.trim().replace(/^[\uE000-\uF8FF\uFFFD]+\s*/u,''));
   // Status words copied from claude.ai's own thinking block ("Weighing", "40s", "running", "Claude is thinking") are never shown as prose.
   const status=l=>/^\d+(\.\d+)?\s?(ms|s|m|min)$/i.test(l)||/^(running|done|completed|pending|failed)$/i.test(l)||/^claude is (thinking|working|answering|writing)\b/i.test(l)||/^thought for \d/i.test(l)||/^[A-Z][a-z]+ing(…|\.\.\.)?$/.test(l)||/^[\uE000-\uF8FF\u2700-\u27BF\uFFFD]+$/u.test(l);
   const noise=l=>status(l)||(l.length<=4&&!/[\p{L}\p{N}]/u.test(l));
