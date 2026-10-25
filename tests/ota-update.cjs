@@ -57,7 +57,9 @@ const LEVEL_2=['aiRequest','cancelRequest','claudeSend','claudeStop','credential
 assert.deepEqual(studioOps,LEVEL_2,'native ops changed: bump nativeLevel (StudioUpdater.swift) and min_native (ios.yml), then update this list');
 const level=Number(upd.match(/static let nativeLevel = (\d+)/)[1]);
 const ciLevel=Number(wf.match(/'min_native':\s*(\d+)/)[1]);
-assert.equal(level,1,'this list describes native level 1');
+assert.equal(level,2,'this list describes native level 2');
+assert.match(app,/msg\["images"\] as\? \[\[String: Any\]\]/,'claudeSend must read the photos');
+assert.match(read('index.html'),/op:'claudeSend',id,text:fullText,images/,'the Code tab must send its photos to the container');
 assert.equal(ciLevel,level,'CI min_native must equal the app nativeLevel');
 
 // CI publishes the exact page the app bundles
