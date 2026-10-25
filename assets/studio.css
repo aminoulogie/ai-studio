@@ -188,3 +188,36 @@ body.native-tabs .studio-tabs{display:none}
 .think ul{list-style:none;display:flex;flex-direction:column;gap:6px;margin:2px 0 4px 6px;padding-left:12px;border-left:1px solid var(--border2)}
 .think li{font-size:12px;line-height:1.45;color:var(--fg3);word-break:break-word}
 .think li.t{font-family:ui-monospace,Menlo,monospace}
+
+/* ---- Claude look: Settings is a full page (no drawer), chats open as a history sheet, drawn icons, one orange ---- */
+.ic{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;color:var(--fg2)}
+.settings-body{display:contents}
+.settings-title,.s-group,.history-title{display:none}
+.opt-title{display:flex;align-items:center;gap:10px}
+.opt-title .ic{color:var(--brand)}
+.inf-badge .ic{width:14px;height:14px;vertical-align:-2px;margin-right:4px;color:inherit}
+.plus-menu button .ic,.plus-toggle .ic{margin:0}
+.plus-toggle input[type=checkbox]{-webkit-appearance:none;appearance:none;width:48px;height:30px;margin:0 0 0 auto;border-radius:15px;background:var(--border2);position:relative;flex:none;transition:background .15s}
+.plus-toggle input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#f5f4ef;transition:transform .15s}
+.plus-toggle input[type=checkbox]:checked{background:var(--brand)}
+.plus-toggle input[type=checkbox]:checked::after{transform:translateX(18px)}
+body.native-tabs:not([data-tab="chat"]) .topbar>.btn-icon:first-child{display:none}
+body.native-tabs .sidebar.as-settings{position:fixed;inset:0;width:100%;max-width:none;height:100%;transform:none;box-shadow:none;border:0;z-index:30;padding:calc(env(safe-area-inset-top) + 8px) 16px 28px;background:var(--main-bg);overflow-y:auto}
+body.native-tabs .sidebar.as-settings .sidebar-logo,
+body.native-tabs .sidebar.as-settings #newChatBtn,
+body.native-tabs .sidebar.as-settings .sidebar-nav,
+body.native-tabs .sidebar.as-settings #recentLabel,
+body.native-tabs .sidebar.as-settings #searchRow,
+body.native-tabs .sidebar.as-settings #convList{display:none}
+body.native-tabs .sidebar.as-settings .settings-title{display:block;margin:6px 4px 10px;font-size:32px;font-weight:600;font-family:var(--font-serif,Georgia,serif);color:var(--fg)}
+body.native-tabs .sidebar.as-settings .s-group{display:block;margin:20px 6px 8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--fg3)}
+body.native-tabs .sidebar.as-settings .s-card{display:flex;flex-direction:column;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:12px 14px 14px}
+body.native-tabs .sidebar.as-settings .s-lf{order:9;margin-top:10px;padding-top:6px;border-top:1px solid var(--border)}
+body.native-tabs .sidebar.as-settings .s-card .btn-new-chat{margin:0;width:100%;justify-content:flex-start;gap:14px;min-height:52px;border:0;border-radius:12px;background:transparent;font-size:17px;padding:10px 4px;color:var(--fg)}
+body.native-tabs .sidebar.as-settings .s-card .btn-new-chat+.btn-new-chat{border-top:1px solid var(--border);border-radius:0}
+body.native-tabs .sidebar.as-settings .sidebar-bottom{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:6px 10px}
+body.native-tabs .sidebar.as-settings .sidebar-bottom .nav-item{min-height:52px;font-size:17px;color:var(--fg);width:100%}
+body.native-tabs .sidebar.as-history .settings-body,
+body.native-tabs .sidebar.as-history .sidebar-bottom,
+body.native-tabs .sidebar.as-history .sidebar-nav{display:none}
+body.native-tabs .sidebar.as-history .history-title{display:block;margin:10px 16px 4px;font-size:22px;font-weight:600;color:var(--sidebar-fg)}
