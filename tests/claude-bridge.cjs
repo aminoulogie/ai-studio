@@ -3,12 +3,26 @@ const fs=require('node:fs');
 const path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,'..',...p.split('/')),'utf8');
 const html=read('index.html');
-assert.match(html,/id="codeToClaudeBtn"[^>]*onclick="codeSendToClaude\(\)"/,'Code tab needs the Send to Claude button');
-const fn=html.slice(html.indexOf('async function codeSendToClaude('),html.indexOf('function toast('));
-assert.ok(fn.length>50,'codeSendToClaude must exist');
-assert.match(fn,/op:'sendToClaude'/,'the Code tab must call the native sendToClaude op');
-assert.match(fn,/getElementById\('codeTask'\)/,'it must send the text typed in the Code tab');
-assert.doesNotMatch(fn,/fetch\(|aiRequest/,'Send to Claude must never use a model provider or the network');
+const sendBtn=/id="codeToClaudeBtn"[^>]*onclick="codeSendToClaude\(\)"/.test(html);
+const toggleBtn=/id="codeToClaudeBtn"[^>]*onclick="toggleCodeViaClaude\(\)"/.test(html);
+assert.ok(sendBtn||toggleBtn,'Code tab needs a button that routes to the Claude container');
+if(sendBtn){
+  // v1.0.96 design: type into Claude's message box, the person presses send
+  const fn=html.slice(html.indexOf('async function codeSendToClaude('),html.indexOf('function toast('));
+  assert.ok(fn.length>50,'codeSendToClaude must exist');
+  assert.match(fn,/op:'sendToClaude'/,'the Code tab must call the native sendToClaude op');
+  assert.match(fn,/getElementById\('codeTask'\)/,'it must send the text typed in the Code tab');
+  assert.doesNotMatch(fn,/fetch\(|aiRequest/,'Send to Claude must never use a model provider or the network');
+}else{
+  // Container design: Code tab sends to the Claude container and streams the reply back
+  const fn=html.slice(html.indexOf('async function codeRunViaClaude('),html.indexOf('window.onClaudeStream'));
+  assert.ok(fn.length>50,'codeRunViaClaude must exist');
+  assert.match(fn,/op:'claudeSend'/,'the Code tab must call the native claudeSend op');
+  assert.match(fn,/getElementById\('codeTask'\)/,'it must send the text typed in the Code tab');
+  assert.doesNotMatch(fn,/fetch\(|aiRequest/,'the Claude container route must never use a model provider or the network');
+  assert.match(html,/window\.onClaudeStream=/,'the Code tab must show the live Claude reply');
+  assert.match(html,/native\(\{op:'claudeStop'\}\)/,'the Code tab must be able to stop a Claude job');
+}
 const app=read('ios/AIStudio/App.swift');
 assert.match(app,/case "sendToClaude"/,'native bridge must answer sendToClaude');
 assert.match(app,/utf8\.count <= 40_000/,'native bridge must cap the message size');
