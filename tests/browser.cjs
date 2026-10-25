@@ -107,8 +107,9 @@ const server=http.createServer((req,res)=>{
         if(msg.op==='claudeProfiles')return [{id:'11111111-1111-4111-8111-111111111111',number:1,name:'Test account',status:'Active',enabled:true,selected:true}];
         if(msg.op==='claudeCodeRequest'){
           window.testClaudeRequestId=msg.id;
-          onClaudeCodeEvent({id:msg.id,phase:'responding',containerNumber:1,containerName:'Test account',model:'Claude test',text:'Write demo.txt with the finished implementation.'});
-          return {text:'Write demo.txt with the finished implementation.',model:'Claude test',containerName:'Test account'};
+          const reply='Write demo.txt with the finished implementation.\n\nUpdate app.js:\n```js\nconsole.log(1);\n```';
+          onClaudeCodeEvent({id:msg.id,phase:'responding',containerNumber:1,containerName:'Test account',model:'Claude test',text:reply});
+          return {text:reply,model:'Claude test',containerName:'Test account'};
         }
         return true;
       };
