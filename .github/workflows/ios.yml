@@ -31,6 +31,7 @@ jobs:
           node tests/claude-observer.cjs
           node tests/shared-memory.cjs
           node tests/claude-bridge.cjs
+          node tests/ota-update.cjs
           bash -n scripts/git-setup.sh ios/scripts/build-ipa.sh
       - name: Install browser checks
         run: |
