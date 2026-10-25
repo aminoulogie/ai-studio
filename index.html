@@ -2320,7 +2320,7 @@ function applyTheme(dark){
 /* ===================== TABS ===================== */
 function switchTab(tab){
   if(rec)rec.stop();closePlus();document.getElementById('optMenu').classList.remove('show');
-  activeTab=tab;
+  activeTab=tab;document.body.dataset.tab=tab;document.getElementById('sidebar').classList.remove('as-settings','as-history');document.getElementById('overlay').classList.remove('show');
   document.querySelectorAll('.studio-tab').forEach(b=>{const on=b.dataset.tab===tab;b.classList.toggle('active',on);b.setAttribute('aria-current',on?'page':'false');});
   document.getElementById('panelChat').classList.toggle('active',tab==='chat');
   document.getElementById('panelGithub').classList.toggle('active',tab==='github');
