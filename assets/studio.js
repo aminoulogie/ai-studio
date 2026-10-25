@@ -90,7 +90,7 @@ function startStudioIcons(){
 function initStudio(){
   startStudioIcons();
   setStudioArt(ls('studio_art')||'aurora');
-  if(ls('studio_theme'))setStudioTheme(ls('studio_theme'),false);
+  setStudioTheme(ls('studio_theme')||'claude',false);
   const viewport=window.visualViewport;
   const update=()=>{
     if(!viewport)return;
