@@ -68,6 +68,7 @@ final class ClaudeProfileStore {
         }
     }
     private(set) var state: State
+    static let maxProfiles = 25
     private let defaults: UserDefaults
     private let stateKey = "studio.claude.profiles.v1"
     let directory: URL
