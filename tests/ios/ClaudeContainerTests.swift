@@ -94,6 +94,39 @@ final class ClaudeContainerTests: XCTestCase {
         XCTAssertTrue(browser.codeProfiles().isEmpty)
         XCTAssertNotNil(Bundle.main.url(forResource: "claude-code-dom", withExtension: "js"))
     }
+    func testUsageWindowEstimateAndLimitLearning() throws {
+        let (store, defaults, directory) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let p = try store.add(name: "Usage")
+        try store.update(p.id) { $0.status = .active }
+        let start = Date()
+        for i in 0..<6 { try store.recordMessage(p.id, now: start.addingTimeInterval(Double(i) * 60)) }
+        var usage = store.usage(store.state.profiles[0], now: start.addingTimeInterval(600))
+        XCTAssertEqual(usage.used, 6)
+        XCTAssertEqual(usage.limit, ClaudeProfileStore.defaultLimit)
+        XCTAssertEqual(usage.source, "default")
+        XCTAssertEqual(usage.percent, 20)
+        // The window ends five hours after its first message.
+        usage = store.usage(store.state.profiles[0], now: start.addingTimeInterval(5 * 3600 + 1))
+        XCTAssertEqual(usage.used, 0)
+        // A detected limit teaches the estimate and fills the bar.
+        try store.recordLimitHit(p.id, now: start.addingTimeInterval(700))
+        try store.update(p.id) { $0.status = .rateLimited; $0.limitedUntil = start.addingTimeInterval(5 * 3600) }
+        usage = store.usage(store.state.profiles[0], now: start.addingTimeInterval(800))
+        XCTAssertEqual(usage.percent, 100)
+        XCTAssertTrue(usage.limited)
+        XCTAssertEqual(usage.source, "learned")
+        XCTAssertEqual(usage.limit, 6)
+        try store.setLimitEstimate(p.id, 40)
+        let manual = store.usage(store.state.profiles[0], now: start.addingTimeInterval(800))
+        XCTAssertEqual(manual.limit, 40)
+        XCTAssertEqual(manual.source, "manual")
+        // Metadata saved before usage tracking existed still loads.
+        let legacy = "{\"profiles\":[{\"id\":\"\(UUID().uuidString)\",\"name\":\"Old\",\"status\":\"Active\",\"enabled\":true}],\"autoSwitch\":true}"
+        defaults.set(Data(legacy.utf8), forKey: "studio.claude.profiles.v1")
+        let restored = try ClaudeProfileStore(defaults: defaults, directory: directory)
+        XCTAssertEqual(restored.usage(restored.state.profiles[0]).used, 0)
+    }
     private func cookies(_ store: WKWebsiteDataStore) async -> [HTTPCookie] {
         await withCheckedContinuation { continuation in store.httpCookieStore.getAllCookies { continuation.resume(returning: $0) } }
     }
