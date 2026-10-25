@@ -63,6 +63,9 @@ const server=http.createServer((req,res)=>{
     await page.reload();await page.locator('.studio-tab[data-tab="code"]').click();
     await page.waitForFunction(()=>document.getElementById('codeBranch').value==='main');
     for(const id of ['codeMicBtn','codeAskBtn','codeOptBtn','codeRunBtn'])assert.ok(await page.locator('#'+id).isVisible());
+    assert.ok(await page.evaluate(()=>document.getElementById('codeTask').getBoundingClientRect().height<=120),'Code input must stay compact');
+    assert.equal(await page.locator('#codePermissionsBtn').isVisible(),false,'Workspace options start folded');
+    await page.locator('#codeHeadToggle').click();
     await page.locator('#codePermissionsBtn').click();
     assert.ok(await page.locator('#codeAutoCommit').isVisible());
     await page.evaluate(()=>closeSheet());
