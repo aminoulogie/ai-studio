@@ -229,7 +229,7 @@ final class StudioUpdater {
     }
 
     /// The verified Claude-tab helper script that came with the stored update, if it is newer than the built-in one.
-    func installedObserver() -> String? {
+    func observerSource() -> String? {
         guard let stored = installed(),
               !badVersions().contains(stored.manifest.version),
               stored.manifest.version > (builtIn()?.version ?? 0),
