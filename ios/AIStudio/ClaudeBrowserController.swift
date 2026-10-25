@@ -468,6 +468,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         guard job == nil else { reply(nil, "Claude is still answering the last message."); return }
         guard currentBrowser != nil else { reply(nil, "No Claude account is open. Add one in the Claude tab and sign in."); return }
         job = ClaudeJob(id: id, text: text)
+        job?.images = images
         reply("started", nil)
         deliverJob(prefix: "")
     }
