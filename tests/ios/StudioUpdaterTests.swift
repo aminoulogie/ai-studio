@@ -146,6 +146,82 @@ final class StudioUpdaterTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(updater.launchContent()).isUpdate)
     }
 
+    private func scriptBundle(version: Int, script: String = "// claudeObserver claudeSubmit") -> (StudioWebManifest, Data, Data) {
+        let page = Data("<html>update studioInitialized</html>".utf8)
+        let helper = Data(script.utf8)
+        let manifest = StudioWebManifest(version: version, sha256: StudioUpdater.sha256Hex(page), size: page.count, minNative: 1,
+                                         observerSha256: StudioUpdater.sha256Hex(helper), observerSize: helper.count)
+        return (manifest, page, helper)
+    }
+
+    func testPickReleaseKeepsTheScriptLinkWhenTheReleaseHasOne() throws {
+        func asset(_ name: String, _ id: String) -> [String: Any] {
+            ["name": name, "url": "https://api.github.com/repos/o/r/releases/assets/\(id)"]
+        }
+        let withScript: [[String: Any]] = [
+            ["tag_name": "v1.0.99", "assets": [asset("studio-web.json", "m"), asset("studio-web.html", "h"), asset("studio-observer.js", "o")]]
+        ]
+        let withoutScript: [[String: Any]] = [
+            ["tag_name": "v1.0.98", "assets": [asset("studio-web.json", "m8"), asset("studio-web.html", "h8")]]
+        ]
+        let newData = try JSONSerialization.data(withJSONObject: withScript)
+        let oldData = try JSONSerialization.data(withJSONObject: withoutScript)
+        XCTAssertEqual(StudioUpdater.pickRelease(from: newData)?.observerURL?.lastPathComponent, "o")
+        XCTAssertNotNil(StudioUpdater.pickRelease(from: oldData))
+        XCTAssertNil(StudioUpdater.pickRelease(from: oldData)?.observerURL)
+    }
+
+    func testScriptMustMatchItsManifestAndLookLikeOurScript() throws {
+        let (manifest, page, helper) = scriptBundle(version: 6)
+        XCTAssertNoThrow(try StudioUpdater.validateObserver(manifest, data: helper))
+        XCTAssertThrowsError(try StudioUpdater.validateObserver(manifest, data: Data("// claudeObserver claudeSubmit!".utf8)))
+        let plain = StudioWebManifest(version: 6, sha256: manifest.sha256, size: page.count, minNative: 1)
+        XCTAssertThrowsError(try StudioUpdater.validateObserver(plain, data: helper))
+        // Matches its own hash but is not our script.
+        let foreign = Data("alert(1)".utf8)
+        let foreignManifest = StudioWebManifest(version: 6, sha256: manifest.sha256, size: page.count, minNative: 1,
+                                                observerSha256: StudioUpdater.sha256Hex(foreign), observerSize: foreign.count)
+        XCTAssertThrowsError(try StudioUpdater.validateObserver(foreignManifest, data: foreign))
+    }
+
+    func testScriptIsStoredWithTheUpdateAndRemovedWithIt() throws {
+        let (directory, defaults) = fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let updater = makeUpdater(directory: directory, defaults: defaults)
+        XCTAssertNil(updater.observerSource())
+        let (manifest, page, helper) = scriptBundle(version: 6)
+        try updater.store(manifest, data: page, observer: helper)
+        XCTAssertEqual(updater.observerSource(), "// claudeObserver claudeSubmit")
+        updater.reset()
+        XCTAssertNil(updater.observerSource())
+    }
+
+    func testUpdateThatAnnouncesAScriptIsRefusedWithoutIt() throws {
+        let (directory, defaults) = fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let updater = makeUpdater(directory: directory, defaults: defaults)
+        let (manifest, page, _) = scriptBundle(version: 6)
+        XCTAssertThrowsError(try updater.store(manifest, data: page))
+        XCTAssertNil(updater.installed())
+        XCTAssertNil(updater.observerSource())
+    }
+
+    func testTamperedOrOlderStoredScriptIsNotUsed() throws {
+        let (directory, defaults) = fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let updater = makeUpdater(directory: directory, defaults: defaults)
+        let (manifest, page, helper) = scriptBundle(version: 6)
+        try updater.store(manifest, data: page, observer: helper)
+        try Data("alert(1)".utf8).write(to: directory.appendingPathComponent("observer.js"))
+        XCTAssertNil(updater.observerSource())
+
+        let (otherDirectory, otherDefaults) = fixture()
+        defer { try? FileManager.default.removeItem(at: otherDirectory) }
+        let newerBuiltIn = makeUpdater(directory: otherDirectory, defaults: otherDefaults, builtIn: 7)
+        try newerBuiltIn.store(manifest, data: page, observer: helper)
+        XCTAssertNil(newerBuiltIn.observerSource())
+    }
+
     func testRedirectsStayOnGitHubHosts() {
         XCTAssertTrue(StudioUpdateNetwork.allowed(host: "api.github.com"))
         XCTAssertTrue(StudioUpdateNetwork.allowed(host: "objects.githubusercontent.com"))
