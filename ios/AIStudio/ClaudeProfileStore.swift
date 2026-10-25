@@ -90,7 +90,7 @@ final class ClaudeProfileStore {
     }
     private func save() throws { defaults.set(try JSONEncoder().encode(state), forKey: stateKey) }
     @discardableResult func add(name: String) throws -> ClaudeProfile {
-        guard state.profiles.count < 6 else { throw problem("You can store up to six Claude accounts.") }
+        guard state.profiles.count < Self.maxProfiles else { throw problem("You can store up to \(Self.maxProfiles) Claude accounts.") }
         let label = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
         guard !label.isEmpty else { throw problem("Enter an account name.") }
         let profile = ClaudeProfile(name: label)
