@@ -147,3 +147,15 @@ body .plus-menu button,body .plus-menu .plus-toggle{min-height:34px;padding:6px 
 body .plus-menu button small,body .plus-menu .plus-toggle small{font-size:10px;line-height:1.3}
 body .plus-menu .plus-toggle input{width:16px;height:16px;flex:none}
 body .plus-menu .opt-title{padding:6px 10px 2px;font-size:12px}
+
+/* Per-container usage bars (Code tab) */
+#claudeUsagePanel{flex:1 1 100%;display:flex;flex-direction:column;gap:5px;margin-top:2px}
+#claudeUsagePanel:empty{display:none}
+.cu-row{display:grid;grid-template-columns:minmax(70px,26%) 1fr auto;align-items:center;gap:8px;font-size:11px;color:var(--fg2)}
+.cu-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cu-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden}
+.cu-bar i{display:block;height:100%;border-radius:3px;background:#5bb58e;transition:width .4s ease}
+.cu-warn .cu-bar i{background:#d99b49}
+.cu-full .cu-bar i{background:#e0584f}
+.cu-full .cu-txt{color:#e0584f;font-weight:600}
+.cu-txt{font-variant-numeric:tabular-nums;white-space:nowrap}
