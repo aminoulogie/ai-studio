@@ -70,6 +70,28 @@
     const body=found.length?found[found.length-1][1].trim():'';
     return body?body.slice(0,4000):null;
   };
+  // Code tab bridge: report progress, press send, press stop. Only called by native code after the person sends from the Code tab.
+  globalThis.claudeStatus=()=>{
+    const items=messages();
+    const assistants=items.filter(m=>m.role==='assistant');
+    return {
+      users:items.filter(m=>m.role==='user').length,
+      assistants:assistants.length,
+      streaming:!!(document.querySelector('[data-is-streaming="true"]')||document.querySelector('button[aria-label*="Stop"]')),
+      last:assistants.length?assistants[assistants.length-1].content:'',
+      loggedOut:/^\/(login|logout)/.test(location.pathname||'')
+    };
+  };
+  globalThis.claudeSubmit=()=>{
+    const btn=document.querySelector('button[aria-label="Send message"],button[aria-label="Send Message"],button[aria-label*="Send"]');
+    if(!btn||btn.disabled||btn.getAttribute('aria-disabled')==='true')return false;
+    btn.click();return true;
+  };
+  globalThis.claudeStop=()=>{
+    const btn=document.querySelector('button[aria-label*="Stop"]');
+    if(!btn)return false;
+    btn.click();return true;
+  };
   globalThis.claudeCheckLimits=()=>{lastLimit='';check();};
   const observer=new MutationObserver(()=>{
     if(scheduled)return;scheduled=true;setTimeout(check,800);
