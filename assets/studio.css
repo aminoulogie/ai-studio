@@ -239,3 +239,37 @@ button,input,textarea,select{font-family:inherit}
 :root[data-theme="claude"] .plus-menu,:root[data-theme="claude"] .modal{background:#2a2a28;border-color:#3a3936}
 .plus-menu button+button,.plus-menu .plus-toggle+button,.plus-menu button+.plus-toggle{border-top:1px solid var(--border)}
 .btn-new-chat .ic,.nav-item .ic,.gh-btn .ic{width:18px;height:18px;color:inherit}
+
+/* ---- Home: orange asterisk, serif greeting, chips (like the Claude app) ---- */
+.welcome.cl-welcome{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;min-height:58vh;gap:26px;padding:0 12px}
+.welcome h1.cl-greet{display:flex;align-items:center;justify-content:center;gap:12px;margin:0;font-family:var(--font-serif,"Iowan Old Style",Charter,Georgia,serif);font-weight:400;font-size:clamp(30px,8.5vw,46px);letter-spacing:-.5px;line-height:1.15;color:var(--fg)}
+.cl-star{width:.95em;height:.95em;flex:none;fill:none;stroke:#d97757;stroke-width:2.3;stroke-linecap:round}
+.cl-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;max-width:440px}
+.cl-chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--fg2);font-size:15px;cursor:pointer}
+.cl-chip .ic{width:19px;height:19px;color:inherit}
+.cl-chip:active{background:var(--border)}
+
+/* ---- Add sheet: drawn icons, thin dividers, checkmarks for toggles, chevrons for submenus ---- */
+.plus-menu button>span,.plus-toggle>span{flex:1;min-width:0;text-align:left}
+.plus-menu button small,.plus-toggle small{display:block;margin-top:2px;font-size:12px;font-weight:400;color:var(--fg3)}
+.plus-toggle input[type=checkbox]{width:24px;height:24px;margin:0 0 0 auto;border-radius:0;background:transparent!important}
+.plus-toggle input[type=checkbox]::after{content:"";position:absolute;inset:0;top:0;left:0;width:auto;height:auto;border-radius:0;background:transparent;transform:none!important}
+.plus-toggle input[type=checkbox]:checked::after{background:var(--brand);-webkit-mask:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/22px no-repeat;mask:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/22px no-repeat}
+.plus-menu button[onclick*="open"]::after{content:"";flex:none;width:18px;height:18px;margin-left:auto;background:var(--fg3);-webkit-mask:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E") center/18px no-repeat;mask:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E") center/18px no-repeat}
+
+/* ---- Composer footer: note on the left, model and effort on the right ---- */
+.input-footer>.ft-hint{display:none}
+.input-footer>#modelLabel{margin-left:auto;color:var(--fg);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+.input-footer>.ft-note{color:var(--fg3)}
+
+/* ---- Thinking: boxed rows with dividers, chevrons, sans text ---- */
+.think summary{gap:10px}
+.think-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.think summary small{margin-left:0;max-width:none;flex:none;font-size:13px;color:var(--fg3)}
+.think summary::after{content:"";width:16px;height:16px;flex:none;background:var(--fg3);-webkit-mask:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center/16px no-repeat;mask:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center/16px no-repeat;transform:none}
+.think[open] summary::after{transform:rotate(180deg)}
+.think ul{margin:6px 0 12px;padding:0;gap:0;border:1px solid var(--border);border-radius:16px;background:var(--code-bg);overflow:hidden}
+.think li{padding:13px 16px;font-size:14px;line-height:1.5;color:var(--fg2);border-top:1px solid var(--border);font-family:var(--font-sans)}
+.think li:first-child{border-top:0}
+.think li.t{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--fg2)}
+.think li.t::after{content:"\25B8";font-size:10px;color:var(--fg3)}
