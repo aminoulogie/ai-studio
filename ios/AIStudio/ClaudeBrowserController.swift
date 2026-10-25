@@ -18,6 +18,10 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     private var actionsButton: UIBarButtonItem!
     private var currentBrowser: WKWebView? { currentID.flatMap { browsers[$0] } }
     private var injectedObserver = ""
+    /// Title pill: container · model · effort. The model text is read from the open claude.ai page.
+    private let titleButton = UIButton(type: .system)
+    private var modelText = ""
+    private var modelTimer: Timer?
     /// The container the person opened on purpose. A limit notice there never moves them away,
     /// so a limited container can still be entered to check it or charge it.
     private var stayOnID: UUID?
