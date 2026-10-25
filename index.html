@@ -644,7 +644,8 @@ body{overscroll-behavior:none}
     <div class="panel" id="panelCode">
       <div class="code-wrap">
         <div class="code-head">
-          <div class="code-heading"><span class="eyebrow">YOUR WORKSPACE</span><h2>Make something great.</h2><p>From idea to a working app.</p></div>
+          <button class="code-head-toggle" id="codeHeadToggle" onclick="toggleCodeHead()" aria-expanded="false" aria-controls="codeHeadBody"><span class="eyebrow">YOUR WORKSPACE</span><span class="chd-sum" id="codeHeadSum">Choose a repository</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="code-head-body" id="codeHeadBody" hidden>
           <button class="gh-btn" id="codePermissionsBtn" onclick="openCodePermissions()">Permissions</button>
           <select aria-label="Repository" id="codeRepo" onchange="codeRepoChange()"></select>
           <select aria-label="Branch" id="codeBranch" onchange="codeBranchChange(this.value)"></select>
