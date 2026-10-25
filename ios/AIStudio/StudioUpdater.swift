@@ -57,6 +57,10 @@ final class StudioUpdater {
     static let maxBytes = 24_000_000
     static let manifestName = "studio-web.json"
     static let htmlName = "studio-web.html"
+    static let observerName = "studio-observer.js"
+    static let maxObserverBytes = 400_000
+    /// One updater for the whole app, so the Claude browser reads the same verified files as the Studio page.
+    static let shared = StudioUpdater()
 
     private enum Keys {
         static let pending = "studio.web.pending"
