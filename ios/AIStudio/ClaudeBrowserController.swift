@@ -18,6 +18,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     private var actionsButton: UIBarButtonItem!
     private var currentBrowser: WKWebView? { currentID.flatMap { browsers[$0] } }
     private var injectedObserver = ""
+    /// The container the person opened on purpose. A limit notice there never moves them away,
+    /// so a limited container can still be entered to check it or charge it.
+    private var stayOnID: UUID?
 
     init(store: ClaudeProfileStore) {
         self.store = store; super.init(nibName: nil, bundle: nil)
