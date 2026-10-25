@@ -135,6 +135,54 @@ final class ClaudeProfileStore {
         if profile.status == .rateLimited, let until = profile.limitedUntil, until <= now { return .active }
         return profile.status
     }
+
+    // MARK: usage estimate
+    static let usageWindow: TimeInterval = 5 * 3600
+    static let defaultLimit = 30
+
+    private func windowIsLive(_ p: ClaudeProfile, now: Date) -> Bool {
+        guard let start = p.windowStart else { return false }
+        return start.addingTimeInterval(Self.usageWindow) > now
+    }
+    /// Claude does not publish exact limits, so the limit is the user's number, else the average
+    /// of counts at which this container was limited before, else a default guess.
+    func usage(_ p: ClaudeProfile, now: Date = Date()) -> ClaudeUsage {
+        let live = windowIsLive(p, now: now)
+        let used = live ? max(0, p.windowCount ?? 0) : 0
+        let limit: Int, source: String
+        if let manual = p.limitEstimate, manual > 0 { limit = manual; source = "manual" }
+        else if let learned = p.learnedLimits, !learned.isEmpty {
+            limit = max(1, Int((Double(learned.reduce(0, +)) / Double(learned.count)).rounded())); source = "learned"
+        } else { limit = Self.defaultLimit; source = "default" }
+        let limited = status(p, now: now) == .rateLimited
+        // The bar only reaches 100 once Claude actually shows a limit.
+        let percent = limited ? 100 : min(99, used * 100 / limit)
+        var resets: TimeInterval?
+        if limited, let until = p.limitedUntil, until > now { resets = until.timeIntervalSince(now) }
+        else if live, let start = p.windowStart { resets = start.addingTimeInterval(Self.usageWindow).timeIntervalSince(now) }
+        return ClaudeUsage(used: used, limit: limit, percent: percent, source: source, limited: limited, resetsIn: resets)
+    }
+    func recordMessage(_ id: UUID, now: Date = Date()) throws {
+        try update(id) { p in
+            if windowIsLive(p, now: now) { p.windowCount = (p.windowCount ?? 0) + 1 }
+            else { p.windowStart = now; p.windowCount = 1 }
+        }
+    }
+    /// Remember how many messages this app sent before the limit appeared. Tiny counts are ignored
+    /// because the limit was probably used up elsewhere (claude.ai, the phone app).
+    func recordLimitHit(_ id: UUID, now: Date = Date()) throws {
+        try update(id) { p in
+            let count = windowIsLive(p, now: now) ? (p.windowCount ?? 0) : 0
+            if count >= 3 { p.learnedLimits = Array(((p.learnedLimits ?? []) + [count]).suffix(5)) }
+            if !windowIsLive(p, now: now) { p.windowStart = now }
+        }
+    }
+    func setLimitEstimate(_ id: UUID, _ value: Int?) throws {
+        try update(id) { $0.limitEstimate = (value ?? 0) > 0 ? min(value!, 10_000) : nil }
+    }
+    func resetUsage(_ id: UUID) throws {
+        try update(id) { $0.windowStart = nil; $0.windowCount = nil }
+    }
     func next(after id: UUID, excluding: Set<UUID> = [], now: Date = Date()) -> ClaudeProfile? {
         let profiles = state.profiles
         guard !profiles.isEmpty else { return nil }
