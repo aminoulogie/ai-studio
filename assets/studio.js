@@ -30,7 +30,7 @@ function setStudioTheme(value,save=true){
   if(save)ls('studio_theme',value);
   if(value==='system')document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme',value);
-  isDark=value==='dark';ls('cl_dark',isDark?'1':'0');
+  isDark=value==='dark'||value==='claude';ls('cl_dark',isDark?'1':'0');
 }
 function openAppearance(){
   const current=ls('studio_art')||'aurora',theme=ls('studio_theme')||'system';
