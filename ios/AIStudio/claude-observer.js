@@ -158,6 +158,32 @@
     if(!btn)return false;
     btn.click();return true;
   };
+  // Model pill: the model and effort Claude shows next to the message box, e.g. "Sonnet 5.5 · High". Read-only here;
+  // switching opens Claude's own picker so the choice is made exactly where Claude offers it.
+  const MODEL_RE=/\b(sonnet|opus|haiku|fable|mythos)\b/i;
+  function modelButton(){
+    const known=document.querySelector('[data-testid="model-selector-dropdown"]');
+    if(known&&visible(known))return known;
+    const list=Array.from(document.querySelectorAll('button,[role="button"]')).filter(visible);
+    for(let i=list.length-1;i>=0;i--){
+      const text=(list[i].innerText||'').trim();
+      if(text&&text.length<=40&&MODEL_RE.test(text))return list[i];
+    }
+    return null;
+  }
+  globalThis.claudeModelInfo=()=>{
+    const el=modelButton();if(!el)return '';
+    const text=(el.innerText||'').split(/\n+/).map(s=>s.trim()).filter(Boolean).join(' ');
+    return text.replace(/\s+(Low|Medium|High|Extra high|Max)$/i,' · $1').slice(0,60);
+  };
+  globalThis.claudeOpenModelPicker=()=>{
+    const el=modelButton();if(!el)return false;
+    for(const type of ['pointerdown','mousedown','pointerup','mouseup','click']){
+      const Ctor=type.startsWith('pointer')&&typeof PointerEvent==='function'?PointerEvent:MouseEvent;
+      el.dispatchEvent(new Ctor(type,{bubbles:true,cancelable:true,button:0,pointerType:'touch'}));
+    }
+    return true;
+  };
   globalThis.claudeCheckLimits=()=>{lastLimit='';check();};
   const observer=new MutationObserver(()=>{
     if(scheduled)return;scheduled=true;setTimeout(check,800);
