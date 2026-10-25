@@ -96,21 +96,22 @@ jobs:
           assert size >= 20 * 1024**2, 'IPA must contain at least 20 MiB of app and functional artwork'
           PY
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: AIStudio-ipa
-          path: ios/AIStudio.ipa
-          retention-days: 30
-
       - name: Name the IPA with its version
-        if: github.ref == 'refs/heads/main'
         run: cp ios/AIStudio.ipa ios/AIStudio-v1.0.${{ github.run_number }}.ipa
 
-      - name: Publish release (main only)
-        if: github.ref == 'refs/heads/main'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AIStudio-v1.0.${{ github.run_number }}
+          path: ios/AIStudio-v1.0.${{ github.run_number }}.ipa
+          retention-days: 30
+
+      - name: Publish release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
           name: AI Studio v1.0.${{ github.run_number }}
           body: |
             iPhone app (unsigned IPA). Sign/install with Sideloadly, AltStore, ESign or Feather, Claude tab uses isolated official claude.ai sign-ins (iOS 17+). Studio model connections remain separate.
