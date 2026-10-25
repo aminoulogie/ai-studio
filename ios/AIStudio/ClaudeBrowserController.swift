@@ -449,7 +449,35 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                     self.emit("sending"); self.startPolling(); return
                 }
                 if attempts > 1 { self.submitJob(id, attempts: attempts - 1) }
-                else { self.endJob("failed", note: "Your message is in Claude's box but I could not press send. Open the Claude tab and press send.") }
+                else { self.submitByKey(id) }
+            }
+        }
+    }
+    /// Last resort when no send button could be found: press Enter in the message box, then check the message really went.
+    private func submitByKey(_ id: String) {
+        guard job?.id == id, let web = currentBrowser else { return }
+        web.evaluateJavaScript("globalThis.claudeSubmitKey?.()", in: nil, in: observerWorld) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self = self, self.job?.id == id, let web = self.currentBrowser else { return }
+                web.evaluateJavaScript("globalThis.claudeStatus?.()", in: nil, in: self.observerWorld) { [weak self] result in
+                    guard let self = self, self.job?.id == id else { return }
+                    if case .success(let value) = result, let status = value as? [String: Any] {
+                        let users = status["users"] as? Int ?? 0
+                        let streaming = (status["streaming"] as? Bool) == true
+                        if users > (self.job?.baselineUsers ?? 0) || streaming {
+                            self.job?.sent = true; self.job?.startedAt = Date()
+                            self.emit("sending"); self.startPolling(); return
+                        }
+                    }
+                    web.evaluateJavaScript("globalThis.claudeSubmitDiag?.()", in: nil, in: self.observerWorld) { [weak self] diag in
+                        guard let self = self, self.job?.id == id else { return }
+                        var seen = ""
+                        if case .success(let value) = diag, let text = value as? String, !text.isEmpty {
+                            seen = " Buttons I could see: " + String(text.prefix(200)) + "."
+                        }
+                        self.endJob("failed", note: "Your message is in Claude's box but I could not press send. Open the Claude tab and press send." + seen)
+                    }
+                }
             }
         }
     }
