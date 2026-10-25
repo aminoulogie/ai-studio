@@ -31,7 +31,7 @@ const STUDIO_ICONS={
   '✅':'<path d="M5 12.5l4.5 4.5L19 7.5"/>'
 };
 Object.assign(STUDIO_ICONS,{
-  '⚠':STUDIO_ICONS['⚠️'],
+  '⚠':'<path d="M12 4l9 16H3z"/><path d="M12 10v4m0 3h.01"/>',
   '📎':'<path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7l9-9a3.3 3.3 0 0 1 4.7 4.7l-9 9a1.7 1.7 0 0 1-2.4-2.4l8.2-8.2"/>',
   '📁':'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   '⌨':'<path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/>',
