@@ -72,7 +72,7 @@ final class StudioUpdater {
     private let builtIn: () -> StudioWebManifest?
     private let bundledHTML: () -> String?
     private let network = StudioUpdateNetwork()
-    private var candidate: (manifest: StudioWebManifest, htmlURL: URL)?
+    private var candidate: (manifest: StudioWebManifest, htmlURL: URL, observerURL: URL?)?
     private(set) var runningVersion = 0
 
     init(directory: URL? = nil,
