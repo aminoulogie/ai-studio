@@ -140,8 +140,8 @@ function renderClaudeUsage(profiles){
       '<span class="cu-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+p.percent+'"><i style="width:'+p.percent+'%"></i></span>'+
       '<span class="cu-txt">'+(p.limited?'Limit reached':p.used+'/'+limit)+esc(reset)+'</span></div>';
   }).join('');
+  panel.innerHTML='<summary>Usage · '+(on.length-limited)+' ready · '+limited+' limited</summary><div class="cu-list">'+rows+'</div>';
 }
-async function refreshClaudeCodeProfiles(){
   renderClaudeControls();
   const select=document.getElementById('codeClaudeProfile');if(!select||!inApp())return;
   try{
