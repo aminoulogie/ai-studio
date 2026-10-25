@@ -415,6 +415,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         var startedAt = Date()
         var sent = false
         var baselineUsers = 0
+        var images: [[String: String]] = []
     }
     private var job: ClaudeJob?
     private var pollTimer: Timer?
