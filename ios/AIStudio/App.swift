@@ -172,6 +172,15 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             do { try store.setMasterMemory(text); replyHandler(store.masterMemory, nil) }
             catch { replyHandler(nil, error.localizedDescription) }
             return
+        case "claudeSend":
+            guard let id = msg["id"] as? String, !id.isEmpty, id.utf8.count <= 64,
+                  let text = msg["text"] as? String, !text.isEmpty, text.utf8.count <= 40_000,
+                  let tabs = tabBarController as? StudioTabController else {
+                replyHandler(nil, "Nothing to send"); return
+            }
+            tabs.startClaudeJob(id: id, text: text, reply: replyHandler); return
+        case "claudeStop":
+            (tabBarController as? StudioTabController)?.stopClaudeJob(); replyHandler(true, nil); return
         case "sendToClaude":
             guard let text = msg["text"] as? String, !text.isEmpty, text.utf8.count <= 40_000,
                   let tabs = tabBarController as? StudioTabController else {
