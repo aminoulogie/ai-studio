@@ -83,4 +83,6 @@ assert.equal(r.context.claudeStop(),true);
 r=runBox(['Send message']);
 assert.equal(r.context.claudeStatus().streaming,false);
 assert.equal(r.context.claudeStop(),false,'Stop must not press Send');
+assert.equal(run().context.claudeAttachImages('[]'),0,'No photos means nothing attached');
+assert.equal(run().context.claudeAttachImages('not json'),0,'Bad input attaches nothing');
 console.log('Claude observer checks passed: notices, false positives, origins, ordered visible-text export, shared memory read-back, send/stop in any language, Enter fallback.');
