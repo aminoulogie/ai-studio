@@ -17,8 +17,8 @@ Built
 - Tests: `tests/ota-update.cjs` (sheet states, safety checks, native ops snapshot, CI assets) and `tests/ios/StudioUpdaterTests.swift` (validation, release pick, rollback, reset).
 
 Limits
-- v1.0.97 itself must be installed once as a signed IPA. Web updates are free after that.
-- Swift code, Info.plist, icons, `claude-observer.js` and new native ops still need a new IPA.
+- The first build with App updates must be installed once as a signed IPA. Web updates are free after that. That build is v1.0.100 (v1.0.98 and v1.0.99 do not have the Claude-tab fixes below).
+- Swift code, Info.plist, icons and new native ops still need a new IPA. `claude-observer.js` now updates in-app (see v1.0.100).
 - Does not remove the sideload tool's own certificate expiry.
 - The bridge trusts any page at aistudio.app (including `credentialGet`), so the bundle is checked by size and hash only. Signing the bundle in CI with a public key embedded in the app is the next hardening step.
 - Not verified on a device yet.
