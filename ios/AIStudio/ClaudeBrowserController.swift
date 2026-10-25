@@ -151,6 +151,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             web.topAnchor.constraint(equalTo: surface.topAnchor), web.bottomAnchor.constraint(equalTo: surface.bottomAnchor)
         ])
         empty.isHidden = true
+        modelText = ""
         if automatic { web.load(URLRequest(url: URL(string: "https://claude.ai/new")!)) }
         else { web.evaluateJavaScript("globalThis.claudeCheckLimits?.()", in: nil, in: observerWorld, completionHandler: nil) }
         refreshMenus()
