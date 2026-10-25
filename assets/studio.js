@@ -36,5 +36,5 @@ function openAppearance(){
   const current=ls('studio_art')||'aurora',theme=ls('studio_theme')||'system';
   openSheet('<h3>Make it your space.</h3><p>Four original wallpapers, bundled in high resolution on iPhone. Only your selected wallpaper is loaded.</p><div class="appearance-grid">'+
     STUDIO_THEMES.map(t=>'<button class="appearance-card" aria-pressed="'+(t.id===current)+'" onclick="setStudioArt(\''+t.id+'\');openAppearance()" title="'+t.note+'"><img src="'+studioArt(t.id)+'" alt="'+t.note+'"><span>'+t.name+'</span></button>').join('')+
-    '</div><label>Appearance <select onchange="setStudioTheme(this.value)">'+['system','light','dark'].map(v=>'<option value="'+v+'" '+(v===theme?'selected':'')+'>'+v[0].toUpperCase()+v.slice(1)+'</option>').join('')+'</select></label><div class="modal-btns"><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>');
+    '</div><label>Appearance <select onchange="setStudioTheme(this.value)">'+['system','light','dark','claude'].map(v=>'<option value="'+v+'" '+(v===theme?'selected':'')+'>'+v[0].toUpperCase()+v.slice(1)+'</option>').join('')+'</select></label><div class="modal-btns"><button class="gh-btn primary" onclick="closeSheet()">Done</button></div>');
 }
