@@ -415,3 +415,12 @@ body.empty #topText,body.empty #topTitle [data-icon]{visibility:hidden}
 .top{gap:4px}
 :root #usageRing[data-level="high"] .val{stroke:#e8a54b}
 :root #usageRing[data-level="full"] .val{stroke:#e5675d}
+
+/* Code | Claude at the top instead of a bottom tab bar (in the app; a browser keeps the session title). */
+.top-switch{margin:0 auto;flex:none}
+.top-switch button{padding:0 14px;gap:6px}
+.top-switch button svg.ic{width:16px;height:16px}
+.top-switch button.on{color:var(--accent-2)}
+body:not(.in-app) .top-switch{display:none}
+body.in-app #topTitle{display:none}
+@media (min-width:821px){body.in-app .top-switch{margin-left:12px;margin-right:auto}}

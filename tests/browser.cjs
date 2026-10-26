@@ -46,6 +46,7 @@ const nativeMock=`(()=>{
       case 'dictateStart':setTimeout(()=>window.onDictation({text:'make it blue',final:true}),20);return true;
       case 'dictateStop':return true;
       case 'claudeUsage':return {text:o.profile==='M'?'Plan usage\\nCurrent session\\n52% used\\nResets in 3 hr 39 min\\nWeekly limits\\nAll models\\n7% used\\nResets Mon 3:59 AM':'Settings',signedOut:false};
+      case 'selectStudioTab':return true;
       case 'claudeSetManager':profiles.forEach(p=>p.manager=p.id===o.profile);return true;
       case 'claudeSend':{
         window.__sent.push({role:o.role,text:o.text,profile:o.profile,moveOnLimit:o.moveOnLimit,files:(o.images||[]).map(i=>i.mime)});
@@ -220,6 +221,10 @@ const nativeMock=`(()=>{
     assert.equal(await page.getAttribute('#ringVal','stroke-dasharray'),'52 100');
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-ring.png'),clip:{x:0,y:0,width:viewport.width,height:70}});
     await page.click('#usageRing');await page.waitForSelector('.ctr');await page.evaluate(()=>closeSheet());
+    // Code | Claude switch at the top replaces the bottom tab bar.
+    assert.ok(await page.locator('#topSwitch').isVisible());
+    await page.click('#topSwitch >> text=Claude');
+    await page.waitForFunction(()=>window.__ops.includes('selectStudioTab'));
     await page.setInputFiles('#fileInput',{name:'plan.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 test')});
     assert.match(await page.locator('#atts').innerText(),/plan\.pdf/);
     await page.evaluate(()=>{ls('research','1');setTeamMode('single',true);});

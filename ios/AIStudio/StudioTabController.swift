@@ -21,6 +21,8 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         delegate = self
         let tint = UIColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 1)
         tabBar.tintColor = tint
+        // No bottom tab bar: Code and Claude switch with the Code | Claude control at the top of each.
+        if #available(iOS 18.0, *) { setTabBarHidden(true, animated: false) } else { tabBar.isHidden = true }
         // The Claude tab's bars use the same terracotta as claude.ai instead of iOS blue.
         UINavigationBar.appearance(whenContainedInInstancesOf: [UINavigationController.self]).tintColor = tint
         UIToolbar.appearance(whenContainedInInstancesOf: [UINavigationController.self]).tintColor = tint
@@ -35,6 +37,7 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
     func setClaudeManager(_ id: UUID?) throws { try claudeBrowser.setManager(id) }
     func setClaudeEnabled(_ id: UUID, _ enabled: Bool) throws { try claudeBrowser.setEnabled(id, enabled) }
     func selectStudioMode(_ mode: String) {
+        if mode == "claude" { selectedIndex = 1; return }
         selectedIndex = 0
         studio.selectStudioTab(mode)
     }

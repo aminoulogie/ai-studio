@@ -201,7 +201,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         let tabs = tabBarController as? StudioTabController
         switch op {
         case "selectStudioTab":
-            guard let tab = msg["tab"] as? String, ["code", "settings"].contains(tab) else {
+            guard let tab = msg["tab"] as? String, ["code", "settings", "claude"].contains(tab) else {
                 replyHandler(nil, "Unsupported tab"); return
             }
             tabs?.selectStudioMode(tab)

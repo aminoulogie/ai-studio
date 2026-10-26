@@ -20,6 +20,8 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     private var currentBrowser: WKWebView? { currentID.flatMap { browsers[$0] } }
     private var injectedObserver = ""
     private let titleButton = UIButton(type: .system)
+    /// Code | Claude at the top, in place of a bottom tab bar.
+    private let switcher = UISegmentedControl(items: ["Code", "Claude"])
     private var modelText = ""
     private var modelTimer: Timer?
     private var onScreen = false
@@ -87,19 +89,25 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         actionsButton = UIBarButtonItem(title: "Actions", image: UIImage(systemName: "ellipsis.circle"), primaryAction: nil, menu: nil)
         navigationItem.leftBarButtonItem = accountsButton
         navigationItem.rightBarButtonItem = actionsButton
+        switcher.selectedSegmentIndex = 1
+        switcher.addTarget(self, action: #selector(switchToCode), for: .valueChanged)
+        switcher.widthAnchor.constraint(equalToConstant: 190).isActive = true
+        switcher.accessibilityLabel = "Switch between Code and Claude"
+        navigationItem.titleView = switcher
+        // The open container and its model sit in the middle of the bottom toolbar.
+        titleButton.widthAnchor.constraint(lessThanOrEqualToConstant: 200).isActive = true
         toolbarItems = [
             UIBarButtonItem(image: UIImage(systemName: "chevron.left"), style: .plain, target: self, action: #selector(back)),
             UIBarButtonItem(image: UIImage(systemName: "chevron.right"), style: .plain, target: self, action: #selector(forward)),
             .flexibleSpace(),
+            UIBarButtonItem(customView: titleButton),
+            .flexibleSpace(),
             UIBarButtonItem(image: UIImage(systemName: "arrow.clockwise"), style: .plain, target: self, action: #selector(reloadPage)),
-            .flexibleSpace(),
-            UIBarButtonItem(title: "Limit → Next", style: .plain, target: self, action: #selector(manualLimit)),
-            .flexibleSpace(),
             UIBarButtonItem(image: UIImage(systemName: "square.and.pencil"), style: .plain, target: self, action: #selector(newChat))
         ]
         toolbarItems?[0].accessibilityLabel = "Back"
         toolbarItems?[1].accessibilityLabel = "Forward"
-        toolbarItems?[3].accessibilityLabel = "Reload"
+        toolbarItems?[5].accessibilityLabel = "Reload"
         toolbarItems?.last?.accessibilityLabel = "New Claude chat"
         refreshMenus()
         if let selected = store.state.selected, store.state.profiles.contains(where: { $0.id == selected }) {
@@ -109,6 +117,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         onScreen = true
+        switcher.selectedSegmentIndex = 1
         navigationController?.setToolbarHidden(false, animated: false)
         if let web = currentBrowser { place(web, visible: true) }
         modelTimer?.invalidate()
@@ -235,9 +244,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                                    image: UIImage(systemName: "slider.horizontal.3")) { [weak self] _ in self?.openModelPicker() }
         titleButton.menu = UIMenu(children: [UIMenu(title: "Container", options: .displayInline, children: containers), modelAction])
         titleButton.sizeToFit()
-        titleButton.frame.size.width = min(titleButton.frame.width, 260)
-        navigationItem.titleView = titleButton
+        titleButton.frame.size.width = min(titleButton.frame.width, 200)
     }
+    @objc private func switchToCode() { onFocus?(false) }
     private func subtitle(_ p: ClaudeProfile) -> String {
         var parts = [p.manager ? "Manager" : "Sub-agent", store.status(p).rawValue]
         if !p.enabled { parts.append("Paused") }
@@ -271,6 +280,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                          state: p.id == currentID ? .on : .off) { [weak self] _ in self?.show(p.id) }
             } + [UIAction(title: "Add account", image: UIImage(systemName: "plus")) { [weak self] _ in self?.addAccount() }])
         actionsButton.menu = UIMenu(children: [
+            UIAction(title: "Limit reached → next account", image: UIImage(systemName: "arrow.right.circle")) { [weak self] _ in self?.manualLimit() },
             UIAction(title: "Account settings", image: UIImage(systemName: "person.crop.circle.badge.gearshape")) { [weak self] _ in self?.accountSettings() },
             UIAction(title: "Export visible chat", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in self?.exportContext() },
             UIAction(title: "Edit shared memory", image: UIImage(systemName: "brain")) { [weak self] _ in self?.editMemory() },
