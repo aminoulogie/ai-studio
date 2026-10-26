@@ -10,8 +10,10 @@ struct ClaudeProfile: Codable, Identifiable {
     var lastURL: URL?
     /// The one account that plans the work (your paid Opus account). Every other account is a sub-agent.
     var manager = false
+    /// "free", "pro", "max", "team" or "enterprise": read from claude.ai ("Free plan"…) or set by hand. nil until known.
+    var plan: String?
     init(name: String) { self.name = name }
-    enum CodingKeys: String, CodingKey { case id, name, status, enabled, limitedUntil, lastURL, manager }
+    enum CodingKeys: String, CodingKey { case id, name, status, enabled, limitedUntil, lastURL, manager, plan }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -21,6 +23,7 @@ struct ClaudeProfile: Codable, Identifiable {
         limitedUntil = try c.decodeIfPresent(Date.self, forKey: .limitedUntil)
         lastURL = try c.decodeIfPresent(URL.self, forKey: .lastURL)
         manager = try c.decodeIfPresent(Bool.self, forKey: .manager) ?? false
+        plan = try c.decodeIfPresent(String.self, forKey: .plan)
     }
 }
 

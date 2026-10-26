@@ -68,6 +68,7 @@
       lastLimit=text;
       bridge.postMessage({event:'limit',notice:text,retryAfterSeconds:resetDelay(text),snapshot:snapshot()});
     }
+    try{if(typeof NodeFilter!=='undefined')checkPlan();}catch(e){}
     if(!signedIn&&document.querySelector('[contenteditable="true"][role="textbox"],textarea[placeholder*="Claude"]')){
       signedIn=true;bridge.postMessage({event:'signedIn'});
     }
@@ -211,6 +212,61 @@
     }
     return true;
   };
+  // Picks a model and effort in Claude's own menu, like a person would. Returns 'ok', or why it could not.
+  const pause=ms=>new Promise(r=>setTimeout(r,ms));
+  function press(el){
+    for(const type of ['pointerdown','mousedown','pointerup','mouseup','click']){
+      const Ctor=type.startsWith('pointer')&&typeof PointerEvent==='function'?PointerEvent:MouseEvent;
+      el.dispatchEvent(new Ctor(type,{bubbles:true,cancelable:true,button:0,pointerType:'touch'}));
+    }
+  }
+  const menuItems=()=>Array.from(document.querySelectorAll('[role="menuitem"],[role="menuitemradio"],[role="option"],[role="radio"],[role="tab"],[role="menu"] button,[role="listbox"] button,[role="dialog"] button')).filter(visible);
+  const firstLine=el=>((el.innerText||el.textContent||'').trim().split(/\n+/)[0]||'').trim();
+  const wordRe=w=>new RegExp('\\b'+String(w).toLowerCase().replace(/^claude\s+/,'').replace(/[.]/g,'\\.').replace(/[-\s]+/g,'[-\\s]*')+'\\b','i');
+  const closeMenu=()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',bubbles:true}));
+  globalThis.claudeSetModel=async(model,effort)=>{
+    const now=()=>(globalThis.claudeModelInfo?.()||'');
+    const needModel=!!model&&!wordRe(model).test(now());
+    const needEffort=!!effort&&!wordRe(effort).test(now());
+    if(!needModel&&!needEffort)return 'ok';
+    let btn=modelButton();if(!btn)return 'no model menu on this page';
+    if(needModel){
+      press(btn);await pause(450);
+      const item=menuItems().find(el=>el!==btn&&wordRe(model).test(firstLine(el)));
+      if(!item){closeMenu();return 'model not offered: '+model;}
+      press(item);await pause(600);
+    }
+    if(needEffort){
+      if(!menuItems().length){btn=modelButton();if(!btn)return 'no model menu on this page';press(btn);await pause(450);}
+      let item=menuItems().find(el=>wordRe(effort).test(firstLine(el)));
+      if(!item){
+        // Effort can sit in a sub-menu ("Effort ›", "Extended thinking ›").
+        const sub=menuItems().find(el=>/effort|thinking|intensity/i.test(firstLine(el)));
+        if(sub){press(sub);await pause(400);item=menuItems().find(el=>wordRe(effort).test(firstLine(el)));}
+      }
+      if(!item){closeMenu();return 'effort not offered: '+effort;}
+      press(item);await pause(300);
+    }
+    closeMenu();
+    return 'ok';
+  };
+  // The account's plan as claude.ai labels it ("Free plan", "Pro plan", "Max plan"), outside any conversation.
+  const PLAN_RE=/^(free|pro|max|team|enterprise)(?:\s*\d+x)?\s+plan$/i;
+  let planSeen='',planCheckedAt=0;
+  function checkPlan(){
+    if(Date.now()-planCheckedAt<15000)return;
+    planCheckedAt=Date.now();
+    const walker=document.createTreeWalker(document.body||document.documentElement,NodeFilter.SHOW_TEXT);
+    let n=0,node;
+    while((node=walker.nextNode())&&n++<4000){
+      const t=(node.nodeValue||'').trim();
+      if(t.length>20||!PLAN_RE.test(t))continue;
+      if(node.parentElement?.closest('[data-testid="user-message"],[data-testid="assistant-message"],[data-is-streaming]'))continue;
+      const plan=t.match(PLAN_RE)[1].toLowerCase();
+      if(plan!==planSeen){planSeen=plan;bridge.postMessage({event:'plan',plan});}
+      return;
+    }
+  }
   globalThis.claudeCheckLimits=()=>{lastLimit='';check();};
   const observer=new MutationObserver(()=>{
     if(scheduled)return;scheduled=true;setTimeout(check,800);

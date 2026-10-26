@@ -103,3 +103,30 @@ assert.equal(run().context.claudeAttachImages('not json'),0,'Bad input attaches 
   assert.equal(ctx.claudeStatus().last,'I changed it.\n\n```js\n@@@ FILE: a.js\n@@@ OLD\n  x  = 1;\n@@@ NEW\n  x = 2;\n@@@ END\n```\n\nDone.','code kept exactly, label and Copy skipped');
 }
 console.log('Claude observer checks passed: replies with exact code blocks, notices, false positives, origins, ordered visible-text export, shared memory read-back, send/stop in any language, Enter fallback.');
+// Model and effort are picked in Claude's own menu; the plan label is read from the page.
+(async()=>{
+  const items=[],pressed=[];
+  const mk=(text,role='menuitem')=>({innerText:text,getAttribute:k=>k==='role'?role:null,getClientRects:()=>[{}],dispatchEvent(e){if(e.type==='click')pressed.push(text);if(text==='Sonnet 5.5 Medium'){items.splice(0,items.length,mk('Opus 5.5'),mk('Sonnet 5.5'),mk('Haiku 4.5'),mk('Effort'));}if(text==='Effort'){items.splice(0,items.length,mk('Low'),mk('Medium'),mk('High'));}if(text==='Opus 5.5')modelText='Opus 5.5 Medium';return true;}});
+  let modelText='Sonnet 5.5 Medium';
+  const modelBtn={get innerText(){return modelText;},getAttribute:()=>null,getClientRects:()=>[{}],dispatchEvent(e){if(e.type==='click'){pressed.push('menu');items.splice(0,items.length,mk('Opus 5.5'),mk('Sonnet 5.5'),mk('Haiku 4.5'),mk('Effort'));}return true;}};
+  const posted=[];
+  const planNode={nodeValue:'Pro plan',parentElement:{closest:()=>null}};
+  const ctx={location:{protocol:'https:',hostname:'claude.ai',href:'https://claude.ai/new',pathname:'/new'},
+    window:{webkit:{messageHandlers:{claudeObserver:{postMessage:m=>posted.push(m)}}}},
+    document:{documentElement:{},body:{},dispatchEvent(){},
+      querySelector:s=>s.includes('model-selector')?modelBtn:null,
+      querySelectorAll:s=>s.includes('menuitem')?items:s.includes('button')?[modelBtn]:[],
+      createTreeWalker:()=>{let done=false;return {nextNode:()=>done?null:(done=true,planNode)};}},
+    NodeFilter:{SHOW_TEXT:4},MutationObserver:class{observe(){}},getComputedStyle:()=>({visibility:'visible'}),
+    setTimeout:(f)=>{f();return 1;},Date,PointerEvent:class{constructor(t){this.type=t;}},MouseEvent:class{constructor(t){this.type=t;}},KeyboardEvent:class{constructor(t){this.type=t;}}};
+  vm.runInNewContext(source,ctx);
+  assert.equal(JSON.stringify(posted.find(p=>p.event==='plan')),JSON.stringify({event:'plan',plan:'pro'}),'the plan label is read from the page');
+  assert.equal(await ctx.claudeSetModel('Opus 5.5',''),'ok');
+  assert.ok(pressed.includes('Opus 5.5'),'the model is picked in the menu');
+  assert.equal(await ctx.claudeSetModel('Opus 5.5',''),'ok','nothing to do when it is already selected');
+  modelText='Opus 5.5 Medium';
+  assert.equal(await ctx.claudeSetModel('','High'),'ok');
+  assert.ok(pressed.includes('Effort')&&pressed.includes('High'),'effort is found in its sub-menu');
+  assert.match(await ctx.claudeSetModel('Mythos 9',''),/model not offered/);
+  console.log('Model, effort and plan checks passed.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

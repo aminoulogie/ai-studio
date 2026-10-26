@@ -249,6 +249,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     @objc private func switchToCode() { onFocus?(false) }
     private func subtitle(_ p: ClaudeProfile) -> String {
         var parts = [p.manager ? "Manager" : "Sub-agent", store.status(p).rawValue]
+        if let plan = p.plan { parts.insert(plan.capitalized, at: 1) }
         if !p.enabled { parts.append("Paused") }
         if busy(p.id) { parts.append("Working") }
         return parts.joined(separator: " · ")
@@ -329,6 +330,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         sheet.addAction(UIAlertAction(title: p.manager ? "Make it a sub-agent" : "Make it the manager (plans the work)", style: .default) { [weak self] _ in
             do { try self?.store.setManager(p.manager ? nil : id); self?.refreshMenus() } catch { self?.report(error) }
         })
+        sheet.addAction(UIAlertAction(title: "Plan: " + (p.plan?.capitalized ?? "detect automatically") + " · change", style: .default) { [weak self] _ in
+            self?.choosePlan(id)
+        })
         sheet.addAction(UIAlertAction(title: "Mark signed in / Reset limit", style: .default) { [weak self] _ in
             self?.change(id) { $0.status = .active; $0.limitedUntil = nil }
         })
@@ -339,6 +343,17 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         sheet.addAction(UIAlertAction(title: "Rename", style: .default) { [weak self] _ in self?.rename(id, name: p.name) })
         sheet.addAction(UIAlertAction(title: "Log out / Clear this container", style: .destructive) { [weak self] _ in self?.confirmClear(id, remove: false) })
         sheet.addAction(UIAlertAction(title: "Remove account", style: .destructive) { [weak self] _ in self?.confirmClear(id, remove: true) })
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.popoverPresentationController?.barButtonItem = actionsButton
+        present(sheet, animated: true)
+    }
+    /// The plan is read from claude.ai by itself; this sets it by hand when the page does not show it.
+    private func choosePlan(_ id: UUID) {
+        let sheet = UIAlertController(title: "Plan", message: "Used for the Free / Pro tags and usage estimates.", preferredStyle: .actionSheet)
+        for plan in ["free", "pro", "max", "team"] {
+            sheet.addAction(UIAlertAction(title: plan.capitalized, style: .default) { [weak self] _ in self?.change(id) { $0.plan = plan } })
+        }
+        sheet.addAction(UIAlertAction(title: "Detect automatically", style: .default) { [weak self] _ in self?.change(id) { $0.plan = nil } })
         sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         sheet.popoverPresentationController?.barButtonItem = actionsButton
         present(sheet, animated: true)
@@ -483,6 +498,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         var note = ""
         /// false: at a limit the job ends as "limited" and the Code tab compresses the conversation before moving on.
         var moveOnLimit = true
+        /// Model and effort to pick in claude.ai's model menu before sending ("" leaves the account's choice).
+        var model = ""
+        var effort = ""
     }
     private var jobs: [String: ClaudeJob] = [:]
     private var timers: [String: Timer] = [:]
@@ -497,6 +515,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         store.state.profiles.map { p -> [String: Any] in
             ["id": p.id.uuidString, "name": p.name, "status": store.status(p).rawValue, "enabled": p.enabled,
              "manager": p.manager, "busy": busy(p.id), "ready": store.ready(p),
+             "plan": p.plan ?? "",
              "limitedUntil": (store.status(p) == .rateLimited ? p.limitedUntil?.timeIntervalSince1970 : nil).map { $0 * 1000 } ?? 0]
         }
     }
@@ -534,6 +553,8 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         var job = ClaudeJob(id: id, text: text, images: images, role: role, manual: role == .manager,
                             fresh: (message["fresh"] as? Bool) ?? true)
         job.moveOnLimit = (message["moveOnLimit"] as? Bool) ?? true
+        job.model = Self.menuWord(message["model"])
+        job.effort = Self.menuWord(message["effort"])
         if let raw = message["profile"] as? String, let pinned = UUID(uuidString: raw) {
             guard let p = store.state.profiles.first(where: { $0.id == pinned }) else { reply(nil, "limited: That container no longer exists."); return }
             guard !busy(pinned) else { reply(nil, p.name + " is busy with another task."); return }
@@ -561,6 +582,12 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         reply(["account": name(jobs[id]?.profileID), "profile": jobs[id]?.profileID?.uuidString ?? ""], nil)
         if !(jobs[id]?.note.isEmpty ?? true) { emit(id, "sending", note: jobs[id]?.note ?? "") }
         if jobs[id]?.profileID != nil { begin(id) }
+    }
+    /// A model or effort name as shown in claude.ai's menu ("Sonnet 5.5", "Extra high"); anything else is dropped.
+    static func menuWord(_ value: Any?) -> String {
+        guard let text = value as? String, text.count <= 40, text.lowercased() != "auto",
+              text.range(of: "^[A-Za-z0-9 .-]*$", options: .regularExpression) != nil else { return "" }
+        return text.trimmingCharacters(in: .whitespaces)
     }
     private func assignWorker(_ id: String) -> Bool {
         guard let job = jobs[id] else { return false }
@@ -613,6 +640,8 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                 self.jobs[id]?.baseline = status["assistants"] as? Int ?? 0
                 self.jobs[id]?.baselineUsers = status["users"] as? Int ?? 0
             }
+            self.applyModel(id, web: web) { [weak self] in
+            guard let self = self, self.jobs[id]?.profileID == pid else { return }
             self.insert(job.text, into: web, attempts: 10) { [weak self] ok in
                 guard let self = self, self.jobs[id]?.profileID == pid else { return }
                 self.jobs[id]?.delivering = false
@@ -633,6 +662,23 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                     }
                 }
             }
+            }
+        }
+    }
+    /// Picks the job's model and effort in claude.ai's own menu. If the account does not offer them, it says so and
+    /// the message goes with the account's current choice.
+    private func applyModel(_ id: String, web: WKWebView, then next: @escaping () -> Void) {
+        guard let job = jobs[id], !job.model.isEmpty || !job.effort.isEmpty else { next(); return }
+        web.callAsyncJavaScript("return await globalThis.claudeSetModel?.(model, effort)",
+                                arguments: ["model": job.model, "effort": job.effort], in: nil, in: observerWorld) { [weak self] result in
+            guard let self = self, self.jobs[id] != nil else { return }
+            var outcome = ""
+            if case .success(let value) = result { outcome = (value as? String) ?? "" }
+            if outcome != "ok" {
+                let wanted = [job.model, job.effort].filter { !$0.isEmpty }.joined(separator: " · ")
+                self.emit(id, "sending", note: self.name(job.profileID) + " could not switch to " + wanted + "; using its current model.")
+            }
+            next()
         }
     }
     private func insert(_ text: String, into web: WKWebView, attempts: Int, completion: @escaping (Bool) -> Void) {
@@ -853,6 +899,10 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             if let profile = store.state.profiles.first(where: { $0.id == id }), store.status(profile) == .loggedOut {
                 change(id) { $0.status = .active }
             }
+        } else if event == "plan", let raw = payload["plan"] as? String,
+                  ["free", "pro", "max", "team", "enterprise"].contains(raw),
+                  store.state.profiles.first(where: { $0.id == id })?.plan != raw {
+            change(id) { $0.plan = raw }
         } else if event == "limit" {
             markLimited(id, retryAfter: payload["retryAfterSeconds"] as? TimeInterval)
             for job in jobs.values where job.profileID == id { moveJob(job.id, from: id, loggedOut: false) }

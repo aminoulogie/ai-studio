@@ -159,6 +159,14 @@ function sess(){return S.sessions[S.cur]||null;}
 function teamMode(){return ls('team_mode')||'team';}
 function parallel(){return Math.max(1,Math.min(6,Number(ls('team_parallel'))||3));}
 function autoCommit(){return ls('auto_commit')==='1';}
+/** Boss (manager) and sub-agent model and effort. "Auto" for sub-agents lets the boss choose per task. */
+function bossModel(){return ls('boss_model')||'Opus 5.5';}
+function bossEffort(){return ls('boss_effort')||'High';}
+function subModel(){return ls('sub_model')||'Auto';}
+function subEffort(){return ls('sub_effort')||'Auto';}
+const fixed=v=>v==='Auto'||v==='Account default'?'':v;
+const paid=p=>!!p?.plan&&p.plan!=='free';
+function planTag(p){return p.plan?'<span class="pill '+(paid(p)?'star':'')+'">'+esc(p.plan==='max'?'Max':p.plan[0].toUpperCase()+p.plan.slice(1))+'</span>':'';}
 
 /* Sessions live in IndexedDB on this device: the conversation, staged edits and the commit they started from. */
 let dbPromise,dbHandle=null;
@@ -338,7 +346,7 @@ function usageSave(d){ls('usage_v1',JSON.stringify(d));}
 function usageRec(d,id){return d.profiles[id]||(d.profiles[id]=U.blank());}
 function usageOf(p){
   const d=usageDB(),rec=usageRec(d,p.id);
-  return {rec,est:U.estimate(rec,{samples:p.manager?rec.samples:d.samples,role:p.manager?'manager':'worker'})};
+  return {rec,est:U.estimate(rec,{samples:p.manager||paid(p)?rec.samples:d.samples,role:p.manager?'manager':'worker'})};
 }
 function noteUsage(profile,meta,outChars){
   if(!profile)return 0;
@@ -347,7 +355,8 @@ function noteUsage(profile,meta,outChars){
 }
 function noteLimit(profile){
   const d=usageDB(),rec=usageRec(d,profile),tokens=U.recordLimit(rec);
-  if(tokens){if(S.profiles.find(x=>x.id===profile)?.manager)rec.samples=[...rec.samples,tokens].slice(-12);else d.samples=[...d.samples,tokens].slice(-12);}
+  const who=S.profiles.find(x=>x.id===profile);
+  if(tokens){if(who?.manager||paid(who))rec.samples=[...rec.samples,tokens].slice(-12);else d.samples=[...d.samples,tokens].slice(-12);}
   usageSave(d);setTimeout(renderUsageRing);
 }
 /** Recent history of the sub-agents together: what a message usually costs. */
@@ -374,12 +383,12 @@ async function refreshOfficial(id,quiet){
 /** One message to one container. Resolves with Claude's finished reply; events stream into onEvent. */
 /** One message to one container. Resolves with Claude's finished reply; events stream into onEvent.
  *  moveOnLimit:false hands a limit back here (error.limited) so the conversation can be compressed first. */
-function claudeJob(text,{role='worker',fresh=true,profile,images=[],onEvent,moveOnLimit=true}={}){
+function claudeJob(text,{role='worker',fresh=true,profile,images=[],onEvent,moveOnLimit=true,model='',effort=''}={}){
   const id=uid('j'),{inChars,est}=estimateJob(text,{profile,fresh,images});
   return new Promise((resolve,reject)=>{
     jobs[id]={onEvent,resolve,reject,meta:{inChars,fresh,profile}};
     onEvent?.({id,state:'sending',est,note:''});
-    native({op:'claudeSend',id,text,role,fresh,images,moveOnLimit,...(profile?{profile}:{})})
+    native({op:'claudeSend',id,text,role,fresh,images,moveOnLimit,...(model?{model}:{}),...(effort?{effort}:{}),...(profile?{profile}:{})})
       .then(r=>{if(jobs[id])onEvent?.({id,state:'sending',account:r?.account||'',profile:r?.profile||'',note:''});})
       .catch(e=>{if(!jobs[id])return;delete jobs[id];const msg=e?.message||String(e);
         reject(Object.assign(new Error(msg.replace(/^limited:\s*/,'')),{limited:/^limited:/.test(msg)}));});
@@ -510,7 +519,7 @@ async function runSingle(s,goal,images,role){
   const fresh=async(handover)=>{
     const files=await loadFiles(s,pick);
     return claudeJob(A.workerPrompt({task:goal,repo:s.repo,branch:s.branch,files,memory:S.memory,single:true,handover,recap:handover?'':recap(s,at-1)}),
-      {role,images,onEvent:follow(s,entry)});
+      {role,images,onEvent:follow(s,entry),...pickFor(role)});
   };
   try{
     let r;
@@ -518,7 +527,7 @@ async function runSingle(s,goal,images,role){
       // Follow-up in the same chat: only the message and the files as they are now.
       const files=await loadFiles(s,pick.filter(p=>staged.includes(p)||goal.includes(p.split('/').pop())),{budget:40000});
       try{
-        r=await claudeJob(A.workerPrompt({task:goal,files,followUp:true}),{profile:s.thread.profile,fresh:false,moveOnLimit:false,images,onEvent:follow(s,entry)});
+        r=await claudeJob(A.workerPrompt({task:goal,files,followUp:true}),{profile:s.thread.profile,fresh:false,moveOnLimit:false,images,onEvent:follow(s,entry),...pickFor(role)});
       }catch(e){
         if(e.limited)r=await fresh(await compressHandover(s,entry,at,e.account||s.thread.account));
         else if(/busy/i.test(e.message)){s.thread=null;r=await fresh('');}
@@ -532,6 +541,18 @@ async function runSingle(s,goal,images,role){
     entry.note='';
   }catch(e){entry.state='failed';entry.note=e.stopped?'Stopped.':e.message;}
   entry.tEnd=Date.now();updateEntry(s,entry);save(s);
+}
+/** The model and effort a job asks for: the boss settings for the manager, fixed sub-agent settings otherwise. */
+function pickFor(role,task){
+  if(role==='manager')return {model:fixed(bossModel()),effort:fixed(bossEffort())};
+  return {model:task?.model&&subModel()==='Auto'?task.model:fixed(subModel()),effort:task?.effort&&subEffort()==='Auto'?task.effort:fixed(subEffort())};
+}
+/** What the boss may choose from when sub-agents are on Auto. Free accounts do not offer Opus. */
+function bossChoices(){
+  const T=team(),allPaid=T.ready.length&&T.ready.every(paid);
+  const models=subModel()==='Auto'?A.MODELS.filter(m=>allPaid||!/opus/i.test(m)):[];
+  const efforts=subEffort()==='Auto'?A.EFFORTS:[];
+  return models.length||efforts.length?{models,efforts}:null;
 }
 /** Compresses the session with a free sub-agent and records the handover in the conversation. */
 async function compressHandover(s,entry,at,from){
@@ -559,8 +580,8 @@ async function runTeam(s,goal,images){
   const keyFiles=await loadFiles(s,A.contextPaths(paths,goal,{staged:Object.keys(s.staged),max:3}),{limit:4000,budget:12000});
   let plan;
   try{
-    const r=await claudeJob(A.managerPrompt({task:goal,repo:s.repo,branch:s.branch,paths,files:keyFiles,maxTasks,memory:S.memory,recap:recap(s,s.log.indexOf(run)-1).slice(-3000)}),
-      {role:'manager',images,onEvent:follow(s,run.manager)});
+    const r=await claudeJob(A.managerPrompt({task:goal,repo:s.repo,branch:s.branch,paths,files:keyFiles,maxTasks,memory:S.memory,recap:recap(s,s.log.indexOf(run)-1).slice(-3000),pick:bossChoices()}),
+      {role:'manager',images,onEvent:follow(s,run.manager),...pickFor('manager')});
     run.manager.text=r.text||'';run.manager.account=r.account||run.manager.account;run.manager.cost=r.cost||0;run.manager.state='done';run.manager.note='';
     plan=A.parsePlan(run.manager.text,maxTasks);
   }catch(e){run.manager.state='failed';run.manager.note=e.message;run.state='failed';run.tEnd=Date.now();updateEntry(s,run);if(e.stopped)throw e;
@@ -581,7 +602,7 @@ async function runTeam(s,goal,images){
       const extra=A.contextPaths(paths,task.instructions,{max:2}).filter(p=>!task.files.includes(p));
       const files=await loadFiles(s,[...task.files,...extra]);
       const r=await claudeJob(A.workerPrompt({task:task.instructions,goal,repo:s.repo,branch:s.branch,files,memory:S.memory}),
-        {role:'worker',onEvent:p=>{follow(s,task)(p);updateEntry(s,run);}});
+        {role:'worker',onEvent:p=>{follow(s,task)(p);updateEntry(s,run);},...pickFor('worker',task)});
       task.text=r.text||'';task.account=r.account||task.account;task.cost=r.cost||0;
       await applyReply(s,task,task.text,task.instructions,()=>updateEntry(s,run));
       task.state=task.failed.length?(task.applied.length?'partial':'failed'):'done';task.note='';
@@ -794,6 +815,7 @@ function entryHTML(e){
     for(const t of e.tasks){
       h+=stepRow(t.n,t.title,t,
         (t.note?'<div class="note'+(t.state==='failed'?' err':'')+'">'+esc(t.note)+'</div>':'')+
+        (t.model||t.effort?'<h5>Model</h5><div class="files"><span>'+esc([t.model,t.effort].filter(Boolean).join(' · '))+'</span></div>':'')+
         (t.files?.length?'<h5>Files</h5><div class="files">'+t.files.map(f=>'<span>'+esc(f)+'</span>').join('')+'</div>':'')+
         '<h5>Instructions</h5><pre>'+esc(t.instructions)+'</pre>'+
         (t.text?'<h5>Reply</h5><pre>'+esc(A.stripEdits(t.text).slice(-6000)||'(edits only)')+'</pre>':'')+editsHTML(t));
@@ -865,7 +887,8 @@ function modelHTML(){
   const T=team(),team_=teamMode()==='team'&&T.manager;
   if(inApp()&&!T.all.length)return '<b>No accounts</b><small>Add in Claude tab</small>';
   const n=T.ready.length;
-  return team_?'<b>Opus 5.5</b><small>+'+n+'</small>':'<b>Sonnet 5.5</b><small>'+(n>1?'×'+n:'')+'</small>';
+  const sub=fixed(subModel())||'Sonnet 5.5';
+  return team_?'<b>'+esc(bossModel())+'</b><small>'+esc(fixed(bossEffort()))+' +'+n+'</small>':'<b>'+esc(sub)+'</b><small>'+esc(fixed(subEffort()))+(n>1?' ×'+n:'')+'</small>';
 }
 function renderTeamBits(){
   const T=team(),mode=teamMode();
@@ -1021,6 +1044,12 @@ function openTeam(){
       row('Mode',mode==='team'?'The manager splits the work; sub-agents edit in parallel.':'One sub-agent does the whole task.',seg([['team','Team'],['single','Single']],mode,'setTeamMode'))+
       row('Sub-agents at once','More is faster but uses more accounts at the same time.',seg([[1,'1'],[2,'2'],[3,'3'],[4,'4']],parallel(),'setParallel'))+
     '</div><p class="hint">The switch next to a container turns it on or off for tasks. Short questions skip the manager. If a sub-agent hits its limit, its task restarts on the next free one by itself.</p></div>'+
+    '<div class="group"><h3>Models</h3><div class="list">'+
+      pickRow('Boss model','The manager that plans. Opus needs a paid account.','boss_model',bossModel(),['Opus 5.5','Sonnet 5.5','Account default'])+
+      pickRow('Boss effort','How hard the boss thinks.','boss_effort',bossEffort(),[...A.EFFORTS,'Account default'])+
+      pickRow('Sub-agent model','Auto: the boss picks the cheapest model per task. Free accounts have no Opus.','sub_model',subModel(),['Auto',...A.MODELS,'Account default'])+
+      pickRow('Sub-agent effort','Auto: the boss picks per task.','sub_effort',subEffort(),['Auto',...A.EFFORTS,'Account default'])+
+    '</div><p class="hint">The app picks these in each account\u2019s own model menu before sending. If an account does not offer one, it says so and uses that account\u2019s current model.</p></div>'+
     '<div class="group"><h3>Containers · '+(T.ready.length+(T.managerReady?1:0))+' of '+T.all.length+' ready</h3><div class="list">'+people+'</div></div>'+
     '<div class="group"><h3>Manager</h3><div class="list">'+
       (T.workers.concat(T.manager?[T.manager]:[]).length?'<div class="row"><span class="grow"><b>Manager account</b><small>Use your Opus account. It only plans, so it uses little.</small></span><select class="field" style="width:auto;max-width:48%" onchange="setManager(this.value)"><option value="">None</option>'+T.all.map(p=>'<option value="'+esc(p.id)+'" '+(p.manager?'selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>':'')+
@@ -1044,7 +1073,7 @@ function containerHTML(p,status){
     !sess&&est.messagesLeft!=null?'About '+est.messagesLeft+' more messages like the last ones.':'';
   const learning=!sess&&!p.manager?'<div class="learn">'+(est.calibrated?'Learned from 12 real limits':'Learning your free plan: '+est.calibration+' of 12 limits seen')+' · a session ≈ '+U.fmtTokens(est.cap)+' tokens'+(est.calibration?'':' (starting guess)')+'</div>':'';
   return '<details class="ctr"'+(openUsage.has(p.id)?' open':'')+' ontoggle="this.open?openUsage.add(\''+p.id+'\'):openUsage.delete(\''+p.id+'\')">'+
-    '<summary><span class="grow"><b>'+esc(p.name)+(p.manager?' <span class="pill star">Manager</span>':'')+' '+status+'</b><small>'+(sess?'':'≈ ')+sessPct+'% of session'+(week?' · '+week.pct+'% weekly':'')+'</small>'+bar(limited?100:sessPct)+'</span>'+icon('down','ic chev')+'</summary>'+
+    '<summary><span class="grow"><b>'+esc(p.name)+' '+planTag(p)+(p.manager?' <span class="pill star">Manager</span>':'')+' '+status+'</b><small>'+(sess?'':'≈ ')+sessPct+'% of session'+(week?' · '+week.pct+'% weekly':'')+'</small>'+bar(limited?100:sessPct)+'</span>'+icon('down','ic chev')+'</summary>'+
     '<div class="ubody">'+
       '<h4>Context</h4>'+ucard('Context window',est.context.pct,U.fmtTokens(est.context.used)+' of '+U.fmtTokens(est.context.limit)+' tokens · this chat, estimated')+
       '<h4>Plan usage</h4>'+ucard('Current session',limited?100:sessPct,esc(resetWords)+(sess?' · from claude.ai':' · estimated'),predicted?'<small>'+esc(predicted)+'</small>':'')+learning+
@@ -1055,6 +1084,10 @@ function containerHTML(p,status){
       toggle('en_'+p.id,p.enabled,"setEnabled('"+p.id+"',this.checked)")+'</div>'+
       (rec.official?.none?'<p class="hint">claude.ai showed no usage numbers for this account'+(rec.official.signedOut?' (signed out)':'')+', so these are estimates.</p>':'')+
     '</div></details>';
+}
+function pickRow(title,sub,key,value,options){
+  return '<div class="row"><span class="grow"><b>'+title+'</b><small>'+sub+'</small></span><select class="field" style="width:auto;max-width:46%" onchange="ls(\''+key+'\',this.value);renderTeamBits()">'+
+    options.map(o=>'<option'+(o===value?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select></div>';
 }
 function setTeamMode(v,quiet){ls('team_mode',v);renderTeamBits();if(quiet)toast(v==='team'?'Team mode':'Solo mode');else openTeam();}
 function setParallel(v){ls('team_parallel',String(v));openTeam();}

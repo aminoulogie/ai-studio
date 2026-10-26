@@ -11,6 +11,13 @@ assert.deepEqual(plan.tasks[0].files,['index.html'],'private paths never reach a
 assert.equal(A.parsePlan(JSON.stringify({tasks:[1,2,3].map(n=>({title:'t'+n,instructions:'do '+n}))}),2).tasks.length,2,'task cap');
 assert.equal(A.parsePlan('{"summary":"","answer":"It is a demo.","tasks":[]}').answer,'It is a demo.');
 assert.equal(A.parsePlan('no json here'),null);
+// Auto: the boss picks each task's model and effort from the allowed lists; anything else is dropped.
+const auto=A.managerPrompt({task:'t',repo:'o/r',branch:'b',paths:[],pick:{models:['Haiku 4.5','Sonnet 5.5'],efforts:A.EFFORTS}});
+assert.match(auto,/"model" is one of Haiku 4\.5, Sonnet 5\.5 and "effort" is one of Low, Medium/);
+assert.match(auto,/"model":"Sonnet 5\.5","effort":"Medium"/);
+assert.doesNotMatch(A.managerPrompt({task:'t',repo:'o/r',branch:'b',paths:[]}),/"model"/,'fixed settings: the boss does not choose');
+const picked=A.parsePlan('{"tasks":[{"title":"a","instructions":"x","model":"sonnet 5.5","effort":"high"},{"title":"b","instructions":"y","model":"GPT-9","effort":"turbo"}]}');
+assert.deepEqual([picked.tasks[0].model,picked.tasks[0].effort,picked.tasks[1].model,picked.tasks[1].effort],['Sonnet 5.5','High','','']);
 
 // Edit blocks: several per code block, CONTENT, missing END before the next FILE, unfinished stream ignored.
 const reply=['Done.',fence,'@@@ FILE: src/app.js','@@@ OLD','  const size = 12;','@@@ NEW','  const size = 16;','@@@ OLD','go()','@@@ NEW','run()','@@@ END',

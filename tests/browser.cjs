@@ -14,12 +14,12 @@ const server=http.createServer((req,res)=>{
 const FILES={'index.html':'<button class="send">Send</button>\n<p>Hello</p>\n','app.js':'const size = 12;\nfunction go(){\n  return size;\n}\n','README.md':'# Demo\n'};
 // The fake iOS app: containers, and Claude replies that stream in over a few events.
 const nativeMock=`(()=>{
-  const profiles=[{id:'M',name:'Opus account',status:'Active',enabled:true,manager:true,busy:false,ready:true},
-    {id:'W1',name:'Free 1',status:'Active',enabled:true,manager:false,busy:false,ready:true},
-    {id:'W2',name:'Free 2',status:'Active',enabled:true,manager:false,busy:false,ready:true}];
+  const profiles=[{id:'M',name:'Opus account',status:'Active',enabled:true,manager:true,busy:false,ready:true,plan:'pro'},
+    {id:'W1',name:'Free 1',status:'Active',enabled:true,manager:false,busy:false,ready:true,plan:'free'},
+    {id:'W2',name:'Free 2',status:'Active',enabled:true,manager:false,busy:false,ready:true,plan:'free'}];
   window.__sent=[];window.__ops=[];let memory='';
   const plan='\\u0060\\u0060\\u0060json\\n'+JSON.stringify({summary:'Bigger send button and size',answer:'',tasks:[
-    {title:'Make the send button bigger',files:['index.html'],instructions:'Add class big to the send button in index.html'},
+    {title:'Make the send button bigger',files:['index.html'],instructions:'Add class big to the send button in index.html',model:'Haiku 4.5',effort:'Low'},
     {title:'Raise the size',files:['app.js'],instructions:'Change size from 12 to 16 in app.js'}]})+'\\n\\u0060\\u0060\\u0060';
   function reply(o){
     if(o.role==='manager')return plan;
@@ -49,7 +49,7 @@ const nativeMock=`(()=>{
       case 'selectStudioTab':return true;
       case 'claudeSetManager':profiles.forEach(p=>p.manager=p.id===o.profile);return true;
       case 'claudeSend':{
-        window.__sent.push({role:o.role,text:o.text,profile:o.profile,moveOnLimit:o.moveOnLimit,files:(o.images||[]).map(i=>i.mime)});
+        window.__sent.push({role:o.role,text:o.text,profile:o.profile,moveOnLimit:o.moveOnLimit,files:(o.images||[]).map(i=>i.mime),model:o.model||'',effort:o.effort||''});
         // A pinned container that has hit its limit hands the job back so the page can compress the chat.
         if(o.profile&&window.__limited===o.profile){setTimeout(()=>emit({id:o.id,state:'limited',account:'Free 1',profile:o.profile,note:'Free 1 reached its limit.'}),20);return {account:'Free 1',profile:o.profile};}
         const who=o.role==='manager'?profiles[0]:profiles[1+(window.__sent.filter(s=>s.role!=='manager').length-1)%2];
@@ -139,6 +139,11 @@ const nativeMock=`(()=>{
     await page.waitForFunction(()=>!S.busy&&Object.keys(sess().staged).length===2,null,{timeout:15000});
     const sent=await page.evaluate(()=>window.__sent);
     assert.equal(sent[0].role,'manager','the manager plans first');
+    assert.deepEqual([sent[0].model,sent[0].effort],['Opus 5.5','High'],'the boss model and effort are requested');
+    assert.match(sent[0].text,/"model" is one of Haiku 4\.5, Sonnet 5\.5 and "effort"/,'Auto: the boss picks, and free accounts get no Opus');
+    const bigTask=sent.find(x=>/Add class big/.test(x.text));
+    assert.deepEqual([bigTask.model,bigTask.effort],['Haiku 4.5','Low'],'a task runs on the model the boss picked');
+    assert.deepEqual([sent.find(x=>/Change size/.test(x.text)).model],[''],'no pick: the account keeps its own model');
     assert.match(sent[0].text,/At most 2 tasks|At most 3 tasks/);
     assert.equal(sent.filter(s=>s.role==='worker').length,2,'two sub-agents ran');
     for(const s of sent.filter(s=>s.role==='worker'))assert.match(s.text,/@@@ FILE:/,'sub-agents get the edit format');
@@ -211,6 +216,8 @@ const nativeMock=`(()=>{
     await page.click('.ctr >> nth=0');
     await page.waitForSelector('.ctr[open] .ucard');
     assert.match(await page.locator('.ctr[open]').innerText(),/Current session[\s\S]*52% used[\s\S]*All models[\s\S]*7% used/);
+    assert.match(await page.locator('.ctr >> nth=0').innerText(),/Opus account\s*Pro/);assert.match(await page.locator('.ctr >> nth=1').innerText(),/Free 1\s*Free/);
+    assert.ok(await page.locator('text=Sub-agent model').isVisible());
     await page.click('.ctr >> nth=1');
     assert.match(await page.locator('.ctr[open] >> nth=1').innerText(),/Learning your free plan: 0 of 12/);
     assert.ok(await page.evaluate(()=>Object.values(usageDB().profiles).some(r=>r.win?.tokens>0)),'tokens were counted');

@@ -97,17 +97,28 @@ function mergeMemory(current,lines,max=4000,secrets=[]){
 }
 
 /** The manager (your Opus account) writes a plan only. It never edits, so its usage stays small. */
-function managerPrompt({task,repo,branch,paths,files=[],maxTasks=3,memory='',recap=''}){
+/** Models and effort levels the boss may pick from for each task, cheapest first. */
+const MODELS=['Haiku 4.5','Sonnet 5.5','Opus 5.5'];
+const EFFORTS=['Low','Medium','High','Extra high','Max'];
+function managerPrompt({task,repo,branch,paths,files=[],maxTasks=3,memory='',recap='',pick=null}){
+  // pick: {models, efforts} when the boss chooses each sub-agent's model and effort ("Auto").
+  const choose=pick&&(pick.models?.length||pick.efforts?.length);
+  const example='{"title":"short title","files":["path/one","path/two"],"instructions":"precise, self-contained instructions"'+
+    (pick?.models?.length?',"model":"'+pick.models[Math.min(1,pick.models.length-1)]+'"':'')+(pick?.efforts?.length?',"effort":"Medium"':'')+'}';
   return '[AI Studio · manager]\n'+memoryBlock(memory)+
     'You are the lead engineer of a small team. Plan the work for my request below; '+maxTasks+' sub-agents (Claude Sonnet) will each do one task in parallel and edit the code. You do not edit code yourself.\n\n'+
     'Repository: '+repo+' (branch '+branch+')\n\nMy request:\n'+task+'\n\n'+
     'Reply with ONLY one JSON object in a ```json code block, no other text:\n'+
-    '{"summary":"one plain sentence of what will change","answer":"","tasks":[{"title":"short title","files":["path/one","path/two"],"instructions":"precise, self-contained instructions"}]}\n\n'+
+    '{"summary":"one plain sentence of what will change","answer":"","tasks":['+example+']}\n\n'+
     'Rules:\n- At most '+maxTasks+' tasks. Fewer is better when the change is small: one task is fine.\n'+
     '- Tasks must not edit the same file, so they can run at the same time.\n'+
     '- Each task lists every file it needs to read or edit (existing paths from the list below, or new files).\n'+
     '- Instructions must make sense on their own: the sub-agent sees only its task, its files and my request.\n'+
-    '- If my message is a question or needs no code change, return "tasks":[] and put your reply for me in "answer".\n\n'+
+    '- If my message is a question or needs no code change, return "tasks":[] and put your reply for me in "answer".\n'+
+    (choose?'- For each task choose the cheapest setting that will do it well, to save usage'+
+      (pick.models?.length?': "model" is one of '+pick.models.join(', '):'')+
+      (pick.efforts?.length?(pick.models?.length?' and':':')+' "effort" is one of '+pick.efforts.join(', '):'')+
+      '. Simple, local edits need little; tricky logic or many files need more.\n':'')+'\n'+
     (recap?'Earlier in this session:\n'+recap+'\n\n':'')+
     'Files in the repository:\n'+repoTree(paths)+'\n\n'+
     (files.length?'Key files (excerpts):\n'+files.map(f=>fileBlock(f.path,f.text,task,4000)).join('\n'):'')+
@@ -128,7 +139,9 @@ function parsePlan(text,maxTasks=12){
     const tasks=(Array.isArray(data.tasks)?data.tasks:[]).filter(t=>t&&typeof t==='object').map((t,i)=>({
       title:String(t.title||('Task '+(i+1))).slice(0,120),
       files:[...new Set((Array.isArray(t.files)?t.files:[]).map(cleanPath).filter(p=>p&&!isPrivate(p)))].slice(0,12),
-      instructions:String(t.instructions||t.title||'').slice(0,6000)
+      instructions:String(t.instructions||t.title||'').slice(0,6000),
+      model:MODELS.find(m=>m.toLowerCase()===String(t.model||'').toLowerCase().trim())||'',
+      effort:EFFORTS.find(e=>e.toLowerCase()===String(t.effort||'').toLowerCase().trim())||''
     })).filter(t=>t.instructions).slice(0,maxTasks);
     return {summary:String(data.summary||'').slice(0,400),answer:String(data.answer||'').slice(0,20000),tasks};
   }
@@ -346,7 +359,7 @@ function isQuickQuestion(text){
   if(/^(hi|hey|hello|yo|salut|bonjour|thanks|thank you|merci|ok|okay)\b[\s!.?]*$/i.test(t))return true;
   return t.length<=80&&/\?\s*$/.test(t)&&!/\b(add|make|change|fix|build|create|remove|delete|rename|update|implement|redesign)\b/i.test(t);
 }
-const api={MEMORY_RULE,parseMemory,mergeMemory,transcript,compressPrompt,handoverText,questionsPrompt,parseQuestions,fixPrompt,parseFixed,FIX_STYLES,contextPaths,sourceExcerpt,repoTree,managerPrompt,parsePlan,workerPrompt,repairPrompt,parseEdits,applyEdits,locate,stripEdits,lineDiff,diffStats,pool,isQuickQuestion,EDIT_RULES};
+const api={MODELS,EFFORTS,MEMORY_RULE,parseMemory,mergeMemory,transcript,compressPrompt,handoverText,questionsPrompt,parseQuestions,fixPrompt,parseFixed,FIX_STYLES,contextPaths,sourceExcerpt,repoTree,managerPrompt,parsePlan,workerPrompt,repairPrompt,parseEdits,applyEdits,locate,stripEdits,lineDiff,diffStats,pool,isQuickQuestion,EDIT_RULES};
 root.StudioAgents=api;
 if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

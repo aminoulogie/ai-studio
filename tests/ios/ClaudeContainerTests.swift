@@ -56,6 +56,9 @@ final class ClaudeContainerTests: XCTestCase {
         let store = try ClaudeProfileStore(defaults: defaults, directory: directory)
         XCTAssertEqual(store.state.profiles.first?.name, "Old")
         XCTAssertEqual(store.state.profiles.first?.manager, false)
+        XCTAssertNil(store.state.profiles.first?.plan, "the plan is unknown until claude.ai shows it")
+        try store.update(id) { $0.plan = "pro" }
+        XCTAssertEqual(try ClaudeProfileStore(defaults: defaults, directory: directory).state.profiles.first?.plan, "pro")
     }
     func testContextRoundTripAndValidation() throws {
         let (store, _, directory) = try makeStore()
