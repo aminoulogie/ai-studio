@@ -85,4 +85,21 @@ assert.equal(r.context.claudeStatus().streaming,false);
 assert.equal(r.context.claudeStop(),false,'Stop must not press Send');
 assert.equal(run().context.claudeAttachImages('[]'),0,'No photos means nothing attached');
 assert.equal(run().context.claudeAttachImages('not json'),0,'Bad input attaches nothing');
-console.log('Claude observer checks passed: notices, false positives, origins, ordered visible-text export, shared memory read-back, send/stop in any language, Enter fallback.');
+// Replies keep code blocks verbatim (with fences) so edits apply exactly; the code block's label and Copy button are skipped.
+{
+  const el=(tag,kids=[],extra={})=>{const e={nodeType:1,tagName:tag,childNodes:kids,...extra};kids.forEach((k,i)=>{k.parentElement=e;k.nextElementSibling=kids.slice(i+1).find(x=>x.nodeType===1)||null;});
+    e.querySelector=sel=>{const walk=n=>{for(const c of n.childNodes||[]){if(c.nodeType===1&&(sel==='pre'&&c.tagName==='PRE'||sel==='code'&&c.tagName==='CODE'))return c;const f=walk(c);if(f)return f;}return null;};return walk(e);};
+    if(!('innerText' in e))e.innerText=kids.map(k=>k.innerText??k.nodeValue??'').join('');return e;};
+  const txt=t=>({nodeType:3,nodeValue:t});
+  const code=el('CODE',[],{className:'language-js',textContent:'@@@ FILE: a.js\n@@@ OLD\n  x  = 1;\n@@@ NEW\n  x = 2;\n@@@ END\n'});
+  const block=el('DIV',[el('DIV',[],{innerText:'javascript'}),el('PRE',[code]),el('BUTTON',[],{innerText:'Copy'})]);
+  const reply=el('DIV',[el('P',[],{innerText:'I changed it.'}),block,el('P',[],{innerText:'Done.'})],{getAttribute:k=>k==='data-is-streaming'?'false':null,getClientRects:()=>[{}]});
+  const ctx={location:{protocol:'https:',hostname:'claude.ai',href:'https://claude.ai/chat/x',pathname:'/chat/x'},
+    window:{webkit:{messageHandlers:{claudeObserver:{postMessage:()=>{}}}}},
+    document:{documentElement:{},querySelectorAll:s=>s.startsWith('[data-testid="user-message"]')?[reply]:[],querySelector:()=>null},
+    MutationObserver:class{observe(){}},getComputedStyle:()=>({visibility:'visible'}),setTimeout:()=>1};
+  reply.parentElement={closest:()=>null};
+  vm.runInNewContext(source,ctx);
+  assert.equal(ctx.claudeStatus().last,'I changed it.\n\n```js\n@@@ FILE: a.js\n@@@ OLD\n  x  = 1;\n@@@ NEW\n  x = 2;\n@@@ END\n```\n\nDone.','code kept exactly, label and Copy skipped');
+}
+console.log('Claude observer checks passed: replies with exact code blocks, notices, false positives, origins, ordered visible-text export, shared memory read-back, send/stop in any language, Enter fallback.');

@@ -1,119 +1,68 @@
 # AI Studio for iOS
 
-Studio remains the main interface. The iOS tab bar has **Chat, Code, Claude, Projects, Settings**. Claude is a separate official claude.ai browser; Studio model/API connections are independent.
+A Claude Code-style workspace on your iPhone, run by your own claude.ai accounts. It looks like claude.ai: warm paper, ink text, the terracotta spark, a serif greeting.
 
-## Private device data and empty installs
+Two tabs:
 
-Fresh installs start with **no configured models, tokens, conversations, Claude profiles or memory**. Model IDs are added or fetched only on the user's device. An existing user's local data stays on their device when updating; it is not embedded in the IPA or shared by a PWA link.
+- **Code**: sessions on a GitHub repository. Describe a task; the Claude team does it; you review the diff and commit.
+- **Claude**: your Claude accounts on the real claude.ai, each in its own container (separate cookies and storage). This is where you sign in, and where the manager's message waits for you to press Send.
 
-Chat and Code recovery history live in localStorage / IndexedDB inside that app or browser installation. Claude login state lives only in each WebKit container and Claude's service. GitHub sign-in uses the iOS Keychain. The app has no backend that shares personal sessions among visitors.
+## How the team works
 
-GitHub commits publish source edits only. Automatic commit messages use a generic description and never copy the user's chat prompt. The commit path blocks known chat, memory, session, profile, export and credential files; checks staged text for this device's credentials and verbatim conversation dumps; and instructs the Code assistant to keep personal state out of the repository. Private runtime files are also excluded from local Git with .gitignore. A PWA on the same browser retains that browser's own data; another person's browser starts empty. An explicit encrypted backup remains an opt-in export to the destination the user chooses.
+1. **Manager** (your paid Opus account): gets your request and the file list and writes a short JSON plan of up to a few tasks that touch different files. It only plans, so it uses little of your limit. The app types the message; **you press Send** in the Claude tab, then the app jumps back to Code by itself.
+2. **Sub-agents** (your free Sonnet accounts): each task goes to a free container in a new chat with its files and an exact edit format. They work in parallel (1–4 at once, Settings → Claude team) and send by themselves.
+3. **The app applies the edits** character for character. An edit whose old text does not match goes back to a sub-agent once, with the current file. Nothing is committed until you tap **Commit**, or until a task finishes cleanly with **Commit finished tasks automatically** on.
 
-Use **Add model on this device** in Studio settings, or add a provider key and Reload models. The official Claude tab does not need Studio models or API keys. These local settings are not sent to GitHub.
+Short questions ("What does this app do?") skip the manager and go straight to one sub-agent. With no manager set, or Mode → Single, one sub-agent does the whole task.
 
-## Claude browser accounts
+**Limits.** When a container shows Claude's usage-limit notice, it is marked limited (for the time Claude shows, otherwise five hours) and its task restarts on the next free sub-agent automatically. When every sub-agent is limited the task stops and says so. **Limit → Next** in the Claude tab does the same by hand. **Mark signed in / Reset limit** clears it early.
 
-Requires **iOS 17+** for persistent, named WebKit data stores.
+Containers keep running while you are in the Code tab: idle containers beyond five are unloaded to save memory and reload when needed. If you leave the app, iOS gives it a short grace period; tasks catch up when you come back, because Claude keeps writing on its servers.
 
-1. Open the **Claude** tab, then **Accounts → Add account**.
-2. Give the profile a label and sign in on the real Claude website. Repeat for up to six accounts. No API key is needed.
-3. Switch profiles in **Accounts**. Each UUID has its own persistent `WKWebsiteDataStore`: cookies, local storage, IndexedDB and cache stay separate. OAuth popups inherit their initiating container.
-4. The actions menu contains account settings: rename, pause rotation, reorder, reset limit, log out/clear one container, or remove an account.
-5. A visible limit banner marks the account Rate-Limited and rotates to the next enabled Active account. The app saves context before switching and opens a new Claude chat. If no account is available, it stops. **Limit → Next** is the manual fallback.
+## Set up
 
-Accounts start Logged Out. A Claude composer marks them Active, or use **Account settings → Mark signed in / Reset limit** after confirming sign-in. Paused accounts can be opened manually but are skipped in rotation. A visible relative reset notice (such as “try again in 25 minutes”) is used when recognized. Otherwise the fallback cooldown is **five hours after detection**, not Claude's authoritative reset time. Check Claude's displayed reset time and reset the app's status when appropriate.
+1. **Claude tab → Accounts → Add account** for each Claude account (up to 12) and sign in on claude.ai.
+2. Make your Opus account the manager: **Actions → Account settings → Make it the manager**, or **Code → Claude team → Manager account**.
+3. **Code → Settings → GitHub**: paste a fine-grained token with **Contents: read and write** for your repository (or a classic token with `repo`). It is stored in the iOS Keychain.
+4. Pick a repository and branch from the chip under the message box, and describe what you want.
 
-Detection observes visible alert/status/limit notices with a debounce; it does not scan arbitrary chat text for “limit” and does not call private Claude endpoints. Claude's HTML, languages, authentication policies and limits can change. Embedded login must be tested with your real accounts. The app cannot bypass a sign-in restriction, grant a model, or guarantee a particular Sonnet version on the free tier.
+The app types into Claude's message box and presses its Send button the way you would, reads the visible reply, and never touches cookies, tokens or private Claude endpoints. Claude's page can change; if Send or the reply can't be found, the task stops with what it saw. Automating several accounts may conflict with Claude's terms of use; that risk is yours.
 
-## Context export and continuation
+## Privacy
 
-In the Claude actions menu:
+Fresh installs start empty. Sessions, staged edits and shared memory stay on the device (IndexedDB and a protected file); the GitHub token is in the Keychain. Commits are checked before they go out: private paths (memory, sessions, credentials, exports) are refused, and so is any file containing your token or your own messages verbatim. Nothing is sent anywhere except claude.ai (in each container) and api.github.com.
 
-- **Export visible chat · JSON / Markdown** opens the iOS share sheet (Save to Files, AirDrop, etc.).
-- **Copy latest handover** copies the saved conversation and continuation notes. Paste it into the incoming account's chat, reattach necessary files, then send.
-- **Edit continuation notes** records the goal, decisions, next steps, or manually copied history.
-- **Import context JSON** loads a previous export for copying into another chat.
+## Commits
 
-Automatic switching does not submit a message. Exports contain **rendered conversation text only** and are marked partial. Scroll to load older messages first. Attachments, hidden reasoning, project knowledge, browser credentials and Claude's private server-side context are not transferred. Model context limits still apply. The latest snapshot is stored locally with iOS file protection; exported files contain your conversation text, so choose their destination deliberately.
+Each session pins the commit it started from. A commit re-checks every changed file against GitHub and stops, keeping your edits, if someone changed it meanwhile. File modes are kept; nothing is ever force-pushed. Protected branches and token permissions still apply.
 
-## Code edits and GitHub commits
+## Update the workspace without a new IPA
 
-The Code tab can stage model edits and commit them through the GitHub API; a local Git executable is not involved.
-
-1. Connect GitHub in **Projects** or **Connectors**. On iOS the GitHub token is stored in Keychain; an existing browser token is migrated on launch. Desktop browser sign-ins retain the existing browser storage behavior.
-2. Use a fine-grained token scoped to the repository with **Contents: read and write**, or a classic token with **repo** scope. Changes to GitHub Actions workflows may additionally require workflow write permission. Approve organization SSO if required.
-3. Select the repository and an existing writable branch.
-4. **Permissions → Automatically commit completed tasks** enables automatic commits for that repository. The app checks write access before enabling it. Disable it to review and commit manually. Stopped, failed, or step-limited tasks keep their edits without automatically committing.
-5. Protected branches may require a feature branch and pull request. A setting cannot override GitHub branch protection or token permissions.
-
-Code reads are pinned to a commit. Commits compare affected files with that base, preserve file modes, and update the branch without force. Remote conflicts and concurrent pushes keep pending edits and return an actionable error. After a conflict, copy/export the pending changes, refresh the branch, and merge the conflicting file before retrying. The app does not silently overwrite it.
-
-## Fix local Git authentication and tracking
-
-No developer-machine Git configuration is included in this repository, and the editing environment has no terminal access. Run this setup on your development Mac:
-
-```bash
-brew install gh
-gh auth login --hostname github.com --git-protocol https --web
-git clone https://github.com/aminoulogie/ai-studio.git
-cd ai-studio
-git switch codex/account-rotation-context-git
-bash scripts/git-setup.sh
-```
-
-If you already have a checkout, run the script there. It checks the repository and write access, configures GitHub's credential helper, fills missing local author identity, fetches remote branches, sets upstream tracking when available, enables automatic upstream setup for new branches, and installs this repository's privacy pre-commit hook (requires Node 22+). It does not commit or push files.
-
-Normal synchronization:
-
-```bash
-git status
-git add path/to/changed-file
-git commit -m "Describe the change"
-git push --set-upstream origin HEAD
-```
-
-If a push is rejected because the remote moved, commit or stash local work, then `git fetch origin` and `git rebase @{upstream}`, resolve conflicts, and push again. Do not force-push to fix an ordinary synchronization failure. For an expired token, reconnect with `gh auth login`; for permission or protected-branch errors, use a writable branch/token. If local signing fails, repair the configured signing key or explicitly choose unsigned commits with `git -c commit.gpgsign=false commit ...`.
-
-## Update Studio without a new IPA
-
-**Settings → App updates** replaces only Studio's web layer (the single `index.html` the app shows). Every CI build also publishes `studio-web.html` and `studio-web.json` (version, SHA-256, size, `min_native`) next to the IPA. The app reads the GitHub releases API for this repository, downloads the newest bundle, checks its size and hash, stores it in Application Support and loads it after **Restart to apply**. Your chats, keys and Claude accounts stay on the phone.
-
-- The first IPA that contains this feature must be signed and installed once. Later web changes need no re-signing.
-- Safety: a downloaded page must set `window.studioInitialized` within about 10 seconds of loading. If it does not, or the app is killed before it is confirmed, that version is marked bad and the page built into the IPA loads again. **Reset to built-in** does the same on demand.
-- Native code (Swift, `Info.plist`, icons, `claude-observer.js`, new native ops) still needs a new IPA. Whenever the set of native ops changes, bump `nativeLevel` in `StudioUpdater.swift` and `min_native` in `.github/workflows/ios.yml`; `tests/ota-update.cjs` fails until both match. A bundle that needs a newer level shows "needs a new IPA" instead of installing.
-- Private repository: the update check uses the GitHub token already stored in the Keychain. The token is only sent to `api.github.com` and never follows a redirect to another host.
-- This does not extend your sideload tool's own certificate lifetime (for example 7 days on a free Apple account).
+**Settings → App updates** downloads the newest published web page and Claude helper script from this repository's releases, checks size and SHA-256, and loads it after a restart. A page that does not start within about ten seconds is dropped and the built-in one loads. A page that needs newer native features (`min_native` above the app's native level, now 3) asks for a new IPA instead.
 
 ## Build and install the IPA
 
-### GitHub Actions (no Mac needed)
+**GitHub Actions:** Actions → Build iOS IPA → Run workflow on your branch. Download the **AIStudio-v1.0.N** artifact and sign/install it with Sideloadly, AltStore, ESign or Feather (iOS 17+). The CI build is unsigned.
 
-1. Open **Actions → Build iOS IPA → Run workflow** and select the feature branch, or open its pull request.
-2. The workflow runs JavaScript/browser checks and native profile, context and WebKit isolation tests.
-3. After success, download the **AIStudio-ipa** artifact and extract `AIStudio.ipa`.
-4. Sign and install using your existing Apple signing setup (for example AltStore or Sideloadly). The CI artifact is unsigned and requires an iOS 17+ device.
-
-### Local macOS build
-
-Install full Xcode 16+, select its command-line tools, and install XcodeGen, Python 3.12+ and Node 22. Then:
+**On a Mac** (Xcode 16+, XcodeGen, Python 3.12, Node 22):
 
 ```bash
 brew install xcodegen
-node tests/optimizer.cjs
-node tests/code-runtime.cjs
-node tests/git-workflow.cjs
-node tests/repo-privacy.cjs
-node tests/claude-observer.cjs
+node tests/agents.cjs && node tests/git-workflow.cjs && node tests/repo-privacy.cjs
+node tests/claude-observer.cjs && node tests/ota-update.cjs
 bash ios/scripts/build-ipa.sh
 ```
 
-The script bundles Studio, generates artwork and the Xcode project, builds without signing, and writes **ios/build/AIStudio.ipa**. For an Apple-signed build, open the generated `ios/AIStudio.xcodeproj`, select your signing team and bundle identifier, and use **Product → Archive → Distribute App**.
+Browser checks: `npm install --no-save playwright@1.56.1 && npx playwright install webkit chromium && node tests/browser.cjs`. They run a full team task against a fake iOS bridge and a fake GitHub on an iPhone and a desktop viewport.
 
-To run browser checks: `npm install --no-save playwright@1.56.1`, `npx playwright install webkit chromium`, then `node tests/browser.cjs`. Native tests run through the generated AIStudio scheme on an iPhone simulator.
+Still needs a check on a real device with your accounts: claude.ai sign-in inside the app, today's limit notices, and Send on the current claude.ai page.
 
-Live verification still needed: real Claude sign-in (including any OAuth/verification flow), current localized limit banners, and your repository token/branch rules. Automated checks do not use your Claude credentials.
+## Local Git setup
 
-WebKit profile design: [Apple's profile API](https://webkit.org/blog/14423/building-profiles-with-new-webkit-api/).
+```bash
+gh auth login --hostname github.com --git-protocol https --web
+git clone https://github.com/aminoulogie/ai-studio.git && cd ai-studio
+bash scripts/git-setup.sh
+```
 
-CI sets the simulator test deployment target to iOS 18.4 to work around [WebKit's Xcode 16.4 / iOS 18.5 simulator loader issue](https://bugs.webkit.org/show_bug.cgi?id=293831). The distributable app still targets iOS 17.0.
+The script sets up credentials, upstream tracking and this repository's privacy pre-commit hook. It does not commit or push.

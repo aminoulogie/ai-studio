@@ -21,16 +21,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Test optimizer and request recovery
+      - name: Test the Claude team, commits, privacy and updates
         run: |
-          node tests/optimizer.cjs
-          node tests/code-runtime.cjs
+          node tests/agents.cjs
           node tests/git-workflow.cjs
           node tests/repo-privacy.cjs
           node scripts/check-private-data.cjs
           node tests/claude-observer.cjs
-          node tests/shared-memory.cjs
-          node tests/claude-bridge.cjs
           node tests/ota-update.cjs
           bash -n scripts/git-setup.sh ios/scripts/build-ipa.sh
       - name: Install browser checks
@@ -79,7 +76,7 @@ jobs:
               'version': int(os.environ['RUN_NUMBER']),
               'sha256': hashlib.sha256(page).hexdigest(),
               'size': len(page),
-              'min_native': 2,
+              'min_native': 3,
               'observer_sha256': hashlib.sha256(observer).hexdigest(),
               'observer_size': len(observer),
           }
@@ -139,7 +136,7 @@ jobs:
           prerelease: ${{ github.ref != 'refs/heads/main' }}
           name: AI Studio v1.0.${{ github.run_number }}
           body: |
-            iPhone app (unsigned IPA). Sign/install with Sideloadly, AltStore, ESign or Feather, Claude tab uses isolated official claude.ai sign-ins (iOS 17+). Studio model connections remain separate.
+            iPhone app (unsigned IPA). Sign/install with Sideloadly, AltStore, ESign or Feather. A Claude Code-style workspace run by your own claude.ai accounts: one manager plans, sub-agents edit in parallel (iOS 17+).
           files: |
             ios/AIStudio-v1.0.${{ github.run_number }}.ipa
             ios/studio-web.html

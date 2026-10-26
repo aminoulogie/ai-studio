@@ -1,4 +1,4 @@
-/* Visible Claude page observation, plus typing shared memory into the message box (never sending it). No cookies, tokens, password fields or private APIs. */
+/* Visible Claude page observation and the Code tab bridge: type into the message box, press Send for sub-agents, read the reply. No cookies, tokens, password fields or private APIs. */
 (function(){
   'use strict';
   if(location.protocol!=='https:'||location.hostname!=='claude.ai')return;
@@ -14,13 +14,40 @@
     const seconds=(Number(match[1]||0)*3600)+(Number(match[2]||0)*60);
     return seconds>0&&seconds<=86400?seconds:null;
   }
+  // A reply's text with code blocks kept exactly (fenced), so edits can be applied character for character.
+  // Rendered prose comes from innerText; a code block's label and copy button are skipped.
+  const BLOCK=/^(P|DIV|UL|OL|LI|H[1-6]|BLOCKQUOTE|TABLE|TR|SECTION|ARTICLE|HR)$/;
+  const hasPre=n=>!!n&&(n.tagName==='PRE'||!!n.querySelector?.('pre'));
+  function replyText(el){
+    if(!el.querySelector||!el.querySelector('pre'))return (el.innerText||'').trim();
+    let out='';
+    const walk=node=>{
+      for(const child of node.childNodes){
+        if(child.nodeType===3){out+=child.nodeValue;continue;}
+        if(child.nodeType!==1||child.tagName==='BUTTON')continue;
+        if(child.tagName==='PRE'){
+          const code=child.querySelector('code')||child;
+          const lang=((code.className||'').match(/language-([\w+#.-]+)/)||[])[1]||'';
+          out+='\n```'+lang+'\n'+(code.textContent||'').replace(/\n$/,'')+'\n```\n';continue;
+        }
+        if(hasPre(child)){walk(child);continue;}
+        // A code block's label sits in a short div or span right before it; prose (p, headings, lists) is always kept.
+        if(/^(DIV|SPAN)$/.test(child.tagName)&&hasPre(child.nextElementSibling)&&(child.innerText||'').trim().length<40)continue;
+        const block=BLOCK.test(child.tagName);
+        out+=(block?'\n':'')+(child.innerText||'')+(block?'\n':'');
+      }
+    };
+    walk(el);
+    return out.replace(/\n{3,}/g,'\n\n').trim();
+  }
   function messages(){
     const items=[];
     // Keep document order. These selectors are best-effort public DOM markers, not an API.
     for(const el of document.querySelectorAll('[data-testid="user-message"],[data-testid="assistant-message"],[data-is-streaming]')){
       if(el.parentElement?.closest('[data-testid="user-message"],[data-testid="assistant-message"],[data-is-streaming]'))continue;
-      const text=el.innerText?.trim();if(!text)continue;
-      items.push({role:el.getAttribute('data-testid')==='user-message'?'user':'assistant',content:text});
+      const user=el.getAttribute('data-testid')==='user-message';
+      const text=user?el.innerText?.trim():replyText(el);if(!text)continue;
+      items.push({role:user?'user':'assistant',content:text});
     }
     return items;
   }

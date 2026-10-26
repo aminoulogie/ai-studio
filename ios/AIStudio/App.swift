@@ -1,7 +1,5 @@
 import UIKit
 import WebKit
-import AuthenticationServices
-import CryptoKit
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -28,12 +26,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
-class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandlerWithReply, ASWebAuthenticationPresentationContextProviding {
+class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandlerWithReply {
     private var webView: WKWebView!
-    private let studioRequests = StudioRequests()
-    private let studioArtwork = StudioArtwork()
     private var launchView: StudioLaunchView?
-    private var requestedStudioTab = "chat"
+    private var requestedStudioTab = "code"
     private var studioLoaded = false
     private let updater = StudioUpdater.shared
     private var probeToken = 0
@@ -45,8 +41,10 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         if studioLoaded { applyStudioTab() }
     }
     private func applyStudioTab() {
-        let script = "window.STUDIO_REQUEST_TAB = '\(requestedStudioTab)'; if(window.studioInitialized) { " + (requestedStudioTab == "settings" ? "openStudioSettings()" : "switchTab('\(requestedStudioTab)')") + "; window.syncMemoryFromNative && window.syncMemoryFromNative(); }"
+        let open = requestedStudioTab == "settings" ? "window.openSettings && openSettings()" : ""
+        let script = "window.STUDIO_REQUEST_TAB = '\(requestedStudioTab)'; if(window.studioInitialized) { " + open + "; window.syncMemoryFromNative && window.syncMemoryFromNative(); }"
         webView.evaluateJavaScript(script, completionHandler: nil)
+        requestedStudioTab = "code"
     }
 
     /// Live Claude container updates for the Code tab.
@@ -55,15 +53,19 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
               let json = String(data: data, encoding: .utf8) else { return }
         webView.evaluateJavaScript("window.onClaudeStream&&window.onClaudeStream(" + json + ")", completionHandler: nil)
     }
+    /// Container list changed (status, limit, manager, busy). The page asks for the new list.
+    func emitProfilesChanged() {
+        guard studioLoaded else { return }
+        webView.evaluateJavaScript("window.onClaudeProfiles&&window.onClaudeProfiles()", completionHandler: nil)
+    }
 
     override func loadView() {
         let config = WKWebViewConfiguration()
-        config.setURLSchemeHandler(studioArtwork, forURLScheme: "studio-art")
         config.userContentController.addUserScript(WKUserScript(source: "window.STUDIO_NATIVE_TABS = true;", injectionTime: .atDocumentStart, forMainFrameOnly: true))
-        config.websiteDataStore = .default() // keeps your key + chats between launches
+        config.websiteDataStore = .default() // keeps sessions and settings between launches
         config.allowsInlineMediaPlayback = true
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
-        // window.webkit.messageHandlers.native — sign-in helpers only (fixed endpoints)
+        // window.webkit.messageHandlers.native — the page's only way to reach native features
         config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "native")
         webView = WKWebView(frame: .zero, configuration: config)
         webView.uiDelegate = self
@@ -153,7 +155,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         decisionHandler(.allow)
     }
 
-    // Sign-in popups (Puter etc.) open in a sheet so they can talk back to the app
+    // Sign-in popups open in a sheet so they can talk back to the app
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         let popup = WKWebView(frame: .zero, configuration: configuration)
@@ -179,12 +181,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         present(vc, animated: true)
     }
 
-    // MARK: sign-in bridge
-    private var authSession: ASWebAuthenticationSession?
-
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        view.window ?? ASPresentationAnchor()
-    }
+    // MARK: native bridge
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
                                replyHandler: @escaping (Any?, String?) -> Void) {
@@ -194,12 +191,13 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
               let msg = message.body as? [String: Any], let op = msg["op"] as? String else {
             replyHandler(nil, "bad message"); return
         }
+        let tabs = tabBarController as? StudioTabController
         switch op {
         case "selectStudioTab":
-            guard let tab = msg["tab"] as? String, ["chat", "code", "github", "settings"].contains(tab) else {
+            guard let tab = msg["tab"] as? String, ["code", "settings"].contains(tab) else {
                 replyHandler(nil, "Unsupported tab"); return
             }
-            (tabBarController as? StudioTabController)?.selectStudioMode(tab)
+            tabs?.selectStudioMode(tab)
             replyHandler(true, nil); return
         case "credentialGet", "credentialSet":
             guard msg["name"] as? String == "github" else { replyHandler(nil, "Unsupported credential"); return }
@@ -223,31 +221,24 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             do { try store.setMasterMemory(text); replyHandler(store.masterMemory, nil) }
             catch { replyHandler(nil, error.localizedDescription) }
             return
+        case "claudeProfiles":
+            replyHandler(tabs?.claudeProfiles() ?? [], nil); return
         case "claudeSend":
-            guard let id = msg["id"] as? String, !id.isEmpty, id.utf8.count <= 64,
-                  let text = msg["text"] as? String, !text.isEmpty, text.utf8.count <= 40_000,
-                  let tabs = tabBarController as? StudioTabController else {
-                replyHandler(nil, "Nothing to send"); return
+            // A task with its files can be large; Claude's own message limit still applies.
+            guard let text = msg["text"] as? String, !text.isEmpty, text.utf8.count <= 400_000, let host = tabs else {
+                replyHandler(nil, "Nothing to send, or the message is too large"); return
             }
-            var images: [[String: String]] = []
-            if let raw = msg["images"] as? [[String: Any]] {
-                for item in raw.prefix(4) {
-                    guard let data = item["data"] as? String, !data.isEmpty, data.utf8.count <= 3_000_000 else { continue }
-                    let mime = (item["mime"] as? String) ?? "image/jpeg"
-                    guard ["image/jpeg", "image/png", "image/webp", "image/gif"].contains(mime) else { continue }
-                    let name = String(((item["name"] as? String) ?? "photo.jpg").prefix(80))
-                    images.append(["data": data, "mime": mime, "name": name])
-                }
-            }
-            tabs.startClaudeJob(id: id, text: text, images: images, reply: replyHandler); return
+            host.startClaudeJob(msg, reply: replyHandler); return
         case "claudeStop":
-            (tabBarController as? StudioTabController)?.stopClaudeJob(); replyHandler(true, nil); return
-        case "sendToClaude":
-            guard let text = msg["text"] as? String, !text.isEmpty, text.utf8.count <= 40_000,
-                  let tabs = tabBarController as? StudioTabController else {
-                replyHandler(nil, "Nothing to send"); return
-            }
-            tabs.sendToClaude(text, reply: replyHandler); return
+            tabs?.stopClaudeJob(msg["id"] as? String); replyHandler(true, nil); return
+        case "claudeSetManager":
+            let raw = msg["profile"] as? String ?? ""
+            guard raw.isEmpty || UUID(uuidString: raw) != nil, let host = tabs else { replyHandler(nil, "Unknown container"); return }
+            do { try host.setClaudeManager(raw.isEmpty ? nil : UUID(uuidString: raw)); replyHandler(true, nil) }
+            catch { replyHandler(nil, error.localizedDescription) }
+            return
+        case "openClaude":
+            tabs?.openClaude(profile: msg["profile"] as? String); replyHandler(true, nil); return
         case "studioUpdateStatus":
             replyHandler(updater.status(), nil); return
         case "studioUpdateCheck":
@@ -275,12 +266,8 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             replyHandler(true, nil)
             DispatchQueue.main.async { [weak self] in self?.reloadStudio() }
             return
-        case "aiRequest":
-            studioRequests.send(msg, reply: replyHandler); return
-        case "cancelRequest":
-            studioRequests.cancel(msg["id"] as? String ?? ""); replyHandler(true, nil); return
         case "share":
-            shareText(name: msg["name"] as? String ?? "backup.txt", text: msg["text"] as? String ?? "", replyHandler); return
+            shareText(name: msg["name"] as? String ?? "export.txt", text: msg["text"] as? String ?? "", replyHandler); return
         default: break
         }
         guard let clientId = msg["clientId"] as? String, !clientId.isEmpty else { replyHandler(nil, "missing client id"); return }
@@ -291,12 +278,6 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             postForm("https://github.com/login/oauth/access_token",
                      ["client_id": clientId, "device_code": msg["deviceCode"] as? String ?? "",
                       "grant_type": "urn:ietf:params:oauth:grant-type:device_code"], replyHandler)
-        case "google":
-            googleSignIn(clientId: clientId, replyHandler)
-        case "googleRefresh":
-            postForm("https://oauth2.googleapis.com/token",
-                     ["client_id": clientId, "refresh_token": msg["refreshToken"] as? String ?? "",
-                      "grant_type": "refresh_token"], replyHandler)
         default:
             replyHandler(nil, "unknown op")
         }
@@ -317,39 +298,6 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
                 reply(String(data: data ?? Data(), encoding: .utf8) ?? "", nil)
             }
         }.resume()
-    }
-
-    // Google sign-in with PKCE in the system sheet (iOS client IDs need no secret); Drive read-only
-    private func googleSignIn(clientId: String, _ reply: @escaping (Any?, String?) -> Void) {
-        let prefix = clientId.replacingOccurrences(of: ".apps.googleusercontent.com", with: "")
-        let scheme = "com.googleusercontent.apps." + prefix
-        let redirect = scheme + ":/oauth2redirect"
-        var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        let b64url = { (d: Data) in d.base64EncodedString().replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
-        let verifier = b64url(Data(bytes))
-        let challenge = b64url(Data(SHA256.hash(data: Data(verifier.utf8))))
-        var c = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
-        c.queryItems = [
-            .init(name: "client_id", value: clientId), .init(name: "redirect_uri", value: redirect),
-            .init(name: "response_type", value: "code"),
-            .init(name: "scope", value: "https://www.googleapis.com/auth/drive.readonly"),
-            .init(name: "code_challenge", value: challenge), .init(name: "code_challenge_method", value: "S256"),
-            .init(name: "access_type", value: "offline"), .init(name: "prompt", value: "consent"),
-        ]
-        authSession = ASWebAuthenticationSession(url: c.url!, callbackURLScheme: scheme) { [weak self] callback, err in
-            guard let callback = callback,
-                  let code = URLComponents(url: callback, resolvingAgainstBaseURL: false)?
-                    .queryItems?.first(where: { $0.name == "code" })?.value else {
-                reply(nil, err?.localizedDescription ?? "Sign-in cancelled"); return
-            }
-            self?.postForm("https://oauth2.googleapis.com/token",
-                           ["client_id": clientId, "code": code, "code_verifier": verifier,
-                            "redirect_uri": redirect, "grant_type": "authorization_code"], reply)
-        }
-        authSession?.presentationContextProvider = self
-        authSession?.start()
     }
 
     // JS alert / confirm / prompt support

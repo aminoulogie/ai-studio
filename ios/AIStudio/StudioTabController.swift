@@ -1,83 +1,56 @@
 import UIKit
 
-/// Reuse the existing Studio document across Chat/Code/Projects/Settings; Claude has its own native tab.
+/// Two tabs: Code (the Studio web workspace, settings inside it) and Claude (the containers on claude.ai).
 final class StudioTabController: UITabBarController, UITabBarControllerDelegate {
+    private let claudeBrowser: ClaudeBrowserController
+    private let studio = WebViewController()
     init(store: ClaudeProfileStore) {
+        claudeBrowser = ClaudeBrowserController(store: store)
         super.init(nibName: nil, bundle: nil)
-        let studio = WebViewController()
+        let studio = self.studio
         studio.memoryStore = store
-        let chat = StudioTabHost(studio: studio, mode: "chat")
-        chat.tabBarItem = UITabBarItem(title: "Chat", image: UIImage(systemName: "bubble.left.and.bubble.right"), tag: 0)
-        let code = StudioTabHost(studio: studio, mode: "code")
-        code.tabBarItem = UITabBarItem(title: "Code", image: UIImage(systemName: "chevron.left.forwardslash.chevron.right"), tag: 1)
-        let claudeBrowser = ClaudeBrowserController(store: store)
+        let code = StudioTabHost(studio: studio)
+        code.tabBarItem = UITabBarItem(title: "Code", image: UIImage(systemName: "chevron.left.forwardslash.chevron.right"), tag: 0)
         claudeBrowser.onStream = { [weak studio] payload in studio?.emitClaude(payload) }
+        claudeBrowser.onProfilesChanged = { [weak studio] in studio?.emitProfilesChanged() }
+        claudeBrowser.onFocus = { [weak self] claude in self?.selectedIndex = claude ? 1 : 0 }
         let claude = UINavigationController(rootViewController: claudeBrowser)
-        claude.tabBarItem = UITabBarItem(title: "Claude", image: UIImage(systemName: "globe"), tag: 2)
-        let projects = StudioTabHost(studio: studio, mode: "github")
-        projects.tabBarItem = UITabBarItem(title: "Projects", image: UIImage(systemName: "folder"), tag: 3)
-        let settings = StudioTabHost(studio: studio, mode: "settings")
-        settings.tabBarItem = UITabBarItem(title: "Settings", image: UIImage(systemName: "slider.horizontal.3"), tag: 4)
-        viewControllers = [chat, code, claude, projects, settings]
+        claude.tabBarItem = UITabBarItem(title: "Claude", image: UIImage(systemName: "sparkles"), tag: 1)
+        viewControllers = [code, claude]
         selectedIndex = 0
         delegate = self
+        let tint = UIColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 1)
+        tabBar.tintColor = tint
     }
-    /// Code tab -> Claude tab: switch tabs and type the text into the open chat. The person presses send.
-    func sendToClaude(_ text: String, reply: @escaping (Any?, String?) -> Void) {
-        guard let nav = viewControllers?.first(where: { $0 is UINavigationController }) as? UINavigationController,
-              let claude = nav.viewControllers.first as? ClaudeBrowserController else {
-            reply(nil, "Claude tab unavailable"); return
-        }
-        selectedIndex = 2
-        claude.loadViewIfNeeded()
-        claude.insertIntoChat(text) { inserted in reply(inserted ? "inserted" : "copied", nil) }
+    func claudeProfiles() -> [[String: Any]] { claudeBrowser.profilesInfo() }
+    func startClaudeJob(_ message: [String: Any], reply: @escaping (Any?, String?) -> Void) {
+        claudeBrowser.startJob(message, reply: reply)
     }
-    /// Code tab -> Claude container: send the message, stream the reply back to the Code tab.
-    func startClaudeJob(id: String, text: String, images: [[String: String]] = [], reply: @escaping (Any?, String?) -> Void) {
-        guard let nav = viewControllers?.first(where: { $0 is UINavigationController }) as? UINavigationController,
-              let claude = nav.viewControllers.first as? ClaudeBrowserController else {
-            reply(nil, "Claude tab unavailable"); return
-        }
-        claude.startJob(id: id, text: text, images: images, reply: reply)
-    }
-    func stopClaudeJob() {
-        let nav = viewControllers?.first(where: { $0 is UINavigationController }) as? UINavigationController
-        (nav?.viewControllers.first as? ClaudeBrowserController)?.stopJob()
-    }
+    func stopClaudeJob(_ id: String?) { claudeBrowser.stopJob(id) }
+    func openClaude(profile: String?) { claudeBrowser.focus(profile: profile) }
+    func setClaudeManager(_ id: UUID?) throws { try claudeBrowser.setManager(id) }
     func selectStudioMode(_ mode: String) {
-        let indexes = ["chat": 0, "code": 1, "github": 3, "settings": 4]
-        guard let index = indexes[mode], selectedIndex != index else { return }
-        selectedIndex = index
-    }
-    func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
-        (viewController as? StudioTabHost)?.activate()
+        selectedIndex = 0
+        studio.selectStudioTab(mode)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 }
 
 private final class StudioTabHost: UIViewController {
     private let studio: WebViewController
-    private let mode: String
-    init(studio: WebViewController, mode: String) { self.studio = studio; self.mode = mode; super.init(nibName: nil, bundle: nil) }
+    init(studio: WebViewController) { self.studio = studio; super.init(nibName: nil, bundle: nil) }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-    func activate() { studio.selectStudioTab(mode) }
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        if studio.parent !== self {
-            studio.willMove(toParent: nil)
-            studio.view.removeFromSuperview()
-            studio.removeFromParent()
-            addChild(studio)
-            studio.view.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview(studio.view)
-            NSLayoutConstraint.activate([
-                studio.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-                studio.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                studio.view.topAnchor.constraint(equalTo: view.topAnchor),
-                studio.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
-            ])
-            studio.didMove(toParent: self)
-        }
-        activate()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        addChild(studio)
+        studio.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(studio.view)
+        NSLayoutConstraint.activate([
+            studio.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            studio.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            studio.view.topAnchor.constraint(equalTo: view.topAnchor),
+            studio.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+        ])
+        studio.didMove(toParent: self)
     }
 }

@@ -30,3 +30,10 @@ Build passed (run 40207609731).
 - Containers: a container opened by hand stays open even when it shows the usage limit (no auto-switch, no popup). Limit → Next and Code tab jobs still switch.
 - The user reported a Code tab message ("Test2") going through on a device; which build was installed was not stated. The container fix still needs a device check on the v1.0.100 IPA.
 - Code tab UI changes (Claude theme, folded workspace header, compact input, Thinking dropdown, Add sheet, photo sending, native level 2) are committed but not yet in any built IPA.
+
+## v1.1 — Claude team workspace (native level 3, needs a new IPA)
+Built on this branch; not yet built in CI or tried on a device.
+- One Code workspace that looks like claude.ai (sessions sidebar, serif greeting, composer with repo and team chips, review sheet, light and dark). Chat, Projects, model providers, API keys, Drive, optimizer, budget and wallpapers are removed.
+- Manager (Opus, you press Send) writes a JSON plan; sub-agents (free Sonnet containers) do the tasks in parallel and send by themselves; the app applies their edit blocks exactly, repairs mismatches once, and commits without force.
+- Native: several jobs at once, one per container; off-screen containers stay in the window so they keep running; a limit moves only that container's task to the next free sub-agent; idle containers beyond five unload.
+- Tests: tests/agents.cjs, tests/git-workflow.cjs (github.js), observer code-block reading, OTA ops for level 3, browser end-to-end team run, iOS manager/rotation/migration.

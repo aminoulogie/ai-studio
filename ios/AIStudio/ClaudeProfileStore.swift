@@ -8,6 +8,20 @@ struct ClaudeProfile: Codable, Identifiable {
     var enabled = true
     var limitedUntil: Date?
     var lastURL: URL?
+    /// The one account that plans the work (your paid Opus account). Every other account is a sub-agent.
+    var manager = false
+    init(name: String) { self.name = name }
+    enum CodingKeys: String, CodingKey { case id, name, status, enabled, limitedUntil, lastURL, manager }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        status = try c.decodeIfPresent(Status.self, forKey: .status) ?? .loggedOut
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        limitedUntil = try c.decodeIfPresent(Date.self, forKey: .limitedUntil)
+        lastURL = try c.decodeIfPresent(URL.self, forKey: .lastURL)
+        manager = try c.decodeIfPresent(Bool.self, forKey: .manager) ?? false
+    }
 }
 
 struct ClaudeContext: Codable {
@@ -104,6 +118,27 @@ final class ClaudeProfileStore {
         state.selected = id; try save()
     }
     func setAutoSwitch(_ enabled: Bool) throws { state.autoSwitch = enabled; try save() }
+    /// Only one manager at a time; nil makes every account a sub-agent.
+    func setManager(_ id: UUID?) throws {
+        for i in state.profiles.indices { state.profiles[i].manager = state.profiles[i].id == id }
+        try save()
+    }
+    var managerProfile: ClaudeProfile? { state.profiles.first { $0.manager } }
+    /// Ready to take a task: enabled, signed in and not waiting for a limit reset.
+    func ready(_ profile: ClaudeProfile, now: Date = Date()) -> Bool {
+        profile.enabled && status(profile, now: now) == .active
+    }
+    /// The next sub-agent that can take a task, in rotation order after `after`. The manager is never picked.
+    func nextWorker(after id: UUID?, excluding: Set<UUID>, now: Date = Date()) -> ClaudeProfile? {
+        let workers = state.profiles.filter { !$0.manager }
+        guard !workers.isEmpty else { return nil }
+        let start = id.flatMap { id in workers.firstIndex { $0.id == id } } ?? -1
+        for n in 1...workers.count {
+            let p = workers[(start + n + workers.count) % workers.count]
+            if !excluding.contains(p.id), ready(p, now: now) { return p }
+        }
+        return nil
+    }
     func remove(_ id: UUID) throws {
         state.profiles.removeAll { $0.id == id }
         if state.selected == id { state.selected = state.profiles.first?.id }

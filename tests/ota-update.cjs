@@ -5,7 +5,7 @@ const read=p=>fs.readFileSync(path.join(__dirname,'..',...p.split('/')),'utf8');
 const html=read('index.html'),app=read('ios/AIStudio/App.swift'),upd=read('ios/AIStudio/StudioUpdater.swift'),wf=read('.github/workflows/ios.yml');
 
 // Settings entry and page code
-assert.match(html,/onclick="openAppUpdates\(\)"/,'Settings needs an App updates entry');
+assert.ok(/row\('App updates'[^\n]*'openAppUpdates\(\)'\)/.test(html),'Settings needs an App updates entry');
 const start=html.indexOf('/* ===================== APP UPDATES');
 const end=html.indexOf('/* end app updates */');
 assert.ok(start>0&&end>start,'app update block must exist');
@@ -52,14 +52,19 @@ const studioOps=[...app.matchAll(/^\s*case ((?:"[A-Za-z]+"(?:,\s*)?)+):/gm)].fla
 
 // Native level: a page published for level N must only use ops that level N has.
 // If this list changes, bump nativeLevel in StudioUpdater.swift AND min_native in ios.yml, then list the ops under the new level.
-// Level 2: same ops as level 1, but claudeSend now carries photos (images). A page that sends photos needs a level 2 app.
-const LEVEL_2=['aiRequest','cancelRequest','claudeSend','claudeStop','credentialGet','credentialSet','github'+'DeviceCode','githubToken','google','googleRefresh','memoryGet','memorySet','selectStudioTab','sendToClaude','share',...OPS].sort();
-assert.deepEqual(studioOps,LEVEL_2,'native ops changed: bump nativeLevel (StudioUpdater.swift) and min_native (ios.yml), then update this list');
+// Level 3: the Claude team. Several jobs at once (claudeSend with role/profile), container list, manager choice,
+// opening the Claude tab. Provider APIs, Google Drive and the old Chat bridge are gone.
+const LEVEL_3=['claudeProfiles','claudeSend','claudeSetManager','claudeStop','credentialGet','credentialSet','github'+'DeviceCode','githubToken','memoryGet','memorySet','openClaude','selectStudioTab','share',...OPS].sort();
+assert.deepEqual(studioOps,LEVEL_3,'native ops changed: bump nativeLevel (StudioUpdater.swift) and min_native (ios.yml), then update this list');
 const level=Number(upd.match(/static let nativeLevel = (\d+)/)[1]);
 const ciLevel=Number(wf.match(/'min_native':\s*(\d+)/)[1]);
-assert.equal(level,2,'this list describes native level 2');
-assert.match(app,/msg\["images"\] as\? \[\[String: Any\]\]/,'claudeSend must read the photos');
-assert.match(read('index.html'),/op:'claudeSend',id,text:fullText,images/,'the Code tab must send its photos to the container');
+assert.equal(level,3,'this list describes native level 3');
+const browserSrc=read('ios/AIStudio/ClaudeBrowserController.swift');
+assert.match(browserSrc,/message\["images"\] as\? \[\[String: Any\]\]/,'claudeSend must read the photos');
+assert.match(read('index.html'),/op:'claudeSend',id,text,role,fresh,images/,'the page sends role, fresh chat and photos with every job');
+// Every page op must exist natively, so a page never calls something this level lacks.
+const pageOps=new Set([...read('index.html').matchAll(/op:'([A-Za-z]+)'/g)].map(m=>m[1]));
+for(const op of pageOps)assert.ok(LEVEL_3.includes(op),'page uses unknown native op '+op);
 assert.equal(ciLevel,level,'CI min_native must equal the app nativeLevel');
 
 // CI publishes the exact page the app bundles
@@ -88,7 +93,7 @@ assert.match(wf,/files: \|[\s\S]*studio-observer\.js/,'the release must carry th
 const observerSrc=read('ios/AIStudio/claude-observer.js');
 assert.ok(observerSrc.length<Number(upd.match(/maxObserverBytes = ([\d_]+)/)[1].replace(/_/g,'')),'the observer must fit the download limit');
 for(const marker of ['claudeObserver','claudeSubmit'])assert.ok(observerSrc.includes(marker),'the observer must contain '+marker+' (the updater requires it)');
-// A container the person opened by hand stays open even when it shows a limit notice
-assert.match(browser,/stayOnID = automatic \? nil : id/,'opening a container by hand must remember it');
-assert.match(browser,/if !manual, job == nil, id == stayOnID \{/,'a limit notice must not move the person out of a container they opened');
+// A limit notice never moves the person away from the container on screen; only a running task moves, to the next sub-agent.
+assert.match(browser,/for job in jobs\.values where job\.profileID == id \{ moveJob\(job\.id, from: id, loggedOut: false\) \}/,'a limit moves only the tasks of that container');
+assert.doesNotMatch(browser,/stayOnID/,'no automatic switching of the visible container');
 console.log('App update checks passed: verified web bundle, native-level gate, rollback, release assets, Claude-tab script update.');
