@@ -338,6 +338,14 @@ button.row:hover{background:var(--hover)}
 .mi .chk{color:var(--link)}
 .mi .chk svg.ic{color:var(--link);width:22px;height:22px;stroke-width:2}
 .mi .chev{color:var(--text-3)}
+/* The + sheet: short single-line rows like claude.ai's Add menu, scrolling inside a shorter sheet. */
+.sheet[data-kind="add"]{max-height:min(70dvh,560px)}
+.sheet[data-kind="add"] .sheet-body{gap:0;padding-top:4px}
+.menu.compact hr{margin:4px 6px}
+.menu.compact .mi{padding:10px 8px;gap:12px;font-size:16px;border-radius:9px}
+.menu.compact .mi svg.ic{width:19px;height:19px}
+.menu.compact .mi .chk svg.ic{width:19px;height:19px}
+.mi .val{color:var(--text-3);font-size:14px;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .status{display:none!important}
 body.empty #topText,body.empty #topTitle [data-icon]{visibility:hidden}
 

@@ -985,21 +985,19 @@ function seg(values,current,fn){return '<div class="seg">'+values.map(([v,l])=>'
 
 /** The + sheet, laid out like claude.ai's Add menu. */
 function openAdd(){
-  const repo=ls('repo'),T=team(),mi=(ic,label,sub,click,right)=>'<button class="mi" onclick="'+click+'">'+icon(ic)+'<span class="grow">'+label+(sub?'<small>'+sub+'</small>':'')+'</span>'+(right||'')+'</button>';
-  const chev=icon('chev','ic chev'),chk=on=>on?'<span class="chk">'+icon('check')+'</span>':'';
-  showSheet('Add','<div class="menu">'+
-    mi('clip','Upload or add files','','closeSheet();pickFiles()')+
-    mi('repo','Repository',esc(repo?repo+' · '+(ls('branch')||''):'None chosen'),'openRepoPicker()',chev)+
+  const repo=ls('repo'),mi=(ic,label,click,right)=>'<button class="mi" onclick="'+click+'">'+icon(ic)+'<span class="grow">'+label+'</span>'+(right||'')+'</button>';
+  const chev=icon('chev','ic chev'),chk=on=>on?'<span class="chk">'+icon('check')+'</span>':'',val=t=>'<span class="val">'+esc(t)+'</span>';
+  showSheet('Add','<div class="menu compact">'+
+    mi('clip','Upload or add files','closeSheet();pickFiles()')+
+    mi('repo','Repository','openRepoPicker()',(repo?val(repo.split('/').pop()):'')+chev)+
+    mi('team','Claude team','openTeam()',chev)+
+    mi('gear','Settings','openSettings()',chev)+
     '<hr>'+
-    mi('team','Claude team',inApp()?(T.ready.length+(T.managerReady?1:0))+' of '+T.all.length+' containers ready':'In the iPhone app','openTeam()',chev)+
-    mi('brain','Shared memory',S.memory?esc(short(S.memory,48)):'Empty','openSettings()',chev)+
-    mi('gear','Settings','','openSettings()',chev)+
-    '<hr>'+
-    mi('team','Team mode','The manager plans, sub-agents build','toggleAddTeam()',chk(teamMode()==='team'))+
-    mi('commit','Commit automatically','When every edit applied','toggleAddCommit()',chk(autoCommit()))+
-    mi('globe','Research','Search the web and cite sources','toggleFlag(\'research\')',chk(ls('research')==='1'))+
-    mi('plug','Use my connectors','Google Drive, Gmail and your own','toggleFlag(\'connectors\')',chk(ls('connectors')==='1'))+
-    '<hr>'+mi('plug','Manage connectors','Add Google Drive, Gmail or a custom one on claude.ai','manageConnectors()',chev)+
+    mi('team','Team mode','toggleAddTeam()',chk(teamMode()==='team'))+
+    mi('commit','Commit automatically','toggleAddCommit()',chk(autoCommit()))+
+    mi('globe','Research','toggleFlag(\'research\')',chk(ls('research')==='1'))+
+    mi('plug','Use my connectors','toggleFlag(\'connectors\')',chk(ls('connectors')==='1'))+
+    '<hr>'+mi('plug','Manage connectors','manageConnectors()',chev)+
   '</div>',null,'add');
 }
 function toggleAddTeam(){ls('team_mode',teamMode()==='team'?'single':'team');renderTeamBits();openAdd();}
@@ -1160,12 +1158,17 @@ function saveMemory(v){
   const h=$('memoryHint');if(h)h.textContent=S.memory.length+' / 4000 · stays on this device, never committed';
   clearTimeout(memoryTimer);memoryTimer=setTimeout(()=>{if(inApp())native({op:'memorySet',text:S.memory.trim()}).catch(()=>{});},400);
 }
+/** Older builds saved memory URL-encoded ("how%20I%20want"); read it back as plain text. */
+function decodeMemory(t){
+  if(!t||/\s/.test(t)||!/%[0-9A-Fa-f]{2}/.test(t))return t;
+  try{return decodeURIComponent(t);}catch{return t;}
+}
 async function syncMemoryFromNative(){
   if(!inApp())return;
   try{
-    const remote=String((await native({op:'memoryGet'}))||'').trim(),local=(ls('studio_memory')||'').trim();
+    const remote=decodeMemory(String((await native({op:'memoryGet'}))||'').trim()),local=decodeMemory((ls('studio_memory')||'').trim());
     if(!remote&&local)native({op:'memorySet',text:local}).catch(()=>{});
-    else if(remote!==local){S.memory=remote;ls('studio_memory',remote);}
+    else if(remote!==local||remote!==S.memory){S.memory=remote;ls('studio_memory',remote);native({op:'memorySet',text:remote}).catch(()=>{});}
   }catch{}
 }
 window.syncMemoryFromNative=syncMemoryFromNative;
@@ -1220,7 +1223,7 @@ async function init(){
   applyTheme();
   document.body.classList.toggle('in-app',inApp());
   $('sbSpark').innerHTML=spark();drawIcons();
-  S.token=ls('gh_token')||'';S.user=lsj('gh_user');S.memory=ls('studio_memory')||'';S.ask=ls('ask_mode')==='1';
+  S.token=ls('gh_token')||'';S.user=lsj('gh_user');S.memory=decodeMemory(ls('studio_memory')||'');S.ask=ls('ask_mode')==='1';
   await loadSessions();
   const last=ls('cur_session');
   if(last&&S.sessions[last])S.cur=last;else newSession(false);

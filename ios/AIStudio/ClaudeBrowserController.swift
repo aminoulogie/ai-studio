@@ -95,7 +95,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         switcher.accessibilityLabel = "Switch between Code and Claude"
         navigationItem.titleView = switcher
         // The open container and its model sit in the middle of the bottom toolbar.
-        titleButton.widthAnchor.constraint(lessThanOrEqualToConstant: 200).isActive = true
+        titleButton.widthAnchor.constraint(lessThanOrEqualToConstant: 150).isActive = true
         toolbarItems = [
             UIBarButtonItem(image: UIImage(systemName: "chevron.left"), style: .plain, target: self, action: #selector(back)),
             UIBarButtonItem(image: UIImage(systemName: "chevron.right"), style: .plain, target: self, action: #selector(forward)),
@@ -230,10 +230,19 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     private func updateTitleButton() {
         let profile = store.state.profiles.first { $0.id == currentID }
         let name = (profile?.manager == true ? "★ " : "") + (profile?.name ?? "Claude")
-        let label = modelText.isEmpty ? name : name + " · " + modelText
-        titleButton.setTitle(label + " ▾", for: .normal)
-        titleButton.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
-        titleButton.titleLabel?.lineBreakMode = .byTruncatingTail
+        // Only the container's name fits in the toolbar's glass pill; its model is the first line of the menu.
+        var config = UIButton.Configuration.plain()
+        config.title = name
+        config.image = UIImage(systemName: "chevron.down", withConfiguration: UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold))
+        config.imagePlacement = .trailing
+        config.imagePadding = 4
+        config.baseForegroundColor = .label
+        config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
+        config.titleLineBreakMode = .byTruncatingTail
+        config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attrs in
+            var a = attrs; a.font = .systemFont(ofSize: 15, weight: .semibold); return a
+        }
+        titleButton.configuration = config
         titleButton.accessibilityLabel = "Container " + name + (modelText.isEmpty ? "" : ", " + modelText)
         titleButton.showsMenuAsPrimaryAction = true
         let containers = store.state.profiles.map { p in
@@ -243,8 +252,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         let modelAction = UIAction(title: modelText.isEmpty ? "Model & effort" : "Model & effort · " + modelText,
                                    image: UIImage(systemName: "slider.horizontal.3")) { [weak self] _ in self?.openModelPicker() }
         titleButton.menu = UIMenu(children: [UIMenu(title: "Container", options: .displayInline, children: containers), modelAction])
-        titleButton.sizeToFit()
-        titleButton.frame.size.width = min(titleButton.frame.width, 200)
+        titleButton.invalidateIntrinsicContentSize()
     }
     @objc private func switchToCode() { onFocus?(false) }
     private func subtitle(_ p: ClaudeProfile) -> String {
