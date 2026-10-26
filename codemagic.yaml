@@ -1,7 +1,7 @@
 # Builds the unsigned IPA on Codemagic's free Mac minutes (separate from GitHub Actions).
 # codemagic.io → sign in with GitHub → add this repository → start the "AI Studio IPA" workflow on your branch.
-# The IPA is in the build's Artifacts (and emailed to you). Optional: see "groups" below to also publish the
-# GitHub release that Settings → App updates reads.
+# Each build is also published as a GitHub release (v1.0.N) with the IPA and the web update that
+# Settings → App updates reads; the IPA is in the build's Artifacts too.
 workflows:
   ios-ipa:
     name: AI Studio IPA
@@ -29,9 +29,9 @@ workflows:
     environment:
       xcode: latest
       node: 22
-      # To also publish releases: create a variable group named "github" with GITHUB_TOKEN in Codemagic, then add
-      # groups:
-      #   - github
+      # GITHUB_TOKEN (Contents: read and write on this repository) lets the build publish the GitHub release.
+      groups:
+        - github
     scripts:
       - name: Version (the same number GitHub Actions uses)
         script: |
@@ -95,6 +95,8 @@ workflows:
       - name: Publish the release (when GITHUB_TOKEN is set)
         script: |
           if [ -z "$GITHUB_TOKEN" ]; then echo "No GITHUB_TOKEN: download the IPA from this build's artifacts."; exit 0; fi
+          command -v gh >/dev/null || brew install gh
+          export GH_TOKEN="$GITHUB_TOKEN"
           TAG="v1.0.$STUDIO_VERSION"
           PRE=$([ "$CM_BRANCH" = "main" ] && echo "" || echo "--prerelease")
           cd ios
