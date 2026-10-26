@@ -48,7 +48,13 @@ Each session pins the commit it started from. A commit re-checks every changed f
 
 ## Build and install the IPA
 
-**GitHub Actions:** Actions → Build iOS IPA → Run workflow on your branch. Download the **AIStudio-v1.0.N** artifact and sign/install it with Sideloadly, AltStore, ESign or Feather (iOS 17+). The CI build is unsigned.
+**GitHub Actions** (Actions → Build iOS IPA). Built to use few paid minutes:
+
+- Tests, the bundled page, the app icon and the web update release run on **Linux**. A screens-only change (index.html, assets) never touches macOS: the app installs it from **Settings → App updates**.
+- The **macOS** job only compiles the app, and only when native code changed (`ios/AIStudio`, `ios/project.yml`, `tests/ios`) or when you run the workflow by hand with **Build the IPA** on. It skips the simulator tests unless you tick **Also run the iOS simulator tests**.
+- A new push cancels the older run of the same branch.
+
+Download the IPA from the release (or the **AIStudio-v1.0.N** artifact) and sign/install it with Sideloadly, AltStore, ESign or Feather (iOS 17+). The CI build is unsigned.
 
 **On a Mac** (Xcode 16+, XcodeGen, Python 3.12, Node 22):
 

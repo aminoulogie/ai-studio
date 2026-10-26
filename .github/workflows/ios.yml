@@ -1,5 +1,9 @@
 name: Build iOS IPA
 
+# GitHub bills macOS minutes at about 10x Linux minutes on private repositories, so everything that does not
+# need Xcode runs on Linux: tests, the bundled page, the app icon and the web update release. The macOS job only
+# compiles the app, and only when native code changed or you ask for an IPA. Web-only changes reach the phone
+# through Settings → App updates, with no new IPA.
 on:
   push:
     branches: [main]
@@ -7,17 +11,32 @@ on:
   pull_request:
     paths: ['index.html', 'assets/**', 'tests/**', 'ios/**', '.github/workflows/ios.yml']
   workflow_dispatch:
+    inputs:
+      ipa:
+        description: 'Build the IPA (macOS). Leave off for a web-only update.'
+        type: boolean
+        default: true
+      native_tests:
+        description: 'Also run the iOS simulator tests (slow macOS minutes)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  checks:
+  web:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    outputs:
+      native: ${{ steps.native.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -41,25 +60,34 @@ jobs:
         with:
           name: studio-screenshots
           path: test-artifacts/
-  build:
-    runs-on: macos-15
-    needs: checks
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+          retention-days: 7
 
-      - name: Install artwork tools
+      - name: Did native code change?
+        id: native
+        env:
+          EVENT: ${{ github.event_name }}
+          WANT_IPA: ${{ inputs.ipa }}
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          python3 -m venv .art-tools
-          .art-tools/bin/pip install numpy==2.2.6 Pillow==11.3.0
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "changed=$WANT_IPA" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          from="${BASE:-$BEFORE}"
+          if [ -z "$from" ] || ! git cat-file -e "$from^{commit}" 2>/dev/null; then from=HEAD~1; fi
+          if git diff --name-only "$from" HEAD | grep -qE '^(ios/AIStudio/|ios/project\.yml|tests/ios/)' ; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Bundle UI and original Retina artwork
+      - name: Bundle UI and app icon
         run: |
           mkdir -p ios/www
           cp index.html ios/www/index.html
           cp -R assets ios/www/assets
+          python3 -m venv .art-tools
+          .art-tools/bin/pip install -q Pillow==11.3.0
           .art-tools/bin/python ios/scripts/generate_artwork.py
           python3 ios/scripts/inline_libs.py ios/www/index.html
 
@@ -88,47 +116,19 @@ jobs:
           print(text)
           PY
 
-      - name: Generate Xcode project
-        run: brew install xcodegen && cd ios && xcodegen generate
-
-      - name: Test Claude profile isolation and context state
-        run: |
-          DEVICE_ID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
-          cd ios
-          xcodebuild -project AIStudio.xcodeproj -scheme AIStudio -configuration Debug \
-            -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath test-build \
-            IPHONEOS_DEPLOYMENT_TARGET=18.4 CODE_SIGNING_ALLOWED=NO test
-
-      - name: Build (unsigned)
-        run: |
-          cd ios
-          xcodebuild -project AIStudio.xcodeproj -scheme AIStudio -configuration Release \
-            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
-
-      - name: Package IPA
-        run: |
-          cd ios
-          mkdir Payload
-          cp -R build/Build/Products/Release-iphoneos/AIStudio.app Payload/
-          zip -qry AIStudio.ipa Payload
-          python3 - <<'PY'
-          from pathlib import Path
-          size = Path('AIStudio.ipa').stat().st_size
-          print(f'IPA size: {size / 1024**2:.2f} MiB')
-          assert size >= 20 * 1024**2, 'IPA must contain at least 20 MiB of app and functional artwork'
-          PY
-
-      - name: Name the IPA with its version
-        run: cp ios/AIStudio.ipa ios/AIStudio-v1.0.${{ github.run_number }}.ipa
-
-      - uses: actions/upload-artifact@v4
+      - name: Hand the bundle to the macOS job
+        uses: actions/upload-artifact@v4
         with:
-          name: AIStudio-v1.0.${{ github.run_number }}
-          path: ios/AIStudio-v1.0.${{ github.run_number }}.ipa
-          retention-days: 30
+          name: studio-bundle
+          retention-days: 3
+          path: |
+            ios/www/
+            ios/studio-web.html
+            ios/studio-web.json
+            ios/studio-observer.js
+            ios/AIStudio/Assets.xcassets/AppIcon.appiconset/icon.png
 
-      - name: Publish release
+      - name: Publish web update
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
@@ -136,9 +136,74 @@ jobs:
           prerelease: ${{ github.ref != 'refs/heads/main' }}
           name: AI Studio v1.0.${{ github.run_number }}
           body: |
-            iPhone app (unsigned IPA). Sign/install with Sideloadly, AltStore, ESign or Feather. A Claude Code-style workspace run by your own claude.ai accounts: one manager plans, sub-agents edit in parallel (iOS 17+).
+            Web update: install it in the app from Settings → App updates (no new IPA).
+            If an IPA is attached below, this build also changed the native app: install that once.
           files: |
-            ios/AIStudio-v1.0.${{ github.run_number }}.ipa
             ios/studio-web.html
             ios/studio-web.json
             ios/studio-observer.js
+
+  ipa:
+    needs: web
+    if: needs.web.outputs.native == 'true'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: studio-bundle
+          path: ios-bundle
+      - name: Use the bundle built on Linux
+        run: |
+          rm -rf ios/www && cp -R ios-bundle/ios/www ios/www
+          cp ios-bundle/ios/AIStudio/Assets.xcassets/AppIcon.appiconset/icon.png ios/AIStudio/Assets.xcassets/AppIcon.appiconset/icon.png
+
+      - name: Generate Xcode project
+        # A release download is much faster than `brew install`.
+        run: |
+          if curl -fsSL -o xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.42.0/xcodegen.zip \
+             && unzip -q xcodegen.zip -d xcodegen-bin && [ -x xcodegen-bin/xcodegen/bin/xcodegen ]; then
+            XG="$PWD/xcodegen-bin/xcodegen/bin/xcodegen"
+          else
+            brew install xcodegen && XG=xcodegen
+          fi
+          cd ios && "$XG" generate
+
+      - name: Test Claude profile isolation and context state
+        if: inputs.native_tests == true
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
+          cd ios
+          xcodebuild -project AIStudio.xcodeproj -scheme AIStudio -configuration Debug \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath test-build \
+            IPHONEOS_DEPLOYMENT_TARGET=18.4 CODE_SIGNING_ALLOWED=NO -quiet test
+
+      - name: Build (unsigned)
+        run: |
+          cd ios
+          xcodebuild -project AIStudio.xcodeproj -scheme AIStudio -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            COMPILER_INDEX_STORE_ENABLE=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -quiet build
+
+      - name: Package IPA
+        run: |
+          cd ios
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/AIStudio.app Payload/
+          zip -qry AIStudio-v1.0.${{ github.run_number }}.ipa Payload
+          ls -lh AIStudio-v1.0.${{ github.run_number }}.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AIStudio-v1.0.${{ github.run_number }}
+          path: ios/AIStudio-v1.0.${{ github.run_number }}.ipa
+          retention-days: 30
+
+      - name: Attach the IPA to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.event.pull_request.head.sha || github.sha }}
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
+          files: ios/AIStudio-v1.0.${{ github.run_number }}.ipa

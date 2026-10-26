@@ -8,7 +8,7 @@ cd "$repo_root"
 command -v xcodegen >/dev/null || { printf "Install XcodeGen: brew install xcodegen\n" >&2; exit 1; }
 xcodebuild -version
 python3 -m venv .art-tools
-.art-tools/bin/pip install numpy==2.2.6 Pillow==11.3.0
+.art-tools/bin/pip install Pillow==11.3.0
 mkdir -p ios/www
 cp index.html ios/www/index.html
 # Replace only generated assets; never delete source files.
