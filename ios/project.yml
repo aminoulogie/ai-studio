@@ -29,6 +29,9 @@ targets:
         NSCameraUsageDescription: Take a photo to send in a chat.
         NSMicrophoneUsageDescription: Talk to the AI instead of typing.
         NSSpeechRecognitionUsageDescription: Turn your voice into text for your message.
+        NSLocalNetworkUsageDescription: Connect to the AI Studio Companion on your PC for Cursor call.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.aistudio.vnai

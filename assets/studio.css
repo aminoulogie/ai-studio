@@ -456,3 +456,28 @@ body.in-app #topTitle{display:none}
 .cc-live i{transform:translateY(-2px)}
 .foot button{white-space:nowrap;flex:none}
 #footNote{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* One line each: the footer's estimate and model, and the orange live line. */
+.foot b,.foot small{white-space:nowrap}
+.cc-live span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Fonts the user picks in Settings → Fonts. Defaults match the design; applyFonts() overrides them. */
+:root{--f-ui-family:var(--sans);--f-ui-size:15px;--f-ui-weight:400;--f-code-family:var(--mono);--f-code-size:12.5px;--f-code-weight:400;--f-think-family:var(--sans);--f-think-size:16px;--f-think-weight:400}
+html,body{font-family:var(--f-ui-family);font-size:var(--f-ui-size);font-weight:var(--f-ui-weight)}
+button,input,select,textarea{font-family:inherit;font-weight:inherit}
+.composer textarea{font-size:max(16px,var(--f-ui-size))}
+.codeblock pre,.diff,.srow .detail pre,.cc-row .detail pre,.step pre.live{font-family:var(--f-code-family);font-size:var(--f-code-size);font-weight:var(--f-code-weight)}
+.reply code{font-family:var(--f-code-family);font-weight:var(--f-code-weight)}
+.cc-say,.cc-live,.cc-row{font-family:var(--f-think-family);font-size:var(--f-think-size);font-weight:var(--f-think-weight)}
+.cc-row code{font-size:calc(var(--f-think-size) * .9);font-weight:var(--f-think-weight)}
+.font-group{margin-bottom:10px}
+.font-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 14px 4px}
+.font-preview{color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.font-preview.f-ui{font-family:var(--f-ui-family);font-size:var(--f-ui-size);font-weight:var(--f-ui-weight)}
+.font-preview.f-code{font-family:var(--f-code-family);font-size:var(--f-code-size);font-weight:var(--f-code-weight)}
+.font-preview.f-think{font-family:var(--f-think-family);font-size:var(--f-think-size);font-weight:var(--f-think-weight)}
+.fsel{background:var(--surface-2);color:var(--text);border:0;border-radius:9px;padding:6px 10px;font-size:15px}
+.stepper{display:inline-flex;align-items:center;gap:4px;background:var(--surface-2);border-radius:10px;padding:2px}
+.stepper button{width:34px;height:30px;border-radius:8px;font-size:18px;color:var(--text)}
+.stepper button:active{background:var(--hover)}
+.stepper span{min-width:30px;text-align:center;font-variant-numeric:tabular-nums}

@@ -57,7 +57,7 @@ enum StudioUpdateError: LocalizedError {
 final class StudioUpdater {
     /// Bump together with `min_native` in .github/workflows/ios.yml whenever App.swift gains or
     /// changes a native op. tests/ota-update.cjs fails until both are updated.
-    static let nativeLevel = 3
+    static let nativeLevel = 4
     static let repo = "aminoulogie/ai-studio"
     static let maxBytes = 24_000_000
     static let manifestName = "studio-web.json"

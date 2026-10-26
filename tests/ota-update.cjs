@@ -55,16 +55,18 @@ const studioOps=[...app.matchAll(/^\s*case ((?:"[A-Za-z]+"(?:,\s*)?)+):/gm)].fla
 // Level 3: the Claude team. Several jobs at once (claudeSend with role/profile), container list, manager choice,
 // opening the Claude tab, pausing containers, native voice typing. Provider APIs, Google Drive and the old Chat bridge are gone.
 const LEVEL_3=['claudeProfiles','claudeSend','claudeSetEnabled','claudeSetManager','claudeStop','claudeUsage','dictateStart','dictateStop','credentialGet','credentialSet','github'+'DeviceCode','githubToken','memoryGet','memorySet','openClaude','selectStudioTab','share',...OPS].sort();
-assert.deepEqual(studioOps,LEVEL_3,'native ops changed: bump nativeLevel (StudioUpdater.swift) and min_native (ios.yml), then update this list');
+// Level 4: Cursor call. A WebSocket to the PC companion on the same Wi-Fi, and spoken answers.
+const LEVEL_4=[...LEVEL_3,'pcClose','pcConnect','pcSend','speak','speakStop'].sort();
+assert.deepEqual(studioOps,LEVEL_4,'native ops changed: bump nativeLevel (StudioUpdater.swift) and min_native (ios.yml), then update this list');
 const level=Number(upd.match(/static let nativeLevel = (\d+)/)[1]);
 const ciLevel=Number(manifestScript.match(/'min_native':\s*(\d+)/)[1]);
-assert.equal(level,3,'this list describes native level 3');
+assert.equal(level,4,'this list describes native level 4');
 const browserSrc=read('ios/AIStudio/ClaudeBrowserController.swift');
 assert.match(browserSrc,/message\["images"\] as\? \[\[String: Any\]\]/,'claudeSend must read the photos');
 assert.match(read('index.html'),/op:'claudeSend',id,text,role,fresh,images/,'the page sends role, fresh chat and photos with every job');
 // Every page op must exist natively, so a page never calls something this level lacks.
 const pageOps=new Set([...read('index.html').matchAll(/op:'([A-Za-z]+)'/g)].map(m=>m[1]));
-for(const op of pageOps)assert.ok(LEVEL_3.includes(op),'page uses unknown native op '+op);
+for(const op of pageOps)assert.ok(LEVEL_4.includes(op),'page uses unknown native op '+op);
 assert.equal(ciLevel,level,'CI min_native must equal the app nativeLevel');
 
 // CI publishes the exact page the app bundles

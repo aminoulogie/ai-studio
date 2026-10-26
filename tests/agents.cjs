@@ -74,6 +74,11 @@ let mem=A.mergeMemory('- Uses tabs',[...learned,'token ghp_abcdefghijklmnop'],40
 assert.deepEqual(mem.added,['Prefers French']);assert.equal(mem.next,'- Uses tabs\n- Prefers French');
 assert.equal(A.mergeMemory('x'.repeat(3995),['too long'],4000).added.length,0,'memory never passes its limit');
 assert.equal(A.stripEdits('Hi\n<<<REMEMBER\n- a\nREMEMBER>>>'),'Hi');
+// claude.ai's header and thinking title never reach memory or the reply.
+const scraped='Claude responded: <<<REMEMBER\n\nDefining fonts\n\nDefining fonts\n\n'+fence+'json\n{"tasks":[]}\n'+fence+'\n\n<<<REMEMBER\n- Fonts come before Cursor call\nREMEMBER>>>';
+assert.deepEqual(A.parseMemory(scraped),['Fonts come before Cursor call']);
+assert.equal(A.cleanReply(scraped).split('\n')[0],fence+'json');
+assert.equal(A.cleanReply('Claude a répondu : Salut\nSalut'),'Salut');
 assert.match(A.workerPrompt({task:'t',repo:'o/r',branch:'b',files:[]}),/<<<REMEMBER/,'every message asks for new memory');
 // Compression at a limit: the transcript, a compress request, and a handover with the last messages word for word.
 const log=[{k:'user',text:'Build a todo app'},{k:'reply',text:'Done.\n```\n@@@ FILE: a.js\n@@@ CONTENT\nx\n@@@ END\n```',applied:['a.js']},{k:'user',text:'Make it blue'},{k:'reply',text:'Blue now.'}];

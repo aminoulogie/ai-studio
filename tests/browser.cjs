@@ -236,7 +236,7 @@ const nativeMock=`(()=>{
     assert.match(await page.locator('#atts').innerText(),/plan\.pdf/);
     await page.evaluate(()=>{ls('research','1');setTeamMode('single',true);});
     await page.fill('#task','Summarize the attached plan');
-    assert.match(await page.locator('#footNote').innerText(),/tokens · about \d+% of a free session/);
+    assert.match(await page.locator('#footNote').innerText(),/tokens · \d+% of a free session/);
     await page.click('#send');
     await page.waitForFunction(()=>!S.busy&&window.__sent.at(-1).files.includes('application/pdf'));
     assert.match((await page.evaluate(()=>window.__sent)).at(-1).text,/Research: search the web/);

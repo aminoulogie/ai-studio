@@ -75,12 +75,16 @@ Rules: OLD must match the file exactly, including indentation and quotes. Keep e
 
 function memoryBlock(memory){return memory?'Background about me (shared memory, follow it, do not repeat it back):\n'+memory+'\n\n':'';}
 /** Every message asks Claude to hand back new lasting facts, so all containers keep one growing memory. */
-const MEMORY_RULE='If you learn something lasting about me or this project that is not in the background above (a preference, a decision, a convention), end your reply with:\n<<<REMEMBER\n- one short line per new fact\nREMEMBER>>>\nLeave it out when there is nothing new. Never put secrets or code in it.';
+const MEMORY_RULE='If you learn something lasting about me or this project that is not in the background above (a preference, a decision, a convention), end your reply with:\n<<<REMEMBER\n- one short line per new fact\nREMEMBER>>>\nLeave it out when there is nothing new. Never put secrets or code in it.\nReply in the language I write in.';
 /** New memory lines from a reply's REMEMBER blocks. */
 function parseMemory(text){
   const out=[];
-  for(const m of String(text||'').matchAll(/<<<REMEMBER\s*([\s\S]*?)\s*REMEMBER>>>/g))
-    for(const line of m[1].split('\n')){const l=line.replace(/^\s*[-*•]\s*/,'').trim();if(l&&l.length<=300)out.push(l);}
+  // The innermost block only: claude.ai can show "<<<REMEMBER" early in its own header, before the thinking and the plan.
+  for(const m of String(text||'').matchAll(/<<<REMEMBER((?:(?!<<<REMEMBER)[\s\S])*?)REMEMBER>>>/g))
+    for(const line of m[1].split('\n')){
+      const l=line.replace(/^\s*[-*•]\s*/,'').trim();
+      if(l&&l.length<=300&&!/^(```|[{}\[\]])|<<<|>>>/.test(l))out.push(l);
+    }
   return [...new Set(out)];
 }
 /** Adds lines that are not there yet, newest last, within the size limit. Secrets never go in. */
@@ -251,9 +255,18 @@ function applyEdits(edits,texts){
 /** The reply without its edit blocks, for reading. */
 /** claude.ai's icon-font glyphs (copy, retry…) and the button and time lines under a reply are not part of it. */
 const CHROME_LINE=/^\s*(?:just now|\d+\s*(?:s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)\s*ago|yesterday|copy|retry|edit|share|good response|bad response|give positive feedback|give negative feedback)\s*$/i;
+// claude.ai's hidden heading over each reply ("Claude responded: …", in the account's language).
+const SPOKEN_HEAD=/^\s*Claude (?:responded|a répondu|respondió|hat geantwortet|ha risposto|respondeu)\s*:/i;
 function cleanReply(text){
-  return String(text||'').replace(/[\uE000-\uF8FF\uFFFC\uFFFD]|[\u{F0000}-\u{FFFFD}]|[\u{100000}-\u{10FFFD}]/gu,'')
-    .split('\n').filter(l=>!CHROME_LINE.test(l)).join('\n').replace(/[ \t]+$/gm,'').replace(/\n{3,}/g,'\n\n').trim();
+  const lines=String(text||'').replace(/[\uE000-\uF8FF\uFFFC\uFFFD]|[\u{F0000}-\u{FFFFD}]|[\u{100000}-\u{10FFFD}]/gu,'')
+    .split('\n').filter(l=>!CHROME_LINE.test(l)&&!SPOKEN_HEAD.test(l));
+  // The thinking summary title shows twice at the top ("Outlining the plan" / "Outlining the plan"): drop it.
+  for(;;){
+    const idx=lines.map((l,i)=>[l.trim(),i]).filter(([l])=>l).slice(0,2);
+    if(idx.length<2||idx[0][0]!==idx[1][0]||idx[0][0].length>160)break;
+    lines.splice(idx[1][1],1);lines.splice(idx[0][1],1);
+  }
+  return lines.join('\n').replace(/[ \t]+$/gm,'').replace(/\n{3,}/g,'\n\n').trim();
 }
 function stripEdits(text){
   text=cleanReply(text);

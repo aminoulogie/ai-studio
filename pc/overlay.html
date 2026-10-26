@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<style>
+html,body{margin:0;height:100%;background:transparent;overflow:hidden;pointer-events:none;font-family:"Segoe UI",system-ui,sans-serif}
+#ghost{position:absolute;left:0;top:0;opacity:0;transform:scale(.6);transition:left .6s cubic-bezier(.3,.8,.3,1),top .6s cubic-bezier(.3,.8,.3,1),opacity .25s,transform .25s}
+#ghost.on{opacity:1;transform:scale(1)}
+#ghost svg{position:absolute;left:-3px;top:-2px;width:30px;height:38px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
+.ring{position:absolute;left:-22px;top:-22px;width:44px;height:44px;border-radius:50%;border:3px solid #d97757;opacity:0}
+#ghost.on .ring{animation:pulse 1.4s ease-out infinite}
+#ghost.ok .ring{border-color:#5fb36c;animation:none;opacity:.9}
+@keyframes pulse{0%{transform:scale(.5);opacity:.95}100%{transform:scale(1.6);opacity:0}}
+.label{position:absolute;left:30px;top:26px;white-space:nowrap;background:#262624;color:#f5f4ee;font-size:14px;font-weight:600;
+  padding:6px 11px;border-radius:9px;border:1px solid #d97757;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.label:empty{display:none}
+#caption{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);max-width:60%;background:rgba(38,38,36,.92);color:#f5f4ee;
+  font-size:16px;line-height:1.4;padding:10px 16px;border-radius:12px;opacity:0;transition:opacity .3s;text-align:center}
+#caption.on{opacity:1}
+</style></head>
+<body>
+<div id="ghost"><div class="ring"></div>
+<svg viewBox="0 0 24 30"><path d="M2 2 L2 24 L8 18.5 L12 27.5 L15.5 26 L11.6 17.2 L19.5 17.2 Z" fill="#d97757" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+<div class="label"></div></div>
+<div id="caption"></div>
+<script>
+const ghost=document.getElementById('ghost'),label=ghost.querySelector('.label'),caption=document.getElementById('caption');
+let captionTimer=0;
+function say(text){
+  caption.textContent=text||'';caption.classList.toggle('on',!!text);
+  clearTimeout(captionTimer);if(text)captionTimer=setTimeout(()=>caption.classList.remove('on'),12000);
+}
+window.companion.on('point',p=>{
+  // Keep the label on screen near the right and bottom edges.
+  label.style.left=p.x>innerWidth-260?'auto':'30px';label.style.right=p.x>innerWidth-260?'14px':'auto';
+  label.style.top=p.y>innerHeight-90?'-46px':'26px';
+  ghost.classList.remove('ok');label.textContent=p.label||'';
+  ghost.style.left=p.x+'px';ghost.style.top=p.y+'px';ghost.classList.add('on');
+  if(p.say)say(p.say);
+});
+window.companion.on('say',say);
+window.companion.on('reached',()=>ghost.classList.add('ok'));
+window.companion.on('clear',()=>{ghost.classList.remove('on','ok');say('');});
+</script>
+</body></html>

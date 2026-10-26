@@ -821,7 +821,7 @@ function entryHTML(e){
         (t.text?'<h5>Reply</h5><pre>'+esc(A.stripEdits(t.text).slice(-6000)||'(edits only)')+'</pre>':'')+editsHTML(t));
     }
     if(e.note)h+='<p class="cc-say muted">'+esc(e.note)+'</p>';
-    if(live)h+=liveLine(e,m.state==='awaiting'?'Waiting for you to press Send in '+(m.account||'the manager'):'');
+    if(live)h+=liveLine(e,m.state==='awaiting'?'Press Send in '+(m.account||'the manager'):'');
     h+='</div>';
     // What changed, in plain words, under the steps.
     const said=e.tasks.filter(t=>t.text).map(t=>'**'+t.title+'.** '+(A.stripEdits(t.text).split(/\n\s*\n/)[0]||'Done.')).join('\n\n');
@@ -887,7 +887,7 @@ function renderEstimate(){
   const hist=workerHist(),ctx=hist.length?hist.slice(-10).map(h=>h.in).sort((a,b)=>a-b)[Math.min(9,hist.length-1)>>1]:8000;
   const est=U.predict(text.length,hist)+ctx;
   const cap=U.capacity(usageDB().samples);
-  el.textContent='≈'+U.fmtTokens(est)+' tokens · about '+Math.max(1,Math.round(est/cap*100))+'% of a free session'+(teamMode()==='team'&&!A.isQuickQuestion(text)?' per task':'');
+  el.textContent='≈'+U.fmtTokens(est)+' tokens · '+Math.max(1,Math.round(est/cap*100))+'% of a free session';
 }
 function renderSend(){
   const b=$('send'),has=!!($('task').value.trim()||S.atts.length);
@@ -1055,10 +1055,10 @@ function openTeam(){
       row('Sub-agents at once','More is faster but uses more accounts at the same time.',seg([[1,'1'],[2,'2'],[3,'3'],[4,'4']],parallel(),'setParallel'))+
     '</div><p class="hint">The switch next to a container turns it on or off for tasks. Short questions skip the manager. If a sub-agent hits its limit, its task restarts on the next free one by itself.</p></div>'+
     '<div class="group"><h3>Models</h3><div class="list">'+
-      pickRow('Boss model','The manager that plans. Opus needs a paid account.','boss_model',bossModel(),['Opus 5.5','Sonnet 5.5','Account default'])+
-      pickRow('Boss effort','How hard the boss thinks.','boss_effort',bossEffort(),[...A.EFFORTS,'Account default'])+
-      pickRow('Sub-agent model','Auto: the boss picks the cheapest model per task. Free accounts have no Opus.','sub_model',subModel(),['Auto',...A.MODELS,'Account default'])+
-      pickRow('Sub-agent effort','Auto: the boss picks per task.','sub_effort',subEffort(),['Auto',...A.EFFORTS,'Account default'])+
+      pickRow('Manager model','The manager that plans. Opus needs a paid account.','boss_model',bossModel(),['Opus 5.5','Sonnet 5.5','Account default'])+
+      pickRow('Manager effort','How hard the manager thinks.','boss_effort',bossEffort(),[...A.EFFORTS,'Account default'])+
+      pickRow('Sub-agent model','Auto: the manager picks the cheapest model per task. Free accounts have no Opus.','sub_model',subModel(),['Auto',...A.MODELS,'Account default'])+
+      pickRow('Sub-agent effort','Auto: the manager picks per task.','sub_effort',subEffort(),['Auto',...A.EFFORTS,'Account default'])+
     '</div><p class="hint">The app picks these in each account\u2019s own model menu before sending. If an account does not offer one, it says so and uses that account\u2019s current model.</p></div>'+
     '<div class="group"><h3>Containers · '+(T.ready.length+(T.managerReady?1:0))+' of '+T.all.length+' ready</h3><div class="list">'+people+'</div></div>'+
     '<div class="group"><h3>Manager</h3><div class="list">'+
@@ -1135,12 +1135,42 @@ function openSettings(){
     '</div></div>'+
     '<div class="group"><h3>Shared memory</h3><div class="list"><div class="row" style="flex-direction:column;align-items:stretch"><textarea id="memoryBox" maxlength="4000" placeholder="Facts and preferences every Claude account should know, like your stack or style." oninput="saveMemory(this.value)">'+esc(S.memory)+'</textarea><small id="memoryHint" style="color:var(--text-4)">'+S.memory.length+' / 4000 · stays on this device, never committed</small></div></div></div>'+
     '<div class="group"><h3>Appearance</h3><div class="list">'+row('Theme','',seg([['system','Auto'],['light','Light'],['dark','Dark']],theme,'setTheme'))+'</div></div>'+
+    fontsHTML()+
     '<div class="group"><h3>App</h3><div class="list">'+
       row('App updates','Get new screens without reinstalling',icon('chev','ic chev'),'openAppUpdates()')+
       row('Clear sessions on this device','Removes conversations and unsaved edits. GitHub is not touched.','<button class="btn small danger" onclick="clearSessions()">Clear</button>')+
     '</div><p class="hint">AI Studio uses your own Claude accounts on claude.ai and your GitHub token. Nothing goes to any other server.</p></div>',null,'settings');
 }
 window.openSettings=openSettings;
+/* Fonts: family, size and bold for the main app, code and Claude's thinking, as CSS variables on <html>. */
+const FONT_GROUPS=[['ui','Main app',15],['code','Code',12.5],['think','Thinking',16]];
+const FONT_FAMILIES={System:'var(--sans)',Serif:'var(--serif)',Rounded:'ui-rounded,"SF Pro Rounded",var(--sans)',Mono:'var(--mono)'};
+function fontPrefs(){try{const v=JSON.parse(ls('fonts')||'{}');return v&&typeof v==='object'?v:{};}catch{return {};}}
+function applyFonts(){
+  const f=fontPrefs(),st=document.documentElement.style;
+  for(const [g] of FONT_GROUPS){
+    const p=f[g]||{};
+    if(FONT_FAMILIES[p.family])st.setProperty('--f-'+g+'-family',FONT_FAMILIES[p.family]);else st.removeProperty('--f-'+g+'-family');
+    if(+p.size>=10&&+p.size<=28)st.setProperty('--f-'+g+'-size',+p.size+'px');else st.removeProperty('--f-'+g+'-size');
+    if(p.bold)st.setProperty('--f-'+g+'-weight','650');else st.removeProperty('--f-'+g+'-weight');
+  }
+}
+function setFont(g,key,v){
+  const f=fontPrefs(),def=FONT_GROUPS.find(x=>x[0]===g)[2],p=f[g]||(f[g]={});
+  if(key==='size')p.size=Math.min(28,Math.max(10,Math.round((+p.size||def)+v)));else p[key]=v;
+  ls('fonts',JSON.stringify(f));applyFonts();openSettings();
+}
+function resetFonts(){ls('fonts','{}');applyFonts();openSettings();}
+function fontsHTML(){
+  const f=fontPrefs();
+  return '<div class="group"><h3>Fonts</h3>'+FONT_GROUPS.map(([g,label,def])=>{
+    const p=f[g]||{},size=+p.size||def;
+    return '<div class="list font-group"><div class="font-head"><b>'+label+'</b><span class="font-preview f-'+g+'">'+(g==='code'?'const x = 42;':'The quick brown fox')+'</span></div>'+
+      row('Font','','<select class="fsel" onchange="setFont(\''+g+'\',\'family\',this.value)">'+Object.keys(FONT_FAMILIES).map(n=>'<option'+((p.family||(g==='code'?'Mono':'System'))===n?' selected':'')+'>'+n+'</option>').join('')+'</select>')+
+      row('Size','','<span class="stepper"><button onclick="setFont(\''+g+'\',\'size\',-1)" aria-label="Smaller">−</button><span>'+size+'</span><button onclick="setFont(\''+g+'\',\'size\',1)" aria-label="Bigger">+</button></span>')+
+      row('Bold','',toggle('fb_'+g,!!p.bold,'setFont(\''+g+'\',\'bold\',this.checked)'))+'</div>';
+  }).join('')+'<div class="list">'+row('Reset fonts','','','resetFonts()')+'</div></div>';
+}
 function setTheme(v){ls('studio_theme',v);applyTheme();openSettings();}
 function applyTheme(){const v=ls('studio_theme')||'system';if(v==='system')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme',v);}
 async function clearSessions(){
@@ -1220,7 +1250,7 @@ async function appUpdateReset(){
 
 /* ===================== START ===================== */
 async function init(){
-  applyTheme();
+  applyTheme();applyFonts();
   document.body.classList.toggle('in-app',inApp());
   $('sbSpark').innerHTML=spark();drawIcons();
   S.token=ls('gh_token')||'';S.user=lsj('gh_user');S.memory=decodeMemory(ls('studio_memory')||'');S.ask=ls('ask_mode')==='1';

@@ -15,7 +15,7 @@ manifest = {
     'version': version,
     'sha256': hashlib.sha256(page).hexdigest(),
     'size': len(page),
-    'min_native': 3,
+    'min_native': 4,
     'observer_sha256': hashlib.sha256(observer).hexdigest(),
     'observer_size': len(observer),
 }

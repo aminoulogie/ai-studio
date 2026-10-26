@@ -1,0 +1,30 @@
+{
+  "name": "ai-studio-companion",
+  "productName": "AI Studio Companion",
+  "version": "1.0.0",
+  "description": "Pairs your PC with the AI Studio iPhone app for Cursor call: Claude sees your screen and a ghost cursor shows where to click.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win zip --x64 --publish never"
+  },
+  "dependencies": {
+    "ws": "8.18.0"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "app.aistudio.companion",
+    "productName": "AI Studio Companion",
+    "artifactName": "AIStudio-Companion-${version}-win-x64.${ext}",
+    "files": ["main.js", "protocol.js", "preload.js", "control.html", "overlay.html", "package.json"],
+    "directories": { "output": "dist" },
+    "win": {
+      "target": ["zip"],
+      "signAndEditExecutable": false
+    }
+  }
+}

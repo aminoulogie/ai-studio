@@ -35,6 +35,8 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
     private var probeToken = 0
     private var probingVersion: Int?
     private let dictation = StudioDictation()
+    private let pcLink = StudioPCLink()
+    private let speaker = StudioSpeaker()
     /// The same memory file the Claude accounts use. Set by StudioTabController.
     var memoryStore: ClaudeProfileStore?
     func selectStudioTab(_ mode: String) {
@@ -59,6 +61,12 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         guard let data = try? JSONSerialization.data(withJSONObject: ["text": text, "final": final]),
               let json = String(data: data, encoding: .utf8) else { return }
         webView.evaluateJavaScript("window.onDictation&&window.onDictation(" + json + ")", completionHandler: nil)
+    }
+    /// Cursor call: the PC link opened, sent a message or closed; or a spoken answer finished.
+    func emitCall(_ name: String, _ payload: [String: Any]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("window.\(name)&&window.\(name)(" + json + ")", completionHandler: nil)
     }
     /// Container list changed (status, limit, manager, busy). The page asks for the new list.
     func emitProfilesChanged() {
@@ -258,6 +266,25 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             return
         case "dictateStop":
             dictation.stop(); replyHandler(true, nil); return
+        case "pcConnect":
+            guard let host = msg["host"] as? String, let port = msg["port"] as? Int else { replyHandler(nil, "Type your PC's address"); return }
+            pcLink.onEvent = { [weak self] event in self?.emitCall("onPC", event) }
+            do { try pcLink.connect(host: host, port: port); replyHandler(true, nil) } catch { replyHandler(nil, error.localizedDescription) }
+            return
+        case "pcSend":
+            guard let text = msg["text"] as? String, text.utf8.count <= 16_000 else { replyHandler(nil, "Message too large"); return }
+            do { try pcLink.send(text); replyHandler(true, nil) } catch { replyHandler(nil, error.localizedDescription) }
+            return
+        case "pcClose":
+            pcLink.close(); replyHandler(true, nil); return
+        case "speak":
+            guard let text = msg["text"] as? String, !text.isEmpty, text.count <= 4_000 else { replyHandler(nil, "Nothing to say"); return }
+            dictation.stop()
+            speaker.onDone = { [weak self] finished in DispatchQueue.main.async { self?.emitCall("onSpeech", ["done": finished]) } }
+            speaker.speak(text, language: msg["lang"] as? String, rate: (msg["rate"] as? NSNumber)?.floatValue)
+            replyHandler(true, nil); return
+        case "speakStop":
+            speaker.stop(); replyHandler(true, nil); return
         case "openClaude":
             tabs?.openClaude(profile: msg["profile"] as? String, path: msg["path"] as? String); replyHandler(true, nil); return
         case "claudeUsage":

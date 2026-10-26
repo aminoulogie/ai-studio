@@ -1,0 +1,45 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>AI Studio Companion</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#262624;color:#f5f4ee;font-family:"Segoe UI",system-ui,sans-serif;padding:26px 26px 20px;user-select:none}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:26px;margin:0 0 4px;display:flex;align-items:center;gap:10px}
+h1 span{color:#d97757;font-size:30px;line-height:1}
+p{color:#b7b5a9;font-size:14px;line-height:1.5;margin:6px 0 18px}
+.card{background:#30302e;border:1px solid #3e3e3a;border-radius:14px;padding:16px 18px;margin-bottom:14px}
+.k{color:#9c9a92;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.v{font:600 24px/1.25 Consolas,"Cascadia Mono",monospace;letter-spacing:.02em}
+.code{font-size:34px;letter-spacing:.18em;color:#f5f4ee}
+small{display:block;color:#9c9a92;font-size:12.5px;margin-top:4px}
+.status{display:flex;align-items:center;gap:9px;font-size:15px}
+.dot{width:10px;height:10px;border-radius:50%;background:#7d7b74}
+.dot.on{background:#5fb36c;box-shadow:0 0 0 4px rgba(95,179,108,.18)}
+.row{display:flex;gap:10px;margin-top:6px}
+button{flex:1;background:#3a3a37;color:#f5f4ee;border:1px solid #4a4a46;border-radius:10px;padding:10px 12px;font:600 14px "Segoe UI",system-ui;cursor:pointer}
+button:hover{background:#44443f}
+.err{color:#e58a6b;font-size:13.5px;margin-top:8px}
+</style></head>
+<body>
+<h1><span>&#10033;</span>AI Studio Companion</h1>
+<p>On your iPhone: AI Studio &rarr; + &rarr; Cursor call. Type the address and code below. Both must be on the same Wi-Fi.</p>
+<div class="card"><div class="k">Address</div><div class="v" id="addr">&hellip;</div><small id="more"></small></div>
+<div class="card"><div class="k">Code</div><div class="v code" id="code">&hellip;</div></div>
+<div class="card"><div class="status"><i class="dot" id="dot"></i><span id="status">Waiting for your phone</span></div><div class="err" id="err" hidden></div></div>
+<div class="row"><button id="test">Show test cursor</button><button id="new">New code</button></div>
+<p style="margin-top:14px;font-size:12.5px">If Windows asks, allow the companion on <b>Private networks</b>. It only shows a cursor: it never clicks or types for you.</p>
+<script>
+const $=id=>document.getElementById(id);
+window.companion.on('state',s=>{
+  const a=s.addresses||[];
+  $('addr').textContent=a.length?a[0].address+(s.port!==8765?':'+s.port:''):'No Wi-Fi network';
+  $('more').textContent=a.length>1?'Other addresses: '+a.slice(1).map(x=>x.address).join(', '):'';
+  $('code').textContent=s.code;
+  $('dot').classList.toggle('on',s.connected);
+  $('status').textContent=s.connected?'Connected to your iPhone'+(s.peer?' ('+s.peer+')':''):'Waiting for your phone';
+  $('err').hidden=!s.error;$('err').textContent=s.error||'';
+});
+$('test').onclick=()=>window.companion.test();
+$('new').onclick=()=>window.companion.newCode();
+</script>
+</body></html>
