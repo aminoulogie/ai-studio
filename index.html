@@ -426,7 +426,7 @@ async function setManager(id){
 
 /* ===================== RUNNING A TASK ===================== */
 // The elapsed time in a live thinking header ticks every second.
-setInterval(()=>{const s=sess();if(!S.busy||!s)return;s.log.forEach((e,i)=>{if(LIVE.includes(e.state)){const el=$('e'+i)?.querySelector('.think-head .time');if(el&&el.firstChild)el.firstChild.nodeValue=elapsed(e);}});},1000);
+setInterval(()=>{const s=sess();if(!S.busy||!s)return;s.log.forEach((e,i)=>{if(LIVE.includes(e.state)){const el=$('e'+i)?.querySelector('.cc-live .time');if(el)el.textContent='('+elapsed(e)+(e.est?' · ≈'+U.fmtTokens(e.est)+' tokens':'')+')';}});},1000);
 function sendOrStop(){if(S.busy)stopAll();else sendTask();}
 function composerKey(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&matchMedia('(min-width:821px)').matches){e.preventDefault();sendOrStop();}}
 function stopAll(){
@@ -651,7 +651,7 @@ async function runQuestions(s,goal,images){
 function questionsHTML(e){
   if(e.state!=='asking'&&e.state!=='answered'){
     const live=LIVE.includes(e.state);
-    return '<div class="think"><div class="think-head">'+(live?'<span class="dots"><i></i><i></i><i></i></span>':icon('ask'))+'<span class="t">'+esc(e.note||'Questions')+'</span><span class="time">'+elapsed(e)+'</span></div></div>';
+    return live?liveLine(e,e.note):'<p class="cc-say muted">'+esc(e.note||'Questions')+'</p>';
   }
   const done=e.state==='answered';
   return '<div class="qcard'+(done?' done':'')+'">'+e.items.map((q,qi)=>'<div class="q"><b>'+esc(q.q)+'</b><div class="opts">'+
@@ -793,36 +793,37 @@ function entryHTML(e){
   if(e.k==='reply'){
     const live=LIVE.includes(e.state),body=A.stripEdits(e.text);
     let h='';
-    if(live||(e.note&&e.state==='failed'))h+='<div class="think"><div class="think-head">'+(live?'<span class="dots"><i></i><i></i><i></i></span>':icon('alert'))+'<span class="t">'+esc(e.note||(e.state==='streaming'?'Claude is writing…':'Claude is working…'))+'</span>'+(e.est&&live?'<span class="est">≈'+U.fmtTokens(e.est)+'</span>':'')+'<span class="time">'+elapsed(e)+'</span></div></div>';
-    if(e.state==='awaiting')h+='<div><button class="btn accent small" onclick="openClaude(\''+esc(e.profile||'')+'\')">'+icon('out')+'Open Claude to press Send</button></div>';
+    if(live)h+=liveLine(e,e.note);
+    else if(e.note&&e.state==='failed')h+='<p class="cc-say err">'+esc(e.note)+'</p>';
+    if(e.state==='awaiting')h+=sendButton(e.profile);
     if(body)h+='<div class="reply final">'+md(body)+'</div>';
     h+=editsHTML(e);
     if(!live&&e.text)h+='<div class="meta"><span>'+esc(e.account?'Claude · '+e.account:'Claude')+(e.cost?' · ≈'+U.fmtTokens(e.cost)+' tokens':'')+'</span><button onclick="copyEntry(this)">Copy</button></div>';
     return h;
   }
   if(e.k==='run'){
+    // Laid out like Claude Code: a sentence, then steps ("Planned …", "Edited …") that open, and a live line.
     const m=e.manager,live=e.state==='planning'||e.state==='working';
-    const busyTask=e.tasks.find(t=>LIVE.includes(t.state));
-    const title=live?(LIVE.includes(m.state)?(m.state==='awaiting'?'Waiting for you to press Send in '+(m.account||'the manager'):m.state==='streaming'?'The manager is planning':m.note||'The manager is planning'):
-        busyTask?(busyTask.account?busyTask.account+': ':'')+busyTask.title:'Applying the changes'):
-      (e.summary||(e.answer?'Answered':e.state==='failed'?'The team could not finish':'Done'));
-    let h='<div class="think'+(e.closed?' closed':'')+'"><button class="think-head" onclick="toggleThink(this)">'+(live?'<span class="dots"><i></i><i></i><i></i></span>':spark())+
-      '<span class="t">'+esc(title)+'</span><span class="time">'+elapsed(e)+icon('down')+'</span></button><div class="steps">';
-    h+=stepRow('m',m.state==='done'?'Planned the work':m.state==='failed'?'Planning failed':'Planning the work',m,
-      (m.note&&m.state!=='done'?'<div class="note'+(m.state==='failed'?' err':'')+'">'+esc(m.note)+'</div>':'')+
-      (m.state==='awaiting'?'<div><button class="btn accent small" onclick="openClaude(\''+esc(m.profile||'')+'\')">'+icon('out')+'Open Claude to press Send</button></div>':'')+
+    let h='<div class="cc">';
+    if(e.summary)h+='<p class="cc-say">'+esc(e.summary)+'</p>';
+    h+=ccRow('m',m.state==='done'?'Planned':m.state==='failed'?'Planning failed':'Planning',
+      (m.account||'manager')+(m.cost?' · ≈'+U.fmtTokens(m.cost):''),m,
+      (m.note&&m.state!=='done'?'<p class="cc-note">'+esc(m.note)+'</p>':'')+
       (m.text?'<h5>Plan</h5><pre>'+jsonHTML(m.text)+'</pre>':''));
+    if(m.state==='awaiting')h+=sendButton(m.profile);
     for(const t of e.tasks){
-      h+=stepRow(t.n,t.title,t,
-        (t.note?'<div class="note'+(t.state==='failed'?' err':'')+'">'+esc(t.note)+'</div>':'')+
-        (t.model||t.effort?'<h5>Model</h5><div class="files"><span>'+esc([t.model,t.effort].filter(Boolean).join(' · '))+'</span></div>':'')+
-        (t.files?.length?'<h5>Files</h5><div class="files">'+t.files.map(f=>'<span>'+esc(f)+'</span>').join('')+'</div>':'')+
+      const verb={queued:'Waiting',sending:'Starting',streaming:'Editing',done:'Edited',partial:'Partly edited',failed:'Failed'}[t.state]||'Editing';
+      h+='<p class="cc-say">'+esc(t.title)+'</p>';
+      h+=ccRow(t.n,verb,(t.files?.length?t.files.join(', '):t.title)+(t.account?' · '+t.account:''),t,
+        (t.note?'<p class="cc-note'+(t.state==='failed'?' err':'')+'">'+esc(t.note)+'</p>':'')+
+        (t.model||t.effort?'<h5>Model</h5><pre>'+esc([t.model,t.effort].filter(Boolean).join(' · '))+'</pre>':'')+
         '<h5>Instructions</h5><pre>'+esc(t.instructions)+'</pre>'+
         (t.text?'<h5>Reply</h5><pre>'+esc(A.stripEdits(t.text).slice(-6000)||'(edits only)')+'</pre>':'')+editsHTML(t));
     }
-    if(e.note)h+='<div class="srow"><div class="line">'+esc(e.note)+'</div></div>';
-    h+='</div></div>';
-    // What changed, in plain words, like Claude's answer under its thinking.
+    if(e.note)h+='<p class="cc-say muted">'+esc(e.note)+'</p>';
+    if(live)h+=liveLine(e,m.state==='awaiting'?'Waiting for you to press Send in '+(m.account||'the manager'):'');
+    h+='</div>';
+    // What changed, in plain words, under the steps.
     const said=e.tasks.filter(t=>t.text).map(t=>'**'+t.title+'.** '+(A.stripEdits(t.text).split(/\n\s*\n/)[0]||'Done.')).join('\n\n');
     if(e.answer)h+='<div class="reply final">'+md(e.answer)+'</div>';
     else if(!live&&said)h+='<div class="reply final">'+md(said)+'</div>';
@@ -831,6 +832,17 @@ function entryHTML(e){
     return h;
   }
   return '';
+}
+const WORDS=['Contemplating','Pondering','Thinking','Reasoning','Working','Mulling'];
+/** The live line under the steps: an orange dot and word, then the time and estimated tokens. */
+function liveLine(e,text){
+  const word=text||WORDS[Math.floor((Date.now()-(e.ts||Date.now()))/9000)%WORDS.length]+'…';
+  return '<div class="cc-live"><i></i><span>'+esc(word)+' <small class="time">('+elapsed(e)+(e.est?' · ≈'+U.fmtTokens(e.est)+' tokens':'')+')</small></span></div>';
+}
+function sendButton(profile){return '<div><button class="btn accent small" onclick="openClaude(\''+esc(profile||'')+'\')">'+icon('out')+'Open Claude to press Send</button></div>';}
+/** One step row: a muted verb, the details in monospace, an arrow; it opens to show what happened. */
+function ccRow(key,verb,label,x,detail){
+  return '<details class="cc-row '+esc(x.state||'')+'"'+(x.open?' open':'')+' ontoggle="toggleStep(this,\''+key+'\')"><summary><span class="v">'+esc(verb)+'</span><code>'+esc(label)+'</code>'+icon('chev','ic chev')+'</summary><div class="detail">'+detail+'</div></details>';
 }
 const LIVE=['sending','queued','awaiting','streaming','working','planning'];
 /** One step: status, title, who did it, and a detail panel that keeps its open state. */

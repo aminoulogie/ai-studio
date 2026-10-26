@@ -49,6 +49,9 @@ assert.equal(r.texts['.env'],undefined);
 const repair=A.repairPrompt({goal:'g',failed:r.failed.slice(0,1),files:[{path:'x.js',text:'a'}],repo:'o/r',branch:'main'});
 assert.match(repair,/@@@ OLD\nnope/);assert.match(repair,/=== FILE x\.js ===\na/);
 
+// claude.ai's icon glyphs and the button and time lines under a reply are dropped.
+assert.equal(A.stripEdits('Tell me what to change.\n\n\uE001\n\u{F0123}\u{F0012}\njust now\nCopy\nRetry'),'Tell me what to change.');
+assert.equal(A.cleanReply('Edit the file'),'Edit the file','real sentences that start with Edit stay');
 // Reading: edit blocks hidden from the reply, streaming blocks too.
 assert.equal(A.stripEdits(reply).split('\n')[0],'Done.');
 assert.doesNotMatch(A.stripEdits(reply),/@@@/);

@@ -40,13 +40,19 @@
     walk(el);
     return out.replace(/\n{3,}/g,'\n\n').trim();
   }
+  // Icon-font glyphs (copy, retry…) and the "just now" / button lines under a message are page chrome, not text.
+  const CHROME_LINE=/^\s*(?:just now|\d+\s*(?:s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)\s*ago|yesterday|copy|retry|edit|share|good response|bad response|give positive feedback|give negative feedback)\s*$/i;
+  function clean(text){
+    return String(text||'').replace(/[\uE000-\uF8FF\uFFFC\uFFFD]|[\u{F0000}-\u{FFFFD}]|[\u{100000}-\u{10FFFD}]/gu,'')
+      .split('\n').filter(l=>!CHROME_LINE.test(l)).join('\n').replace(/[ \t]+$/gm,'').replace(/\n{3,}/g,'\n\n').trim();
+  }
   function messages(){
     const items=[];
     // Keep document order. These selectors are best-effort public DOM markers, not an API.
     for(const el of document.querySelectorAll('[data-testid="user-message"],[data-testid="assistant-message"],[data-is-streaming]')){
       if(el.parentElement?.closest('[data-testid="user-message"],[data-testid="assistant-message"],[data-is-streaming]'))continue;
       const user=el.getAttribute('data-testid')==='user-message';
-      const text=user?el.innerText?.trim():replyText(el);if(!text)continue;
+      const text=clean(user?el.innerText:replyText(el));if(!text)continue;
       items.push({role:user?'user':'assistant',content:text});
     }
     return items;

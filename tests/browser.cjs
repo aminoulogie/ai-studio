@@ -133,7 +133,7 @@ const nativeMock=`(()=>{
     await page.fill('#task','Make the send button bigger and raise the size');
     await page.evaluate(()=>{window.__slow=true;});
     await page.click('#send');
-    await page.waitForSelector('.think .dots');
+    await page.waitForSelector('.cc-live');
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-live.png')});
     await page.evaluate(()=>{window.__slow=false;});
     await page.waitForFunction(()=>!S.busy&&Object.keys(sess().staged).length===2,null,{timeout:15000});
@@ -149,9 +149,9 @@ const nativeMock=`(()=>{
     for(const s of sent.filter(s=>s.role==='worker'))assert.match(s.text,/@@@ FILE:/,'sub-agents get the edit format');
     assert.equal(await page.evaluate(()=>sess().staged['app.js']),'const size = 16;\nfunction go(){\n  return size;\n}\n');
     assert.match(await page.evaluate(()=>sess().staged['index.html']),/class="send big"/);
-    assert.equal(await page.locator('.srow.done').count(),3,'manager + two tasks done');
-    assert.ok(await page.locator('.think.closed').count(),'the thinking block folds when done');
-    await page.click('.think-head');await page.click('.srow >> nth=1');
+    assert.equal(await page.locator('.cc-row.done').count(),3,'manager + two tasks done');
+    assert.equal(await page.locator('.cc-live').count(),0,'no live line once done');
+    await page.click('.cc-row >> nth=1');assert.ok(await page.locator('.cc-row[open] .detail').isVisible(),'a step opens');
     assert.match(await page.locator('#changes').innerText(),/2 files changed/);
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-team.png')});
     // 3. Review and commit.

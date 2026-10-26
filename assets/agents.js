@@ -249,7 +249,14 @@ function applyEdits(edits,texts){
   return {texts:out,applied,failed};
 }
 /** The reply without its edit blocks, for reading. */
+/** claude.ai's icon-font glyphs (copy, retry…) and the button and time lines under a reply are not part of it. */
+const CHROME_LINE=/^\s*(?:just now|\d+\s*(?:s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)\s*ago|yesterday|copy|retry|edit|share|good response|bad response|give positive feedback|give negative feedback)\s*$/i;
+function cleanReply(text){
+  return String(text||'').replace(/[\uE000-\uF8FF\uFFFC\uFFFD]|[\u{F0000}-\u{FFFFD}]|[\u{100000}-\u{10FFFD}]/gu,'')
+    .split('\n').filter(l=>!CHROME_LINE.test(l)).join('\n').replace(/[ \t]+$/gm,'').replace(/\n{3,}/g,'\n\n').trim();
+}
 function stripEdits(text){
+  text=cleanReply(text);
   const out=[];let skipping=false;
   for(const line of String(text||'').split('\n')){
     const m=MARK.exec(line);
@@ -359,7 +366,7 @@ function isQuickQuestion(text){
   if(/^(hi|hey|hello|yo|salut|bonjour|thanks|thank you|merci|ok|okay)\b[\s!.?]*$/i.test(t))return true;
   return t.length<=80&&/\?\s*$/.test(t)&&!/\b(add|make|change|fix|build|create|remove|delete|rename|update|implement|redesign)\b/i.test(t);
 }
-const api={MODELS,EFFORTS,MEMORY_RULE,parseMemory,mergeMemory,transcript,compressPrompt,handoverText,questionsPrompt,parseQuestions,fixPrompt,parseFixed,FIX_STYLES,contextPaths,sourceExcerpt,repoTree,managerPrompt,parsePlan,workerPrompt,repairPrompt,parseEdits,applyEdits,locate,stripEdits,lineDiff,diffStats,pool,isQuickQuestion,EDIT_RULES};
+const api={cleanReply,MODELS,EFFORTS,MEMORY_RULE,parseMemory,mergeMemory,transcript,compressPrompt,handoverText,questionsPrompt,parseQuestions,fixPrompt,parseFixed,FIX_STYLES,contextPaths,sourceExcerpt,repoTree,managerPrompt,parsePlan,workerPrompt,repairPrompt,parseEdits,applyEdits,locate,stripEdits,lineDiff,diffStats,pool,isQuickQuestion,EDIT_RULES};
 root.StudioAgents=api;
 if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
