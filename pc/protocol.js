@@ -66,7 +66,7 @@ function lanAddresses(ifaces){
     if(priv)out.push({name,address:a.address});
   }
   // Wi-Fi and Ethernet first, virtual adapters (WSL, Hyper-V, VPN) last.
-  const rank=n=>/wi-?fi|wlan|ethernet|eth|en\d/i.test(n)?0:/vethernet|wsl|hyper|virtual|vbox|vmware|docker|tailscale|zerotier/i.test(n)?2:1;
+  const rank=n=>/vethernet|wsl|hyper|virtual|vbox|vmware|docker|tailscale|zerotier/i.test(n)?2:/wi-?fi|wlan|ethernet|eth|en\d/i.test(n)?0:1;
   return out.sort((a,b)=>rank(a.name)-rank(b.name));
 }
 

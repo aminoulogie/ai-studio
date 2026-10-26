@@ -1,6 +1,9 @@
 # PC mode and Cursor mode: design
 
-Status: design only, nothing built yet. Questions to settle are at the end.
+Status: **Cursor mode is built** (iPhone call screen: + → Cursor call; Windows companion in `pc/`, released as `pc-v1.0.N`
+by Codemagic). PC mode (Claude clicks for you) is not built. The companion is Electron rather than Tauri, so Codemagic
+can pack the Windows app without a Windows machine. The phone–PC link is plain WebSocket on your Wi-Fi with a 6-digit
+code (not encrypted): pair only on home or office networks.
 
 ## What it is
 

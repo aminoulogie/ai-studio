@@ -55,6 +55,7 @@ workflows:
           node tests/repo-privacy.cjs
           node tests/claude-observer.cjs
           node tests/ota-update.cjs
+          node tests/cursor.cjs
       - name: Bundle the page and the app icon
         script: |
           mkdir -p ios/www
@@ -110,3 +111,53 @@ workflows:
       - ios/*.ipa
       - ios/studio-web.html
       - ios/studio-web.json
+
+  # The Windows companion for Cursor call. Built only when pc/ changes; published as its own release (pc-v1.0.N)
+  # with AIStudio-Companion-…-win-x64.zip. No Windows machine is needed: Electron packs the Windows app from here.
+  pc-companion:
+    name: AI Studio Companion (Windows)
+    instance_type: mac_mini_m2
+    max_build_duration: 25
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'claude/*'
+          include: true
+        - pattern: 'main'
+          include: true
+      cancel_previous_builds: true
+    when:
+      changeset:
+        includes:
+          - 'pc/**'
+    environment:
+      node: 22
+      groups:
+        - github
+    scripts:
+      - name: Test
+        script: |
+          node tests/cursor.cjs
+      - name: Build the Windows zip
+        script: |
+          git fetch --unshallow --quiet 2>/dev/null || true
+          echo "PC_VERSION=$(git rev-list --count HEAD)" >> $CM_ENV
+          cd pc
+          npm ci --no-audit --no-fund
+          npm version "1.0.$(git rev-list --count HEAD)" --no-git-tag-version --allow-same-version
+          npx electron-builder --win zip --x64 --publish never
+          ls -lh dist/*.zip
+      - name: Publish the release
+        script: |
+          if [ -z "$GITHUB_TOKEN" ]; then echo "No GITHUB_TOKEN: download the zip from this build's artifacts."; exit 0; fi
+          command -v gh >/dev/null || brew install gh
+          export GH_TOKEN="$GITHUB_TOKEN"
+          TAG="pc-v1.0.$PC_VERSION"
+          gh release view "$TAG" -R aminoulogie/ai-studio >/dev/null 2>&1 || \
+            gh release create "$TAG" -R aminoulogie/ai-studio --target "$CM_COMMIT" --prerelease \
+              --title "AI Studio Companion $TAG (Windows)" \
+              --notes "Unzip and run AI Studio Companion.exe. Windows may warn about an unknown publisher: More info → Run anyway. Allow it on Private networks. Then on the iPhone: + → Cursor call."
+          gh release upload "$TAG" -R aminoulogie/ai-studio --clobber pc/dist/*.zip
+    artifacts:
+      - pc/dist/*.zip

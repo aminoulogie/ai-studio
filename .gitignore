@@ -43,3 +43,4 @@ models.json
 profiles.json
 ai_models*.json
 cl_convs*.json
+pc/dist/

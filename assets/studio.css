@@ -481,3 +481,27 @@ button,input,select,textarea{font-family:inherit;font-weight:inherit}
 .stepper button{width:34px;height:30px;border-radius:8px;font-size:18px;color:var(--text)}
 .stepper button:active{background:var(--hover)}
 .stepper span{min-width:30px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* Cursor call: a full-screen call, like a phone call with Claude. */
+.call{position:fixed;inset:0;z-index:95;display:flex;flex-direction:column;justify-content:space-between;align-items:center;
+  padding:calc(env(safe-area-inset-top) + 18px) 22px calc(env(safe-area-inset-bottom) + 26px);background:radial-gradient(120% 70% at 50% 30%,#2b2a27 0%,#191919 70%);color:#f5f4ee}
+.call-top{font-size:14px;color:#a6a49b}
+.call-mid{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;max-width:520px;width:100%}
+.call-mid h2{font:400 34px/1.1 var(--serif);margin-top:14px}
+.call-orb{width:132px;height:132px;border-radius:50%;display:grid;place-items:center;color:var(--accent);background:rgba(217,119,87,.08)}
+.call-orb svg.spark{width:84px;height:84px;fill:currentColor;transition:transform .3s}
+.call[data-state="listening"] .call-orb,.call[data-state="waiting"] .call-orb{animation:breathe 2.4s ease-in-out infinite}
+.call[data-state="speaking"] .call-orb svg.spark{animation:talk .5s ease-in-out infinite alternate}
+.call[data-state="thinking"] .call-orb svg.spark,.call[data-state="connecting"] .call-orb svg.spark{animation:spin 2.8s linear infinite}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(217,119,87,.35)}50%{box-shadow:0 0 0 18px rgba(217,119,87,0)}}
+@keyframes talk{from{transform:scale(.92)}to{transform:scale(1.08)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.call-state{font-size:15px;color:#a6a49b}
+.call-cap{font-size:19px;line-height:1.45;margin-top:14px;min-height:2.9em}
+.call-me{font-size:15px;color:#a6a49b;font-style:italic;min-height:1.5em}
+.call-btns{display:flex;gap:18px;justify-content:center;width:100%}
+.call-btns button{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12px;color:#c9c7bd;width:68px}
+.call-btns button i{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.1)}
+.call-btns button i svg.ic{width:26px;height:26px;color:#f5f4ee}
+.call-btns button.on i{background:#f5f4ee}.call-btns button.on i svg.ic{color:#191919}
+.call-btns button.end i{background:#d9493b}

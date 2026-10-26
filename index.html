@@ -61,11 +61,28 @@
 </div>
 <div class="sheet-wrap" id="sheet" onclick="if(event.target===this)closeSheet()"><div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><h2 id="sheetTitle"></h2><button class="icon-btn" onclick="closeSheet()" aria-label="Close" data-icon="x"></button></div><div class="sheet-body" id="sheetBody"></div></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="call" id="call" hidden data-state="idle">
+  <div class="call-top"><span id="callPC">Your PC</span></div>
+  <div class="call-mid">
+    <button class="call-orb" id="callOrb" onclick="callOrbTap()" aria-label="Talk"></button>
+    <h2>Claude</h2>
+    <div class="call-state" id="callState">Connecting…</div>
+    <p class="call-cap" id="callCap"></p>
+    <p class="call-me" id="callMe"></p>
+  </div>
+  <div class="call-btns">
+    <button onclick="callMute()" id="callMuteBtn"><i data-icon="mic"></i><span>Mute</span></button>
+    <button onclick="callLook()"><i data-icon="eye"></i><span>Look again</span></button>
+    <button onclick="callNext()"><i data-icon="chev"></i><span>Next step</span></button>
+    <button class="end" onclick="endCall()"><i data-icon="phone"></i><span>End</span></button>
+  </div>
+</div>
 
 <script src="assets/repo-privacy.js"></script>
 <script src="assets/agents.js"></script>
 <script src="assets/github.js"></script>
 <script src="assets/usage.js"></script>
+<script src="assets/cursor.js"></script>
 <script>
 'use strict';
 /* ===================== BASICS ===================== */
@@ -115,6 +132,8 @@ const ICONS={
   chev:'<path d="M9 6l6 6-6 6"/>',commit:'<circle cx="12" cy="12" r="3.5"/><path d="M3 12h5.5m7 0H21"/>',star:'<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
   code:'<path d="m8 7-5 5 5 5m8-10 5 5-5 5"/>',bulb:'<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
   bug:'<rect x="7" y="8" width="10" height="12" rx="5"/><path d="M12 8v12M7 13H3m18 0h-4M8 5l2 3m6-3-2 3M4 8l3 2m13-2-3 2M4 19l3-2m13 2-3-2"/>',
+  phone:'<path d="M4.5 9.5c4-3.5 11-3.5 15 0l-2 2.6-3-1.2v-2c-1.6-.5-3.4-.5-5 0v2l-3 1.2z"/>',eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  pointer:'<path d="M5 3l14 7.5-6 1.5-2.5 6z"/>',
   wand:'<path d="M4 20 16 8M14 4v2m4 0h2m-3-3-1 1m-8 0v2M6 4H4m14 10v2m2 0h-2"/>',book:'<path d="M5 4h9a4 4 0 0 1 4 4v12H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10"/>'
 };
 function icon(name,cls='ic'){return '<svg class="'+cls+'" viewBox="0 0 24 24" aria-hidden="true">'+(ICONS[name]||'')+'</svg>';}
@@ -707,6 +726,7 @@ function undoFix(){if(S.fixUndo==null)return;$('task').value=S.fixUndo;ls('draft
 let rec=null,dictBase='';
 function setMic(on){S.dictating=on;$('micBtn').classList.toggle('rec',on);$('micBtn').setAttribute('aria-pressed',on?'true':'false');}
 window.onDictation=d=>{
+  if(call.on){callHeard(d);return;}
   if(!S.dictating&&!d.final)return;
   if(d.text){$('task').value=dictBase+d.text;autosize($('task'));ls('draft',$('task').value);renderSend();}
   if(d.final)setMic(false);
@@ -727,6 +747,142 @@ async function toggleMic(){
   rec.onerror=e=>{if(e.error!=='aborted')toast('Mic: '+e.error);};
   rec.onend=()=>{rec=null;setMic(false);};
   rec.start();setMic(true);
+}
+
+/* ===================== CURSOR CALL ===================== */
+// You talk on the phone, Claude sees your PC screen, and a ghost cursor on the PC shows where to click.
+// Each step: your words + a fresh screenshot go to one free sub-agent in a new chat; it answers what to say and where to point.
+const CUR=window.StudioCursor;
+const call={on:false,state:'idle',muted:false,busy:false,history:[],waitClick:false,waiters:[],words:'',silence:0,job:null,speakDone:null};
+const CALL_TEXT={connecting:'Connecting to your PC…',listening:'Listening',thinking:'Looking at your screen…',speaking:'Talking',waiting:'Follow the cursor, or talk to me',muted:'Muted. Tap the mic to talk.'};
+function callSet(state,text){call.state=state;$('call').dataset.state=state;$('callState').textContent=text||CALL_TEXT[state]||'';}
+function openCursorCall(){
+  if(!inApp()){toast('Cursor call works in the AI Studio iPhone app, with the AI Studio Companion on your PC.');return;}
+  showSheet('Cursor call','<p class="hint" style="margin:0">Open <b>AI Studio Companion</b> on your PC and type what it shows. The phone and the PC must be on the same Wi-Fi.</p>'+
+    '<div class="list"><div class="row"><span class="grow"><b>PC address</b></span><input class="field" id="pcAddr" inputmode="decimal" autocomplete="off" placeholder="192.168.1.20" style="width:52%" value="'+esc(ls('pc_addr')||'')+'"></div>'+
+    '<div class="row"><span class="grow"><b>Code</b></span><input class="field" id="pcCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 digits" style="width:52%"></div></div>'+
+    '<button class="btn accent" onclick="startCall()">'+icon('phone')+'Start call</button>'+
+    '<p class="hint">Each step sends one screenshot of your PC (about 2k tokens) to a free container. The companion only shows a cursor: it never clicks or types for you. Get it from the latest <b>pc-v…</b> release on GitHub.</p>',null,'call');
+}
+function pcSend(m){return native({op:'pcSend',text:JSON.stringify(m)});}
+function pcWait(t,ms,id){
+  return new Promise((resolve,reject)=>{
+    const w={t,id,resolve,reject,timer:setTimeout(()=>{call.waiters=call.waiters.filter(x=>x!==w);reject(new Error(t==='shot'?'Your PC did not send its screen.':'Your PC did not answer. Check the address and that the companion is open.'));},ms)};
+    call.waiters.push(w);
+  });
+}
+function pcSettle(t,value,id){
+  for(const w of [...call.waiters])if(w.t===t&&(!w.id||w.id===id)){clearTimeout(w.timer);call.waiters=call.waiters.filter(x=>x!==w);w.resolve(value);}
+}
+window.onPC=e=>{
+  if(!call.on)return;
+  if(e.event==='open'){pcSettle('open',true);return;}
+  if(e.event==='closed'){const why=e.reason||'';for(const w of call.waiters){clearTimeout(w.timer);w.reject(new Error(why||'The PC closed the link.'));}call.waiters=[];endCall('Your PC disconnected'+(why?': '+why:'.'));return;}
+  let m;try{m=JSON.parse(e.data);}catch{return;}
+  if(m.t==='error'){for(const w of call.waiters){clearTimeout(w.timer);w.reject(new Error(m.message||'The PC refused.'));}call.waiters=[];return;}
+  if(m.t==='reached'){callReached();return;}
+  pcSettle(m.t,m,m.id);
+};
+window.onSpeech=()=>{const f=call.speakDone;call.speakDone=null;f?.();};
+async function startCall(){
+  const pair=CUR.parsePair($('pcAddr').value,$('pcCode').value);
+  if(pair.error){toast(pair.error);return;}
+  ls('pc_addr',$('pcAddr').value.trim());closeSheet();
+  Object.assign(call,{on:true,muted:false,busy:false,history:[],waitClick:false,waiters:[]});
+  $('call').hidden=false;$('callOrb').innerHTML=spark();drawIcons($('call'));$('callCap').textContent='';$('callMe').textContent='';$('callPC').textContent=pair.host;
+  callSet('connecting');
+  try{
+    const opened=pcWait('open',8000);
+    await native({op:'pcConnect',host:pair.host,port:pair.port});
+    await opened;
+    const ready=pcWait('ready',8000);
+    await pcSend({t:'hello',code:pair.code});
+    const r=await ready;
+    $('callPC').textContent=r.name||pair.host;
+    await callSpeak('Connected to '+(r.name||'your PC')+'. What are we doing?');
+    callListen();
+  }catch(e){endCall(e.message||String(e));}
+}
+function callSpeak(text){
+  if(!call.on)return Promise.resolve();
+  callSet('speaking');$('callCap').textContent=text;
+  return new Promise(resolve=>{
+    const limit=setTimeout(()=>{call.speakDone=null;resolve();},4000+text.length*90);
+    call.speakDone=()=>{clearTimeout(limit);resolve();};
+    native({op:'speak',text,lang:navigator.language||'en-US'}).catch(()=>{clearTimeout(limit);call.speakDone=null;resolve();});
+  });
+}
+async function callListen(){
+  if(!call.on||call.busy)return;
+  if(call.muted){callSet('muted');return;}
+  call.words='';$('callMe').textContent='';
+  callSet(call.waitClick?'waiting':'listening');
+  try{await native({op:'dictateStart',locale:navigator.language||'en-US'});}
+  catch(e){call.muted=true;callSet('muted',e.message||String(e));}
+}
+function callHeard(d){
+  if(!call.on||call.busy||!['listening','waiting'].includes(call.state))return;
+  if(d.text){call.words=d.text;$('callMe').textContent=d.text;}
+  clearTimeout(call.silence);
+  // A short pause after you speak sends what you said, like a real conversation.
+  if(call.words.trim())call.silence=setTimeout(()=>callTurn(call.words.trim()),d.final?50:1600);
+  else if(d.final)setTimeout(callListen,300);
+}
+function callReached(){
+  if(!call.on||!call.waitClick||call.busy)return;
+  // Give the click a moment to open whatever it opens, then look again.
+  setTimeout(()=>{if(call.on&&call.waitClick&&!call.busy&&!call.words.trim())callTurn('');},1800);
+}
+async function callTurn(words){
+  if(!call.on||call.busy)return;
+  call.busy=true;call.waitClick=false;clearTimeout(call.silence);
+  native({op:'dictateStop'}).catch(()=>{});
+  callSet('thinking');$('callMe').textContent=words;
+  try{
+    const id=uid('s'),got=pcWait('shot',15000,id);
+    await pcSend({t:'shot',id});
+    const shot=await got;
+    const prompt=CUR.callPrompt({words,recap:CUR.recapLines(call.history),shot,memory:S.memory});
+    if(words)call.history.push({who:'me',text:words});
+    const r=await claudeJob(prompt,{role:'worker',fresh:true,images:[{name:'screen.jpg',mime:'image/jpeg',data:shot.data}],onEvent:e=>{if(e.id)call.job=e.id;},...pickFor('worker')});
+    call.job=null;
+    if(!call.on)return;
+    const step=CUR.parseStep(A.cleanReply(r.text),shot);
+    call.history.push({who:'claude',text:step.say,point:step.point});
+    if(step.point)pcSend({t:'point',x:step.point.x,y:step.point.y,w:shot.w,h:shot.h,label:step.point.label,say:step.say}).catch(()=>{});
+    else pcSend({t:'say',text:step.say}).catch(()=>{});
+    call.busy=false;
+    await callSpeak(step.say);
+    call.waitClick=step.next==='wait_for_click';
+    callListen();
+  }catch(e){
+    call.busy=false;call.job=null;
+    if(!call.on||e.stopped)return;
+    await callSpeak('Sorry, '+String(e.message||e).replace(/\.$/,'')+'.');
+    callListen();
+  }
+}
+function callOrbTap(){
+  if(call.state==='speaking'){native({op:'speakStop'}).catch(()=>{});window.onSpeech();return;}
+  if(call.state==='muted'){callMute();return;}
+  if(['listening','waiting'].includes(call.state)&&call.words.trim())callTurn(call.words.trim());
+}
+function callMute(){
+  call.muted=!call.muted;
+  $('callMuteBtn').classList.toggle('on',call.muted);$('callMuteBtn').querySelector('span').textContent=call.muted?'Unmute':'Mute';
+  if(call.muted){native({op:'dictateStop'}).catch(()=>{});clearTimeout(call.silence);if(!call.busy&&call.state!=='speaking')callSet('muted');}
+  else if(!call.busy&&call.state!=='speaking')callListen();
+}
+function callLook(){if(!call.busy)callTurn('Look at my screen again.');}
+function callNext(){if(!call.busy)callTurn('');}
+function endCall(msg){
+  const was=call.on;call.on=false;call.busy=false;call.waitClick=false;clearTimeout(call.silence);
+  for(const w of call.waiters)clearTimeout(w.timer);call.waiters=[];
+  if(call.job)native({op:'claudeStop',id:call.job}).catch(()=>{});call.job=null;
+  native({op:'dictateStop'}).catch(()=>{});native({op:'speakStop'}).catch(()=>{});
+  if(was)pcSend({t:'clear'}).catch(()=>{}).finally(()=>native({op:'pcClose'}).catch(()=>{}));
+  $('call').hidden=true;
+  if(msg)toast(msg);
 }
 
 /* ===================== RENDER ===================== */
@@ -993,6 +1149,7 @@ function openAdd(){
     mi('clip','Upload or add files','closeSheet();pickFiles()')+
     mi('repo','Repository','openRepoPicker()',(repo?val(repo.split('/').pop()):'')+chev)+
     mi('team','Claude team','openTeam()',chev)+
+    mi('pointer','Cursor call','openCursorCall()',chev)+
     mi('gear','Settings','openSettings()',chev)+
     '<hr>'+
     mi('team','Team mode','toggleAddTeam()',chk(teamMode()==='team'))+

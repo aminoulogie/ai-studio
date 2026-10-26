@@ -20,11 +20,26 @@
     "appId": "app.aistudio.companion",
     "productName": "AI Studio Companion",
     "artifactName": "AIStudio-Companion-${version}-win-x64.${ext}",
-    "files": ["main.js", "protocol.js", "preload.js", "control.html", "overlay.html", "package.json"],
-    "directories": { "output": "dist" },
+    "files": [
+      "main.js",
+      "protocol.js",
+      "preload.js",
+      "control.html",
+      "overlay.html",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
     "win": {
-      "target": ["zip"],
+      "target": [
+        "zip"
+      ],
       "signAndEditExecutable": false
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aminoulogie/ai-studio.git"
   }
 }
