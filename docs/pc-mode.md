@@ -58,9 +58,9 @@ Safety rules built in:
 3. PC mode with the allow-list, Ask first and Stop.
 4. Polish: several monitors, Mac version.
 
-## Questions to settle
+## Decisions (Oct 26)
 
-1. Windows only first, or Windows and Mac?
-2. Should Claude run in containers on the PC (its own accounts, works without the phone), or through the phone's containers (one set of accounts, the phone must be nearby)?
-3. Voice: talk on the phone, or also through the PC's microphone and speakers?
-4. Which apps do you use most (Revit, AutoCAD, Office…)? They become the first allow-list and test cases.
+- **Windows first**; Mac later.
+- **Claude runs through the phone's containers**: one set of accounts and usage meters. The phone must be on the same Wi-Fi as the PC.
+- **Voice on the phone, like a call**: phone mic and speaker. The PC only shows the ghost cursor (and, in PC mode, acts).
+- **First apps (allow-list and test cases):** Revit, AutoCAD, ETABS, Robot Structural Analysis, Excel and Word, Windows and the browser, and the command prompt (cmd). In PC mode, commands typed into cmd always need your OK first.
