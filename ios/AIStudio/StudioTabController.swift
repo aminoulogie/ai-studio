@@ -21,6 +21,9 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         delegate = self
         let tint = UIColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 1)
         tabBar.tintColor = tint
+        // The Claude tab's bars use the same terracotta as claude.ai instead of iOS blue.
+        UINavigationBar.appearance(whenContainedInInstancesOf: [UINavigationController.self]).tintColor = tint
+        UIToolbar.appearance(whenContainedInInstancesOf: [UINavigationController.self]).tintColor = tint
     }
     func claudeProfiles() -> [[String: Any]] { claudeBrowser.profilesInfo() }
     func startClaudeJob(_ message: [String: Any], reply: @escaping (Any?, String?) -> Void) {

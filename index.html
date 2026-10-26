@@ -29,7 +29,7 @@
   </aside>
   <main class="main">
     <header class="top">
-      <button class="icon-btn only-mobile" onclick="drawer(true)" aria-label="Open menu" data-icon="menu"></button>
+      <button class="icon-btn only-mobile" onclick="drawer(true)" aria-label="Open sidebar" data-icon="panel"></button>
       <button class="top-title" id="topTitle" onclick="openRepoPicker()"><span id="topText">AI Studio</span><span data-icon="down"></span></button>
       <button class="icon-btn" onclick="newSession()" aria-label="New session" data-icon="pen"></button>
     </header>
@@ -40,17 +40,17 @@
         <div class="changes" id="changes" hidden></div>
         <div class="composer" id="composer">
           <div class="atts" id="atts" hidden></div>
-          <textarea id="task" rows="1" placeholder="Describe a task or ask a question" aria-label="Task" oninput="autosize(this);ls('draft',this.value)" onkeydown="composerKey(event)"></textarea>
+          <textarea id="task" rows="1" placeholder="How can I help you today?" aria-label="Message" oninput="autosize(this);ls('draft',this.value);renderSend()" onkeydown="composerKey(event)"></textarea>
           <div class="composer-row">
-            <button class="tool" onclick="pickFiles()" aria-label="Add photos or files" data-icon="plus"></button>
-            <button class="tool" id="repoChip" onclick="openRepoPicker()"><span data-icon="repo"></span><span id="repoChipText">Choose repository</span></button>
-            <button class="tool" id="teamChip" onclick="openTeam()"><span data-icon="team"></span><span id="teamChipText">Team</span></button>
+            <button class="plain" onclick="openAdd()" aria-label="Add" data-icon="plus"></button>
+            <div class="mode" id="modeSeg" role="group" aria-label="How tasks run"><button data-m="team" onclick="setTeamMode('team',true)">Team</button><button data-m="single" onclick="setTeamMode('single',true)" aria-label="One sub-agent" data-icon="tasks"></button></div>
             <span class="grow"></span>
+            <button class="model-label" id="modelLabel" onclick="openTeam()"></button>
             <button class="send" id="send" onclick="sendOrStop()" aria-label="Send" data-icon="up"></button>
           </div>
           <input type="file" id="fileInput" multiple hidden accept="image/*,.txt,.md,.json,.js,.ts,.tsx,.jsx,.html,.css,.swift,.py,.yml,.yaml,.csv,.xml,.sh" onchange="addFiles(this.files);this.value=''">
         </div>
-        <div class="disclaimer">Claude can make mistakes. Review changes before you commit.</div>
+        <div class="foot" id="foot"><span>Claude is AI and can make mistakes.</span><button onclick="openTeam()" id="footModel"></button></div>
       </div>
     </div>
   </main>
@@ -94,7 +94,9 @@ function ago(ts){const m=Math.round((Date.now()-ts)/60000);return m<1?'just now'
 
 /* Line icons, drawn once. */
 const ICONS={
-  menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',plus:'<path d="M12 5v14M5 12h14"/>',
+  menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',panel:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M8 9.5v5"/>',
+  clip:'<path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7-7l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/>',
+  tasks:'<circle cx="5.5" cy="7.5" r="1.6"/><circle cx="5.5" cy="16.5" r="1.6"/><path d="M10 7.5h10M10 16.5h10M10 12h6"/>',brain:'<path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V6a2 2 0 0 0-3-2zm6 0a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',plus:'<path d="M12 5v14M5 12h14"/>',
   up:'<path d="M12 19V5M6 11l6-6 6 6"/>',stop:'<rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none"/>',
   pen:'<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',down:'<path d="M7 10l5 5 5-5"/>',
   repo:'<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="8" r="2.2"/><path d="M6 8.2v7.6M18 10.2c0 4-6 3-11 6"/>',
@@ -104,6 +106,7 @@ const ICONS={
   dot:'<circle cx="12" cy="12" r="3.5"/>',copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
   out:'<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',trash:'<path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   chev:'<path d="M9 6l6 6-6 6"/>',commit:'<circle cx="12" cy="12" r="3.5"/><path d="M3 12h5.5m7 0H21"/>',star:'<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  code:'<path d="m8 7-5 5 5 5m8-10 5 5-5 5"/>',bulb:'<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
   bug:'<rect x="7" y="8" width="10" height="12" rx="5"/><path d="M12 8v12M7 13H3m18 0h-4M8 5l2 3m6-3-2 3M4 8l3 2m13-2-3 2M4 19l3-2m13 2-3-2"/>',
   wand:'<path d="M4 20 16 8M14 4v2m4 0h2m-3-3-1 1m-8 0v2M6 4H4m14 10v2m2 0h-2"/>',book:'<path d="M5 4h9a4 4 0 0 1 4 4v12H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10"/>'
 };
@@ -338,6 +341,8 @@ async function setManager(id){
 }
 
 /* ===================== RUNNING A TASK ===================== */
+// The elapsed time in a live thinking header ticks every second.
+setInterval(()=>{const s=sess();if(!S.busy||!s)return;s.log.forEach((e,i)=>{if(LIVE.includes(e.state)){const el=$('e'+i)?.querySelector('.think-head .time');if(el&&el.firstChild)el.firstChild.nodeValue=elapsed(e);}});},1000);
 function sendOrStop(){if(S.busy)stopAll();else sendTask();}
 function composerKey(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&matchMedia('(min-width:821px)').matches){e.preventDefault();sendOrStop();}}
 function stopAll(){
@@ -407,7 +412,7 @@ async function loadFiles(s,paths,{limit=40000,budget=100000}={}){
 }
 async function runSingle(s,goal,images,role){
   const paths=await ensureBase(s);
-  const entry={k:'reply',state:'sending',text:'',account:'',note:role==='manager'?'Opening your manager account…':'Finding a free sub-agent…',applied:[],failed:[]};
+  const entry={k:'reply',state:'sending',text:'',account:'',ts:Date.now(),note:role==='manager'?'Opening your manager account…':'Finding a free sub-agent…',applied:[],failed:[]};
   s.log.push(entry);renderAll();scrollDown(true);
   setStatus('Claude is working…',true);
   const files=await loadFiles(s,A.contextPaths(paths,goal,{staged:Object.keys(s.staged),max:8}));
@@ -419,7 +424,7 @@ async function runSingle(s,goal,images,role){
     entry.state=entry.failed.length?(entry.applied.length?'partial':'failed'):'done';
     entry.note='';
   }catch(e){entry.state='failed';entry.note=e.stopped?'Stopped.':e.message;}
-  updateEntry(s,entry);save(s);
+  entry.tEnd=Date.now();updateEntry(s,entry);save(s);
 }
 async function runTeam(s,goal,images){
   const paths=await ensureBase(s),T=team();
@@ -435,12 +440,12 @@ async function runTeam(s,goal,images){
       {role:'manager',images,onEvent:follow(s,run.manager)});
     run.manager.text=r.text||'';run.manager.account=r.account||run.manager.account;run.manager.state='done';run.manager.note='';
     plan=A.parsePlan(run.manager.text,maxTasks);
-  }catch(e){run.manager.state='failed';run.manager.note=e.message;run.state='failed';updateEntry(s,run);if(e.stopped)throw e;
+  }catch(e){run.manager.state='failed';run.manager.note=e.message;run.state='failed';run.tEnd=Date.now();updateEntry(s,run);if(e.stopped)throw e;
     run.note='The manager could not plan, so one sub-agent takes the whole request.';updateEntry(s,run);
     return runSingle(s,goal,[],'worker');}
-  if(!plan){run.state='done';run.note='The plan could not be read, so one sub-agent takes the whole request.';updateEntry(s,run);return runSingle(s,goal,[],'worker');}
+  if(!plan){run.state='done';run.tEnd=Date.now();run.note='The plan could not be read, so one sub-agent takes the whole request.';updateEntry(s,run);return runSingle(s,goal,[],'worker');}
   run.summary=plan.summary;
-  if(!plan.tasks.length){run.answer=plan.answer||'No code change is needed.';run.state='done';updateEntry(s,run);save(s);return;}
+  if(!plan.tasks.length){run.answer=plan.answer||'No code change is needed.';run.state='done';run.tEnd=Date.now();run.closed=true;updateEntry(s,run);save(s);return;}
   run.tasks=plan.tasks.map((t,i)=>({...t,n:i+1,state:'queued',account:'',note:'',text:'',applied:[],failed:[]}));
   run.state='working';updateEntry(s,run);save(s);
   if(plan.summary)s.pendingMessage=short(plan.summary,72);
@@ -462,7 +467,7 @@ async function runTeam(s,goal,images){
     updateEntry(s,run);save(s);renderDock();
   });
   run.state=run.tasks.every(t=>t.state==='done')?'done':run.tasks.some(t=>t.applied.length)?'partial':'failed';
-  updateEntry(s,run);save(s);
+  run.tEnd=Date.now();run.closed=true;updateEntry(s,run);save(s);
 }
 /** Applies a reply's edit blocks to the session. Edits whose OLD text does not match go back to a sub-agent once. */
 async function applyReply(s,entry,text,goal,onChange,depth=0){
@@ -502,20 +507,24 @@ function renderSidebar(){
 }
 function greeting(){
   const h=new Date().getHours(),name=(ls('my_name')||'').trim();
-  const g=h<5?'Up late':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
-  return g+(name?', '+name:'');
+  if(!name)return 'Let\u2019s have a think';
+  return (h<5?'Up late':h<12?'Good morning':h<18?'Good afternoon':'Good evening')+', '+name;
 }
 function renderThread(){
   const s=sess(),inner=$('threadInner');
+  document.body.classList.toggle('empty',!s||!s.log.length);
   if(!s||!s.log.length){
     const repo=ls('repo');
-    inner.innerHTML='<div class="hello">'+'<h1>'+spark()+'<span>'+esc(greeting())+'</span></h1>'+
-      '<p>'+(repo?'Working on <b>'+esc(repo)+'</b> · '+esc(ls('branch')||'')+'. Tell me what to build or fix.':S.token?'Choose a repository to start.':'Connect GitHub in Settings, then choose a repository.')+'</p>'+
-      '<div class="chips">'+[['book','Explain this project','Explain what this project does and how it is organised.'],['bug','Fix a bug','Find and fix this bug: '],['wand','Polish the design','Make the design cleaner and more consistent: '],['plus','Add a feature','Add this feature: ']]
-        .map(([i,l,p])=>'<button class="chip" onclick="prefill(\''+esc(p)+'\')">'+icon(i)+'<span>'+esc(l)+'</span></button>').join('')+'</div></div>';
-    inner.style.minHeight='100%';
+    const pill=!S.token?'<span>Not connected</span><i></i><a onclick="openSettings()">Connect GitHub</a>'
+      :repo?'<span>'+esc(repo.split('/').pop()+' · '+(ls('branch')||''))+'</span><i></i><a onclick="openRepoPicker()">Change</a>'
+      :'<span>No repository</span><i></i><a onclick="openRepoPicker()">Choose</a>';
+    inner.innerHTML='<div class="hello"><div class="plan-pill">'+pill+'</div><div class="grow-top"></div><h1>'+spark()+'<span>'+esc(greeting())+'</span></h1>'+
+      '<div class="chips">'+[['pen','Write','Write this for my app: '],['book','Explain','Explain what this project does and how it is organised.'],['code','Code','Add this feature: '],['bug','Fix','Find and fix this bug: '],['bulb','Claude\u2019s choice','Look through this project and make the one improvement you think matters most.']]
+        .map(([i,l,p])=>'<button class="chip" onclick="prefill(\''+esc(p)+'\')">'+icon(i)+'<span>'+esc(l)+'</span></button>').join('')+'</div><div class="grow-bottom"></div></div>';
+    inner.style.minHeight='100%';$('task').placeholder='How can I help you today?';
     return;
   }
+  $('task').placeholder='Write a message…';
   inner.style.minHeight='';
   inner.innerHTML=s.log.map((e,i)=>'<div id="e'+i+'">'+entryHTML(e)+'</div>').join('');
   highlight(inner);
@@ -531,10 +540,6 @@ function updateEntry(s,entry){
   el.innerHTML=entryHTML(s.log[at]);highlight(el);
   if(near)scrollDown();
 }
-function stateIcon(state){
-  if(['sending','streaming','working','planning','queued','awaiting'].includes(state))return state==='queued'?icon('dot'):'<span class="spin"></span>';
-  return icon(state==='done'?'check':state==='partial'?'alert':state==='failed'?'alert':'dot');
-}
 function editsHTML(e){
   let h='';
   if(e.applied?.length)h+='<div class="files">'+e.applied.map(p=>'<span>'+esc(p)+'</span>').join('')+'</div>';
@@ -546,41 +551,69 @@ function entryHTML(e){
   if(e.k==='note')return '<div class="note'+(e.tone?' '+e.tone:'')+'">'+icon(e.tone==='err'?'alert':'info')+'<span>'+esc(e.text)+(e.action==='claude'?' <a href="#" onclick="openClaude();return false">Open Claude tab</a>':'')+'</span></div>';
   if(e.k==='commit')return '<div class="note ok">'+icon('commit')+'<span>Committed <a href="https://github.com/'+esc(e.repo)+'/commit/'+esc(e.sha)+'" target="_blank" rel="noopener">'+esc(e.sha.slice(0,7))+'</a> to '+esc(e.branch)+' · '+e.files.length+' file'+(e.files.length>1?'s':'')+'</span></div>';
   if(e.k==='reply'){
-    const live=['sending','queued','awaiting','streaming'].includes(e.state);
-    const body=A.stripEdits(e.text);
-    let h='<div class="reply">';
-    if(body)h+=md(body);else if(live)h+='<div class="typing"><i></i><i></i><i></i></div>';
-    h+='</div>';
-    if(e.note)h+='<div class="note'+(e.state==='failed'?' err':'')+'" style="margin-top:6px">'+(live?'<span class="spin"></span>':icon(e.state==='failed'?'alert':'info'))+'<span>'+esc(e.note)+'</span></div>';
-    if(e.state==='awaiting')h+='<div style="margin-top:8px"><button class="btn accent small" onclick="openClaude(\''+esc(e.profile||'')+'\')">'+icon('out')+'Open Claude to press Send</button></div>';
+    const live=LIVE.includes(e.state),body=A.stripEdits(e.text);
+    let h='';
+    if(live||(e.note&&e.state==='failed'))h+='<div class="think"><div class="think-head">'+(live?'<span class="dots"><i></i><i></i><i></i></span>':icon('alert'))+'<span class="t">'+esc(e.note||(e.state==='streaming'?'Claude is writing…':'Claude is working…'))+'</span><span class="time">'+elapsed(e)+'</span></div></div>';
+    if(e.state==='awaiting')h+='<div><button class="btn accent small" onclick="openClaude(\''+esc(e.profile||'')+'\')">'+icon('out')+'Open Claude to press Send</button></div>';
+    if(body)h+='<div class="reply final">'+md(body)+'</div>';
     h+=editsHTML(e);
     if(!live&&e.text)h+='<div class="meta"><span>'+esc(e.account?'Claude · '+e.account:'Claude')+'</span><button onclick="copyEntry(this)">Copy</button></div>';
     return h;
   }
   if(e.k==='run'){
-    const m=e.manager,live=['sending','queued','awaiting','streaming'].includes(m.state);
-    const done=e.tasks.filter(t=>t.state==='done').length;
-    let h='<div class="card"><div class="card-head">'+spark()+'<div class="grow"><b>'+(e.summary?esc(e.summary):'Team plan')+'</b><small>'+
-      (e.state==='planning'?'The manager is planning':e.tasks.length?done+' of '+e.tasks.length+' tasks done':e.state==='done'?'Answered by the manager':'')+'</small></div></div>';
-    h+='<div class="step '+esc(m.state)+'"><span class="st">'+stateIcon(m.state)+'</span><div class="body"><div class="t">Manager plans the work</div><div class="d">'+
-      esc(m.note||(m.state==='done'?'Plan ready':m.state==='streaming'?'Writing the plan…':''))+'</div>'+
-      (m.account?'<span class="who">'+icon('star')+esc(m.account)+'</span>':'')+
-      (m.state==='awaiting'?'<div style="margin-top:8px"><button class="btn accent small" onclick="openClaude(\''+esc(m.profile||'')+'\')">'+icon('out')+'Open Claude to press Send</button></div>':'')+
-      (m.text&&!live?'<details><summary>Show plan</summary><pre class="live">'+esc(m.text.slice(-6000))+'</pre></details>':'')+'</div></div>';
+    const m=e.manager,live=e.state==='planning'||e.state==='working';
+    const busyTask=e.tasks.find(t=>LIVE.includes(t.state));
+    const title=live?(LIVE.includes(m.state)?(m.state==='awaiting'?'Waiting for you to press Send in '+(m.account||'the manager'):m.state==='streaming'?'The manager is planning':m.note||'The manager is planning'):
+        busyTask?(busyTask.account?busyTask.account+': ':'')+busyTask.title:'Applying the changes'):
+      (e.summary||(e.answer?'Answered':e.state==='failed'?'The team could not finish':'Done'));
+    let h='<div class="think'+(e.closed?' closed':'')+'"><button class="think-head" onclick="toggleThink(this)">'+(live?'<span class="dots"><i></i><i></i><i></i></span>':spark())+
+      '<span class="t">'+esc(title)+'</span><span class="time">'+elapsed(e)+icon('down')+'</span></button><div class="steps">';
+    h+=stepRow('m',m.state==='done'?'Planned the work':m.state==='failed'?'Planning failed':'Planning the work',m,
+      (m.note&&m.state!=='done'?'<div class="note'+(m.state==='failed'?' err':'')+'">'+esc(m.note)+'</div>':'')+
+      (m.state==='awaiting'?'<div><button class="btn accent small" onclick="openClaude(\''+esc(m.profile||'')+'\')">'+icon('out')+'Open Claude to press Send</button></div>':'')+
+      (m.text?'<h5>Plan</h5><pre>'+jsonHTML(m.text)+'</pre>':''));
     for(const t of e.tasks){
-      const tl=['sending','queued','awaiting','streaming'].includes(t.state);
-      h+='<div class="step '+esc(t.state)+'"><span class="st">'+stateIcon(t.state)+'</span><div class="body"><div class="t">'+esc(t.title)+'</div>'+
-        '<div class="d">'+esc(t.note||(t.state==='streaming'?'Writing the change…':t.state==='done'?A.stripEdits(t.text).split('\n')[0].slice(0,200):''))+'</div>'+
-        (t.account?'<span class="who">'+icon('team')+esc(t.account)+'</span>':'')+editsHTML(t)+
-        (t.text?'<details'+(t.open?' open':'')+' ontoggle="toggleTask(this,'+t.n+')"><summary>'+(tl?'Live output':'Full reply')+'</summary><pre class="live">'+esc(t.text.slice(-8000))+'</pre></details>':'')+'</div></div>';
+      h+=stepRow(t.n,t.title,t,
+        (t.note?'<div class="note'+(t.state==='failed'?' err':'')+'">'+esc(t.note)+'</div>':'')+
+        (t.files?.length?'<h5>Files</h5><div class="files">'+t.files.map(f=>'<span>'+esc(f)+'</span>').join('')+'</div>':'')+
+        '<h5>Instructions</h5><pre>'+esc(t.instructions)+'</pre>'+
+        (t.text?'<h5>Reply</h5><pre>'+esc(A.stripEdits(t.text).slice(-6000)||'(edits only)')+'</pre>':'')+editsHTML(t));
     }
-    if(e.answer)h+='<div class="step done"><span class="st">'+icon('check')+'</span><div class="body reply">'+md(e.answer)+'</div></div>';
-    if(e.note)h+='<div class="step"><span class="st">'+icon('info')+'</span><div class="body"><div class="d">'+esc(e.note)+'</div></div></div>';
-    return h+'</div>';
+    if(e.note)h+='<div class="srow"><div class="line">'+esc(e.note)+'</div></div>';
+    h+='</div></div>';
+    // What changed, in plain words, like Claude's answer under its thinking.
+    const said=e.tasks.filter(t=>t.text).map(t=>'**'+t.title+'.** '+(A.stripEdits(t.text).split(/\n\s*\n/)[0]||'Done.')).join('\n\n');
+    if(e.answer)h+='<div class="reply final">'+md(e.answer)+'</div>';
+    else if(!live&&said)h+='<div class="reply final">'+md(said)+'</div>';
+    const files=[...new Set(e.tasks.flatMap(t=>t.applied||[]))];
+    if(files.length)h+='<div class="files">'+files.map(f=>'<span>'+esc(f)+'</span>').join('')+'</div>';
+    return h;
   }
   return '';
 }
-function toggleTask(el,n){const i=+el.closest('[id^=e]').id.slice(1);const t=sess()?.log[i]?.tasks?.find(t=>t.n===n);if(t)t.open=el.open;}
+const LIVE=['sending','queued','awaiting','streaming','working','planning'];
+/** One step: status, title, who did it, and a detail panel that keeps its open state. */
+function stepRow(key,label,x,detail){
+  const st=LIVE.includes(x.state)?'<span class="spin" style="width:13px;height:13px"></span>':x.state==='done'?icon('check'):['failed','partial'].includes(x.state)?icon('alert'):icon('dot');
+  return '<details class="srow '+esc(x.state||'')+'"'+(x.open?' open':'')+' ontoggle="toggleStep(this,\''+key+'\')"><summary><span class="st">'+st+'</span><span class="lbl">'+esc(label)+'</span><span class="car"></span>'+
+    (x.account?'<span class="who">'+esc(x.account)+'</span>':'')+'</summary><div class="detail">'+detail+'</div></details>';
+}
+/** The manager's JSON plan, coloured like claude.ai shows tool requests. */
+function jsonHTML(text){
+  let t=String(text||'').replace(/^```(?:json)?\s*|```\s*$/g,'').trim();
+  try{t=JSON.stringify(JSON.parse(t),null,2);}catch{}
+  return esc(t).replace(/(&quot;[^&\n]*?&quot;)(\s*:)/g,'<span class="k">$1</span>$2').replace(/(:\s*)(&quot;(?:[^&]|&(?!quot;))*?&quot;)/g,'$1<span class="v">$2</span>');
+}
+function elapsed(e){
+  if(!e.ts)return '';
+  const secs=Math.max(1,Math.round(((e.tEnd||Date.now())-e.ts)/1000));
+  return secs<60?secs+'s':Math.floor(secs/60)+'m '+(secs%60)+'s';
+}
+function toggleThink(btn){const i=+btn.closest('[id^=e]').id.slice(1);const e=sess()?.log[i];if(!e)return;e.closed=!e.closed;btn.parentElement.classList.toggle('closed',e.closed);save();}
+function toggleStep(el,key){
+  const i=+el.closest('[id^=e]').id.slice(1),e=sess()?.log[i];if(!e)return;
+  const x=key==='m'?e.manager:e.tasks?.find(t=>String(t.n)===key);if(x)x.open=el.open;
+}
 function copyEntry(btn){const i=+btn.closest('[id^=e]').id.slice(1);const e=sess()?.log[i];if(e)copyText(A.stripEdits(e.text));}
 function nearBottom(){const t=$('thread');return t.scrollHeight-t.scrollTop-t.clientHeight<120;}
 function scrollDown(force){const t=$('thread');if(force||nearBottom())requestAnimationFrame(()=>{t.scrollTop=t.scrollHeight;});}
@@ -591,14 +624,24 @@ function renderDock(){
   ch.hidden=!n;
   if(n){const st=stats(s);ch.innerHTML='<span class="grow">'+n+' file'+(n>1?'s':'')+' changed <span class="plus">+'+st.add+'</span> <span class="minus">−'+st.del+'</span></span><button class="btn small" onclick="openReview()">Review</button><button class="btn small primary" onclick="openReview(true)"'+(S.committing||S.busy?' disabled':'')+'>Commit</button>';}
   $('composer').style.borderTopLeftRadius=$('composer').style.borderTopRightRadius=n?'14px':'';
-  const b=$('send');b.classList.toggle('stop',S.busy);b.innerHTML=icon(S.busy?'stop':'up');b.setAttribute('aria-label',S.busy?'Stop':'Send');
-  const repo=ls('repo');$('repoChipText').textContent=repo?repo.split('/').pop()+' · '+(ls('branch')||''):'Choose repository';
+  renderSend();
+}
+function renderSend(){
+  const b=$('send'),has=!!($('task').value.trim()||S.atts.length);
+  b.classList.toggle('stop',S.busy);b.classList.toggle('ready',!S.busy&&has);
+  b.innerHTML=icon(S.busy?'stop':'up');b.setAttribute('aria-label',S.busy?'Stop':'Send');
+}
+/** "Opus 5.5 · 3 × Sonnet 5.5": who will answer, shown like claude.ai shows its model. */
+function modelHTML(){
+  const T=team(),team_=teamMode()==='team'&&T.manager;
+  if(inApp()&&!T.all.length)return '<b>No accounts</b><small>Add in Claude tab</small>';
+  const n=T.ready.length;
+  return team_?'<b>Opus 5.5</b><small>+'+n+'</small>':'<b>Sonnet 5.5</b><small>'+(n>1?'×'+n:'')+'</small>';
 }
 function renderTeamBits(){
-  const T=team();
-  const label=!inApp()?'Team':teamMode()==='team'&&T.manager?'Team · '+(T.ready.length+(T.managerReady?1:0)):'Single'+(T.ready.length?' · '+T.ready.length:'');
-  $('teamChipText').textContent=label;
-  $('teamChip').classList.toggle('on',teamMode()==='team'&&T.managerReady&&T.ready.length>0);
+  const T=team(),mode=teamMode();
+  $('modeSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
+  $('modelLabel').innerHTML=modelHTML();$('footModel').innerHTML=modelHTML();
   $('sbTeam').textContent=inApp()?(T.ready.length+(T.managerReady?1:0))+'/'+T.all.length+' ready':'';
 }
 
@@ -632,6 +675,24 @@ function row(title,sub,right='',click=''){return (click?'<button class="row" onc
 function toggle(id,on,change){return '<label class="switch"><input type="checkbox" id="'+id+'" '+(on?'checked':'')+' onchange="'+change+'"><i></i></label>';}
 function seg(values,current,fn){return '<div class="seg">'+values.map(([v,l])=>'<button class="'+(String(v)===String(current)?'on':'')+'" onclick="'+fn+'(\''+v+'\')">'+esc(l)+'</button>').join('')+'</div>';}
 
+/** The + sheet, laid out like claude.ai's Add menu. */
+function openAdd(){
+  const repo=ls('repo'),T=team(),mi=(ic,label,sub,click,right)=>'<button class="mi" onclick="'+click+'">'+icon(ic)+'<span class="grow">'+label+(sub?'<small>'+sub+'</small>':'')+'</span>'+(right||'')+'</button>';
+  const chev=icon('chev','ic chev'),chk=on=>on?'<span class="chk">'+icon('check')+'</span>':'';
+  showSheet('Add','<div class="menu">'+
+    mi('clip','Upload or add files','','closeSheet();pickFiles()')+
+    mi('repo','Repository',esc(repo?repo+' · '+(ls('branch')||''):'None chosen'),'openRepoPicker()',chev)+
+    '<hr>'+
+    mi('team','Claude team',inApp()?(T.ready.length+(T.managerReady?1:0))+' of '+T.all.length+' containers ready':'In the iPhone app','openTeam()',chev)+
+    mi('brain','Shared memory',S.memory?esc(short(S.memory,48)):'Empty','openSettings()',chev)+
+    mi('gear','Settings','','openSettings()',chev)+
+    '<hr>'+
+    mi('team','Team mode','The manager plans, sub-agents build','toggleAddTeam()',chk(teamMode()==='team'))+
+    mi('commit','Commit automatically','When every edit applied','toggleAddCommit()',chk(autoCommit()))+
+  '</div>',null,'add');
+}
+function toggleAddTeam(){ls('team_mode',teamMode()==='team'?'single':'team');renderTeamBits();openAdd();}
+function toggleAddCommit(){ls('auto_commit',autoCommit()?'0':'1');openAdd();}
 async function openRepoPicker(){
   drawer(false);
   if(!S.token){openSettings();toast('Connect GitHub first.');return;}
@@ -660,7 +721,7 @@ function pickBranch(repo,branch){
   const s=sess();
   if(s&&!s.log.length&&!Object.keys(s.staged).length){s.repo=repo;s.branch=branch;s.baseSHA=null;}
   else newSession(false);
-  renderAll();toast(repo.split('/').pop()+' · '+branch);
+  renderAll();
 }
 
 function openTeam(){
@@ -680,7 +741,7 @@ function openTeam(){
       row('Add or sign in to accounts','Opens the Claude tab',icon('out'),'openClaude()')+
     '</div></div>',null,'team');
 }
-function setTeamMode(v){ls('team_mode',v);renderTeamBits();openTeam();}
+function setTeamMode(v,quiet){ls('team_mode',v);renderTeamBits();if(quiet)toast(v==='team'?'Team: the manager plans, sub-agents build':'Solo: one sub-agent does the task');else openTeam();}
 function setParallel(v){ls('team_parallel',String(v));openTeam();}
 
 function openReview(commitFocus){

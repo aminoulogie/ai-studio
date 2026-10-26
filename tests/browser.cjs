@@ -46,7 +46,8 @@ const nativeMock=`(()=>{
         setTimeout(()=>{
           if(o.role==='manager')emit({...base,state:'awaiting',note:'Press Send in Opus account'});
           emit({...base,state:'streaming',text:text.slice(0,20)});
-          setTimeout(()=>emit({...base,state:'done',text}),60);
+          const finish=()=>window.__slow?setTimeout(finish,50):emit({...base,state:'done',text});
+          setTimeout(finish,60);
         },30);
         return {account:who.name,profile:who.id};
       }
@@ -91,7 +92,7 @@ const nativeMock=`(()=>{
     if(process.env.DEBUG)console.log(name,'step 1');
     await page.goto(url);
     await page.waitForSelector('.hello h1');
-    assert.match(await page.locator('.hello h1').innerText(),/Good|Up late/);
+    assert.match(await page.locator('.hello h1').innerText(),/have a think|Good|Up late/);
     assert.equal(await page.evaluate(()=>S.token),'','Fresh install has no GitHub token');
     assert.equal(await page.evaluate(()=>Object.values(S.sessions).filter(s=>s.log.length).length),0,'Fresh install has no sessions');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'No page overflow');
@@ -108,10 +109,21 @@ const nativeMock=`(()=>{
     await page.click('#repoList .row');
     await page.click('#branchList .row >> nth=0');
     await page.waitForFunction(()=>ls('repo')==='tester/demo'&&ls('branch')==='main');
-    assert.match(await page.locator('#repoChipText').innerText(),/demo · main/);
-    assert.match(await page.locator('#teamChipText').innerText(),/Team · 3/);
+    assert.match(await page.locator('.plan-pill').innerText(),/demo · main/);
+    assert.match(await page.locator('#modelLabel').innerText(),/Opus 5\.5[\s\S]*\+2/);
+    await page.emulateMedia({colorScheme:'dark'});
+    await page.screenshot({path:path.join(root,'test-artifacts',name+'-home-dark.png')});
+    await page.click('.composer .plain');
+    await page.waitForSelector('.mi');
+    assert.ok(await page.locator('.mi',{hasText:'Upload or add files'}).isVisible());
+    await page.screenshot({path:path.join(root,'test-artifacts',name+'-add.png')});
+    await page.evaluate(()=>closeSheet());
     await page.fill('#task','Make the send button bigger and raise the size');
+    await page.evaluate(()=>{window.__slow=true;});
     await page.click('#send');
+    await page.waitForSelector('.think .dots');
+    await page.screenshot({path:path.join(root,'test-artifacts',name+'-live.png')});
+    await page.evaluate(()=>{window.__slow=false;});
     await page.waitForFunction(()=>!S.busy&&Object.keys(sess().staged).length===2,null,{timeout:15000});
     const sent=await page.evaluate(()=>window.__sent);
     assert.equal(sent[0].role,'manager','the manager plans first');
@@ -120,7 +132,9 @@ const nativeMock=`(()=>{
     for(const s of sent.filter(s=>s.role==='worker'))assert.match(s.text,/@@@ FILE:/,'sub-agents get the edit format');
     assert.equal(await page.evaluate(()=>sess().staged['app.js']),'const size = 16;\nfunction go(){\n  return size;\n}\n');
     assert.match(await page.evaluate(()=>sess().staged['index.html']),/class="send big"/);
-    assert.equal(await page.locator('.step.done').count(),3,'manager + two tasks done');
+    assert.equal(await page.locator('.srow.done').count(),3,'manager + two tasks done');
+    assert.ok(await page.locator('.think.closed').count(),'the thinking block folds when done');
+    await page.click('.think-head');await page.click('.srow >> nth=1');
     assert.match(await page.locator('#changes').innerText(),/2 files changed/);
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-team.png')});
     // 3. Review and commit.
@@ -148,6 +162,8 @@ const nativeMock=`(()=>{
     await page.evaluate(()=>openTeam());
     assert.ok(await page.locator('text=Sub-agents at once').isVisible());
     await page.evaluate(()=>closeSheet());
+    await page.emulateMedia({colorScheme:'light'});
+    await page.screenshot({path:path.join(root,'test-artifacts',name+'-light.png')});
     await page.evaluate(()=>{ls('studio_theme','dark');applyTheme();});
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-dark.png')});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'No page overflow');

@@ -264,7 +264,6 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     private func refreshMenus() {
         onProfilesChanged?()
         guard isViewLoaded else { return }
-        navigationItem.prompt = currentBrowser?.url?.host ?? "Official claude.ai"
         updateTitleButton()
         accountsButton.menu = UIMenu(title: "Claude containers", children:
             store.state.profiles.map { p in
