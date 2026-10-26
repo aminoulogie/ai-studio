@@ -30,7 +30,8 @@ final class StudioTabController: UITabBarController, UITabBarControllerDelegate 
         claudeBrowser.startJob(message, reply: reply)
     }
     func stopClaudeJob(_ id: String?) { claudeBrowser.stopJob(id) }
-    func openClaude(profile: String?) { claudeBrowser.focus(profile: profile) }
+    func openClaude(profile: String?, path: String? = nil) { claudeBrowser.focus(profile: profile, path: path) }
+    func claudeUsage(_ profile: String?, reply: @escaping (Any?, String?) -> Void) { claudeBrowser.readUsage(profile, reply: reply) }
     func setClaudeManager(_ id: UUID?) throws { try claudeBrowser.setManager(id) }
     func setClaudeEnabled(_ id: UUID, _ enabled: Bool) throws { try claudeBrowser.setEnabled(id, enabled) }
     func selectStudioMode(_ mode: String) {

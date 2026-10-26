@@ -45,9 +45,10 @@ const nativeMock=`(()=>{
       case 'claudeSetEnabled':{const p=profiles.find(p=>p.id===o.profile);p.enabled=o.enabled;p.ready=o.enabled;return true;}
       case 'dictateStart':setTimeout(()=>window.onDictation({text:'make it blue',final:true}),20);return true;
       case 'dictateStop':return true;
+      case 'claudeUsage':return {text:o.profile==='M'?'Plan usage\\nCurrent session\\n52% used\\nResets in 3 hr 39 min\\nWeekly limits\\nAll models\\n7% used\\nResets Mon 3:59 AM':'Settings',signedOut:false};
       case 'claudeSetManager':profiles.forEach(p=>p.manager=p.id===o.profile);return true;
       case 'claudeSend':{
-        window.__sent.push({role:o.role,text:o.text,profile:o.profile,moveOnLimit:o.moveOnLimit});
+        window.__sent.push({role:o.role,text:o.text,profile:o.profile,moveOnLimit:o.moveOnLimit,files:(o.images||[]).map(i=>i.mime)});
         // A pinned container that has hit its limit hands the job back so the page can compress the chat.
         if(o.profile&&window.__limited===o.profile){setTimeout(()=>emit({id:o.id,state:'limited',account:'Free 1',profile:o.profile,note:'Free 1 reached its limit.'}),20);return {account:'Free 1',profile:o.profile};}
         const who=o.role==='manager'?profiles[0]:profiles[1+(window.__sent.filter(s=>s.role!=='manager').length-1)%2];
@@ -202,6 +203,27 @@ const nativeMock=`(()=>{
     await page.click('.qact >> text=Continue');
     await page.waitForFunction(()=>!S.busy&&sess().log.filter(e=>e.k==='user').at(-1).text.includes('Which color? → Orange'));
     await page.click('#askBtn');
+    // 7. Usage per container (official for the manager, estimated for free ones), any file type, research.
+    if(process.env.DEBUG)console.log(name,'step 7');
+    await page.evaluate(()=>openTeam());
+    await page.waitForFunction(()=>usageDB().profiles.M?.official?.session?.pct===52);
+    await page.click('.ctr >> nth=0');
+    await page.waitForSelector('.ctr[open] .ucard');
+    assert.match(await page.locator('.ctr[open]').innerText(),/Current session[\s\S]*52% used[\s\S]*All models[\s\S]*7% used/);
+    await page.click('.ctr >> nth=1');
+    assert.match(await page.locator('.ctr[open] >> nth=1').innerText(),/Learning your free plan: 0 of 12/);
+    assert.ok(await page.evaluate(()=>Object.values(usageDB().profiles).some(r=>r.win?.tokens>0)),'tokens were counted');
+    await page.screenshot({path:path.join(root,'test-artifacts',name+'-usage.png')});
+    await page.evaluate(()=>closeSheet());
+    await page.setInputFiles('#fileInput',{name:'plan.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 test')});
+    assert.match(await page.locator('#atts').innerText(),/plan\.pdf/);
+    await page.evaluate(()=>{ls('research','1');setTeamMode('single',true);});
+    await page.fill('#task','Summarize the attached plan');
+    assert.match(await page.locator('#footNote').innerText(),/tokens · about \d+% of a free session/);
+    await page.click('#send');
+    await page.waitForFunction(()=>!S.busy&&window.__sent.at(-1).files.includes('application/pdf'));
+    assert.match((await page.evaluate(()=>window.__sent)).at(-1).text,/Research: search the web/);
+    await page.evaluate(()=>{ls('research','0');setTeamMode('team',true);});
     // 5. Sessions survive a reload; settings and team sheets open; dark mode.
     if(process.env.DEBUG)console.log(name,'step 5');
     await page.waitForTimeout(500);

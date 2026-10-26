@@ -43,6 +43,7 @@ jobs:
       - name: Test the Claude team, commits, privacy and updates
         run: |
           node tests/agents.cjs
+          node tests/usage.cjs
           node tests/git-workflow.cjs
           node tests/repo-privacy.cjs
           node scripts/check-private-data.cjs

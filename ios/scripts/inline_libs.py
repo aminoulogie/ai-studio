@@ -22,7 +22,7 @@ for rel in ["highlight.js/11.9.0/highlight.min.js"]:
 assert not re.search(r'<script src="https://', html)
 
 # Our own scripts and styles, inlined on the same HTTPS origin the app always uses.
-for asset in ["assets/repo-privacy.js", "assets/agents.js", "assets/github.js"]:
+for asset in ["assets/repo-privacy.js", "assets/agents.js", "assets/github.js", "assets/usage.js"]:
     tag = f'<script src="{asset}"></script>'
     assert tag in html, tag
     html = html.replace(tag, "<script>" + (root / asset).read_text(encoding="utf-8").replace("</script", "<\\/script") + "</script>")

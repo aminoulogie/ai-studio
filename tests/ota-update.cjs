@@ -54,7 +54,7 @@ const studioOps=[...app.matchAll(/^\s*case ((?:"[A-Za-z]+"(?:,\s*)?)+):/gm)].fla
 // If this list changes, bump nativeLevel in StudioUpdater.swift AND min_native in ios.yml, then list the ops under the new level.
 // Level 3: the Claude team. Several jobs at once (claudeSend with role/profile), container list, manager choice,
 // opening the Claude tab, pausing containers, native voice typing. Provider APIs, Google Drive and the old Chat bridge are gone.
-const LEVEL_3=['claudeProfiles','claudeSend','claudeSetEnabled','claudeSetManager','claudeStop','dictateStart','dictateStop','credentialGet','credentialSet','github'+'DeviceCode','githubToken','memoryGet','memorySet','openClaude','selectStudioTab','share',...OPS].sort();
+const LEVEL_3=['claudeProfiles','claudeSend','claudeSetEnabled','claudeSetManager','claudeStop','claudeUsage','dictateStart','dictateStop','credentialGet','credentialSet','github'+'DeviceCode','githubToken','memoryGet','memorySet','openClaude','selectStudioTab','share',...OPS].sort();
 assert.deepEqual(studioOps,LEVEL_3,'native ops changed: bump nativeLevel (StudioUpdater.swift) and min_native (ios.yml), then update this list');
 const level=Number(upd.match(/static let nativeLevel = (\d+)/)[1]);
 const ciLevel=Number(wf.match(/'min_native':\s*(\d+)/)[1]);

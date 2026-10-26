@@ -486,7 +486,8 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     func profilesInfo() -> [[String: Any]] {
         store.state.profiles.map { p -> [String: Any] in
             ["id": p.id.uuidString, "name": p.name, "status": store.status(p).rawValue, "enabled": p.enabled,
-             "manager": p.manager, "busy": busy(p.id), "ready": store.ready(p)]
+             "manager": p.manager, "busy": busy(p.id), "ready": store.ready(p),
+             "limitedUntil": (store.status(p) == .rateLimited ? p.limitedUntil?.timeIntervalSince1970 : nil).map { $0 * 1000 } ?? 0]
         }
     }
     private func emit(_ id: String, _ state: String, text: String = "", note: String = "") {
@@ -512,10 +513,11 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
               let text = message["text"] as? String, !text.isEmpty else { reply(nil, "Nothing to send"); return }
         guard !store.state.profiles.isEmpty else { reply(nil, "Add a Claude account in the Claude tab first."); return }
         var images: [[String: String]] = []
-        for item in (message["images"] as? [[String: Any]] ?? []).prefix(4) {
-            guard let data = item["data"] as? String, !data.isEmpty, data.utf8.count <= 3_000_000 else { continue }
-            let mime = (item["mime"] as? String) ?? "image/jpeg"
-            guard ["image/jpeg", "image/png", "image/webp", "image/gif"].contains(mime) else { continue }
+        // Photos and any other file Claude accepts (PDF, Word, spreadsheets, code…): up to 8, about 10 MB each.
+        for item in (message["images"] as? [[String: Any]] ?? []).prefix(8) {
+            guard let data = item["data"] as? String, !data.isEmpty, data.utf8.count <= 14_000_000 else { continue }
+            let mime = (item["mime"] as? String) ?? "application/octet-stream"
+            guard !mime.isEmpty, mime.count <= 120, !mime.contains("\n") else { continue }
             images.append(["data": data, "mime": mime, "name": String(((item["name"] as? String) ?? "photo.jpg").prefix(80))])
         }
         let role = Role(rawValue: message["role"] as? String ?? "") ?? .worker
@@ -614,7 +616,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
                         self.startPolling(id)
                     } else {
                         // Give an upload time to finish; Claude keeps Send off until then.
-                        let delay: Double = job.images.isEmpty ? 0 : 3.0 + 1.5 * Double(job.images.count)
+                        let delay: Double = job.images.isEmpty ? 0 : 3.0 + 2.5 * Double(job.images.count)
                         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                             self?.submit(id, pid: pid, attempts: delay == 0 ? 10 : 40)
                         }
@@ -747,10 +749,51 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         }
     }
     /// Opens a container in the Claude tab (for example the manager, to press Send).
-    func focus(profile raw: String?) {
+    func focus(profile raw: String?, path: String? = nil) {
         loadViewIfNeeded()
         if let raw = raw, let id = UUID(uuidString: raw) { show(id) }
+        // Only a few known claude.ai pages, never a free-form address.
+        if let path = path, ["/new", "/settings/connectors", "/settings/usage", "/settings/profile"].contains(path),
+           let id = currentID, !busy(id), let url = URL(string: "https://claude.ai" + path) {
+            currentBrowser?.load(URLRequest(url: url))
+        }
         onFocus?(true)
+    }
+
+    // MARK: official usage
+    /// Reads claude.ai's own Usage page (current session, weekly limits) for one container,
+    /// in a hidden view that shares that container's sign-in. The page text goes back as is; the Code tab reads it.
+    private var usageReaders: [UUID: WKWebView] = [:]
+    func readUsage(_ raw: String?, reply: @escaping (Any?, String?) -> Void) {
+        guard let raw = raw, let id = UUID(uuidString: raw), store.state.profiles.contains(where: { $0.id == id }) else {
+            reply(nil, "Unknown container"); return
+        }
+        guard usageReaders[id] == nil else { reply(nil, "Already reading this container's usage."); return }
+        loadViewIfNeeded(); attachParking()
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: id)
+        let web = WKWebView(frame: UIScreen.main.bounds, configuration: configuration)
+        web.isUserInteractionEnabled = false
+        parking.addSubview(web)
+        usageReaders[id] = web
+        web.load(URLRequest(url: URL(string: "https://claude.ai/settings/usage")!))
+        pollUsage(id, web: web, attempts: 25, reply: reply)
+    }
+    private func pollUsage(_ id: UUID, web: WKWebView, attempts: Int, reply: @escaping (Any?, String?) -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            web.evaluateJavaScript("(document.body&&document.body.innerText||'').slice(0,8000)") { [weak self] result, _ in
+                guard let self = self else { return }
+                let text = (result as? String) ?? ""
+                let signedOut = web.url?.path.hasPrefix("/login") ?? false
+                if text.contains("% used") || signedOut || attempts <= 1 {
+                    web.stopLoading(); web.removeFromSuperview()
+                    self.usageReaders.removeValue(forKey: id)
+                    reply(["text": text, "signedOut": signedOut, "at": Date().timeIntervalSince1970 * 1000], nil)
+                } else {
+                    self.pollUsage(id, web: web, attempts: attempts - 1, reply: reply)
+                }
+            }
+        }
     }
 
     /// Pause or resume a container from the Code tab's team sheet. A paused container is skipped for tasks.

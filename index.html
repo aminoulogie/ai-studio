@@ -40,7 +40,7 @@
         <div class="changes" id="changes" hidden></div>
         <div class="composer" id="composer">
           <div class="atts" id="atts" hidden></div>
-          <textarea id="task" rows="1" placeholder="How can I help you today?" aria-label="Message" oninput="autosize(this);ls('draft',this.value);renderSend()" onkeydown="composerKey(event)"></textarea>
+          <textarea id="task" rows="1" placeholder="How can I help you today?" aria-label="Message" oninput="autosize(this);ls('draft',this.value);renderSend();renderEstimate()" onkeydown="composerKey(event)"></textarea>
           <div class="composer-row">
             <button class="plain" onclick="openAdd()" aria-label="Add" data-icon="plus"></button>
             <div class="mode" id="modeSeg" role="group" aria-label="How tasks run"><button data-m="team" onclick="setTeamMode('team',true)">Team</button><button data-m="single" onclick="setTeamMode('single',true)" aria-label="One sub-agent" data-icon="tasks"></button></div>
@@ -50,9 +50,9 @@
             <button class="plain" id="micBtn" onclick="toggleMic()" aria-label="Voice typing" aria-pressed="false" data-icon="mic"></button>
             <button class="send" id="send" onclick="sendOrStop()" aria-label="Send" data-icon="up"></button>
           </div>
-          <input type="file" id="fileInput" multiple hidden accept="image/*,.txt,.md,.json,.js,.ts,.tsx,.jsx,.html,.css,.swift,.py,.yml,.yaml,.csv,.xml,.sh" onchange="addFiles(this.files);this.value=''">
+          <input type="file" id="fileInput" multiple hidden onchange="addFiles(this.files);this.value=''">
         </div>
-        <div class="foot" id="foot"><span>Claude is AI and can make mistakes.</span><button onclick="openTeam()" id="footModel" aria-label="Claude containers"></button></div>
+        <div class="foot" id="foot"><span id="footNote">Claude is AI and can make mistakes.</span><button onclick="openTeam()" id="footModel" aria-label="Claude containers"></button></div>
       </div>
     </div>
   </main>
@@ -63,6 +63,7 @@
 <script src="assets/repo-privacy.js"></script>
 <script src="assets/agents.js"></script>
 <script src="assets/github.js"></script>
+<script src="assets/usage.js"></script>
 <script>
 'use strict';
 /* ===================== BASICS ===================== */
@@ -96,7 +97,8 @@ function ago(ts){const m=Math.round((Date.now()-ts)/60000);return m<1?'just now'
 
 /* Line icons, drawn once. */
 const ICONS={
-  menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',ask:'<circle cx="12" cy="12" r="9"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.3-2.7 4"/><path d="M12 17.3h.01"/>',
+  menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',refresh:'<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  plug:'<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>',ask:'<circle cx="12" cy="12" r="9"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.3-2.7 4"/><path d="M12 17.3h.01"/>',
   mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',panel:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M8 9.5v5"/>',
   clip:'<path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7-7l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/>',
   tasks:'<circle cx="5.5" cy="7.5" r="1.6"/><circle cx="5.5" cy="16.5" r="1.6"/><path d="M10 7.5h10M10 16.5h10M10 12h6"/>',brain:'<path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V6a2 2 0 0 0-3-2zm6 0a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',plus:'<path d="M12 5v14M5 12h14"/>',
@@ -310,7 +312,10 @@ async function commitSession({automatic=false,message}={}){
 /* ===================== CLAUDE CONTAINERS ===================== */
 async function refreshProfiles(){
   if(!inApp()){S.profiles=[];renderTeamBits();return;}
+  const before=new Map(S.profiles.map(p=>[p.id,p.status]));
   try{S.profiles=(await native({op:'claudeProfiles'}))||[];}catch{S.profiles=[];}
+  // A container that just turned Limited is one measurement of how big a free session is.
+  for(const p of S.profiles)if(p.status==='Rate-Limited'&&before.has(p.id)&&before.get(p.id)!=='Rate-Limited')noteLimit(p.id);
   renderTeamBits();
   if($('sheet').dataset.kind==='team')openTeam();
 }
@@ -322,13 +327,55 @@ function team(){
     workers:P.filter(p=>!p.manager),ready:P.filter(p=>!p.manager&&p.ready)};
 }
 const jobs={};
+/* ===================== USAGE ===================== */
+// Official numbers come from claude.ai's Usage page; free accounts are estimated from the tokens the app sends and
+// receives, and the session size is learned from the first 12 limits they hit (pooled: they share one plan).
+const U=window.StudioUsage;
+function usageDB(){const d=lsj('usage_v1');return d&&d.profiles?d:{profiles:{},samples:[]};}
+function usageSave(d){ls('usage_v1',JSON.stringify(d));}
+function usageRec(d,id){return d.profiles[id]||(d.profiles[id]=U.blank());}
+function usageOf(p){
+  const d=usageDB(),rec=usageRec(d,p.id);
+  return {rec,est:U.estimate(rec,{samples:p.manager?rec.samples:d.samples,role:p.manager?'manager':'worker'})};
+}
+function noteUsage(profile,meta,outChars){
+  if(!profile)return 0;
+  const d=usageDB(),cost=U.record(usageRec(d,profile),{inChars:meta.inChars,outChars,fresh:meta.fresh});
+  usageSave(d);return cost;
+}
+function noteLimit(profile){
+  const d=usageDB(),rec=usageRec(d,profile),tokens=U.recordLimit(rec);
+  if(tokens){if(S.profiles.find(x=>x.id===profile)?.manager)rec.samples=[...rec.samples,tokens].slice(-12);else d.samples=[...d.samples,tokens].slice(-12);}
+  usageSave(d);
+}
+/** Recent history of the sub-agents together: what a message usually costs. */
+function workerHist(){const d=usageDB();return Object.entries(d.profiles).filter(([id])=>!S.profiles.find(p=>p.id===id)?.manager).flatMap(([,r])=>r.hist).sort((a,b)=>a.t-b.t).slice(-60);}
+/** Expected cost of a message: a pinned chat adds what it already holds. Attachments count roughly by size. */
+function estimateJob(text,{profile,fresh=true,images=[]}={}){
+  const d=usageDB(),rec=profile?usageRec(d,profile):null;
+  const inChars=text.length+images.reduce((n,i)=>n+(i.mime?.startsWith('image/')?5400:Math.min(400000,(i.data?.length||0)*0.25)),0);
+  return {inChars,est:U.predict(inChars,rec?.hist.length?rec.hist:workerHist(),{chat:!fresh&&rec?rec.chat:0})};
+}
+async function refreshOfficial(id,quiet){
+  if(!inApp())return;
+  try{
+    const r=await native({op:'claudeUsage',profile:id});
+    const off=U.parseOfficial(r?.text);
+    const d=usageDB(),rec=usageRec(d,id);
+    rec.official=off?{...off}:{none:true,signedOut:!!r?.signedOut,at:Date.now()};usageSave(d);
+    if(!quiet)toast(off?'Usage updated':r?.signedOut?'That account is signed out':'claude.ai shows no usage numbers for this account');
+  }catch(e){if(!quiet)toast(e.message);}
+  if($('sheet').dataset.kind==='team')openTeam();
+}
+
 /** One message to one container. Resolves with Claude's finished reply; events stream into onEvent. */
 /** One message to one container. Resolves with Claude's finished reply; events stream into onEvent.
  *  moveOnLimit:false hands a limit back here (error.limited) so the conversation can be compressed first. */
 function claudeJob(text,{role='worker',fresh=true,profile,images=[],onEvent,moveOnLimit=true}={}){
-  const id=uid('j');
+  const id=uid('j'),{inChars,est}=estimateJob(text,{profile,fresh,images});
   return new Promise((resolve,reject)=>{
-    jobs[id]={onEvent,resolve,reject};
+    jobs[id]={onEvent,resolve,reject,meta:{inChars,fresh,profile}};
+    onEvent?.({id,state:'sending',est,note:''});
     native({op:'claudeSend',id,text,role,fresh,images,moveOnLimit,...(profile?{profile}:{})})
       .then(r=>{if(jobs[id])onEvent?.({id,state:'sending',account:r?.account||'',profile:r?.profile||'',note:''});})
       .catch(e=>{if(!jobs[id])return;delete jobs[id];const msg=e?.message||String(e);
@@ -337,8 +384,12 @@ function claudeJob(text,{role='worker',fresh=true,profile,images=[],onEvent,move
 }
 window.onClaudeStream=p=>{
   const j=p&&jobs[p.id];if(!j)return;
+  // After a switch the message went again, in a new chat on another container.
+  if(p.state==='switching')j.meta.fresh=true;
+  if(p.profile)j.meta.profile=p.profile;
+  if(p.state==='limited'&&p.profile)noteLimit(p.profile);
   try{j.onEvent?.(p);}catch{}
-  if(p.state==='done'){delete jobs[p.id];learn(p.text);j.resolve(p);}
+  if(p.state==='done'){delete jobs[p.id];p.cost=noteUsage(j.meta.profile,j.meta,(p.text||'').length);learn(p.text);j.resolve(p);}
   else if(['failed','stopped','limited'].includes(p.state)){delete jobs[p.id];j.reject(Object.assign(new Error(p.note||'Claude did not answer.'),{stopped:p.state==='stopped',limited:p.state==='limited',account:p.account}));}
 };
 /** Shared memory learns from every reply: new lines are added for every container, with Undo. */
@@ -378,8 +429,9 @@ async function sendTask(opts={}){
   if(!s.repo){openRepoPicker();toast('Choose a repository first.');return;}
   if(!S.token){openSettings();toast('Connect GitHub first.');return;}
   const atts=S.atts;S.atts=[];renderAtts();
-  const fileText=atts.filter(a=>!a.image).map(a=>'\n\n--- Attached file: '+a.name+' ---\n'+a.text).join('');
-  const images=atts.filter(a=>a.image).slice(0,4).map(a=>({name:a.name,mime:a.mime,data:a.data}));
+  const fileText=atts.filter(a=>a.text!=null).map(a=>'\n\n--- Attached file: '+a.name+' ---\n'+a.text).join('')+
+    (atts.some(a=>a.file)?'\n\n(Attached in this chat: '+atts.filter(a=>a.file).map(a=>a.name).join(', ')+')':'');
+  const images=atts.filter(a=>a.image||a.file).slice(0,8).map(a=>({name:a.name,mime:a.mime,data:a.data}));
   if(opts.text==null){$('task').value='';ls('draft','');autosize($('task'));renderSend();}
   if(!s.title)s.title=short(text||atts[0]?.name||'New session',60);
   s.log.push({k:'user',text,files:atts.map(a=>a.name),ts:Date.now()});
@@ -390,7 +442,9 @@ async function sendTask(opts={}){
   if(!T.all.length){s.log.push({k:'note',tone:'err',text:'Add your Claude accounts in the Claude tab first.',action:'claude'});save(s);renderAll();return;}
   if(!T.ready.length&&!T.managerReady){s.log.push({k:'note',tone:'err',text:'Every container is limited, paused or signed out. Check the Claude tab.',action:'claude'});save(s);renderAll();return;}
   S.busy=true;S.stop=false;renderDock();
-  const goal=text+fileText,firstNew=s.log.length;
+  const tools=(ls('research')==='1'?'\n\n[Research: search the web for current information when it helps, and cite sources with links.]':'')+
+    (ls('connectors')==='1'?'\n\n[You may use my connected tools in this account (for example Google Drive or Gmail) when they help.]':'');
+  const goal=text+fileText+tools,firstNew=s.log.length;
   try{
     await ensureBase(s);
     const useTeam=teamMode()==='team'&&T.managerReady&&T.ready.length>0&&!A.isQuickQuestion(text);
@@ -417,6 +471,8 @@ function follow(s,entry){
     if(p.state==='streaming'&&p.text)entry.text=p.text;
     if(['queued','sending','awaiting','streaming','switching'].includes(p.state))entry.state=p.state==='switching'?'sending':p.state;
     if(p.state==='streaming')entry.note='';
+    if(p.est)entry.est=p.est;
+    if(p.cost)entry.cost=p.cost;
     updateEntry(s,entry);
   };
 }
@@ -467,7 +523,7 @@ async function runSingle(s,goal,images,role){
       }
     }else r=await fresh('');
     if(role==='worker'&&r.profile)s.thread={profile:r.profile,account:r.account};
-    entry.text=r.text||'';entry.account=r.account||entry.account;
+    entry.text=r.text||'';entry.account=r.account||entry.account;entry.cost=r.cost||0;
     await applyReply(s,entry,entry.text,goal);
     entry.state=entry.failed.length?(entry.applied.length?'partial':'failed'):'done';
     entry.note='';
@@ -502,7 +558,7 @@ async function runTeam(s,goal,images){
   try{
     const r=await claudeJob(A.managerPrompt({task:goal,repo:s.repo,branch:s.branch,paths,files:keyFiles,maxTasks,memory:S.memory,recap:recap(s,s.log.indexOf(run)-1).slice(-3000)}),
       {role:'manager',images,onEvent:follow(s,run.manager)});
-    run.manager.text=r.text||'';run.manager.account=r.account||run.manager.account;run.manager.state='done';run.manager.note='';
+    run.manager.text=r.text||'';run.manager.account=r.account||run.manager.account;run.manager.cost=r.cost||0;run.manager.state='done';run.manager.note='';
     plan=A.parsePlan(run.manager.text,maxTasks);
   }catch(e){run.manager.state='failed';run.manager.note=e.message;run.state='failed';run.tEnd=Date.now();updateEntry(s,run);if(e.stopped)throw e;
     run.note='The manager could not plan, so one sub-agent takes the whole request.';updateEntry(s,run);
@@ -523,7 +579,7 @@ async function runTeam(s,goal,images){
       const files=await loadFiles(s,[...task.files,...extra]);
       const r=await claudeJob(A.workerPrompt({task:task.instructions,goal,repo:s.repo,branch:s.branch,files,memory:S.memory}),
         {role:'worker',onEvent:p=>{follow(s,task)(p);updateEntry(s,run);}});
-      task.text=r.text||'';task.account=r.account||task.account;
+      task.text=r.text||'';task.account=r.account||task.account;task.cost=r.cost||0;
       await applyReply(s,task,task.text,task.instructions,()=>updateEntry(s,run));
       task.state=task.failed.length?(task.applied.length?'partial':'failed'):'done';task.note='';
     }catch(e){task.state='failed';task.note=e.stopped?'Stopped.':e.message;}
@@ -713,11 +769,11 @@ function entryHTML(e){
   if(e.k==='reply'){
     const live=LIVE.includes(e.state),body=A.stripEdits(e.text);
     let h='';
-    if(live||(e.note&&e.state==='failed'))h+='<div class="think"><div class="think-head">'+(live?'<span class="dots"><i></i><i></i><i></i></span>':icon('alert'))+'<span class="t">'+esc(e.note||(e.state==='streaming'?'Claude is writing…':'Claude is working…'))+'</span><span class="time">'+elapsed(e)+'</span></div></div>';
+    if(live||(e.note&&e.state==='failed'))h+='<div class="think"><div class="think-head">'+(live?'<span class="dots"><i></i><i></i><i></i></span>':icon('alert'))+'<span class="t">'+esc(e.note||(e.state==='streaming'?'Claude is writing…':'Claude is working…'))+'</span>'+(e.est&&live?'<span class="est">≈'+U.fmtTokens(e.est)+'</span>':'')+'<span class="time">'+elapsed(e)+'</span></div></div>';
     if(e.state==='awaiting')h+='<div><button class="btn accent small" onclick="openClaude(\''+esc(e.profile||'')+'\')">'+icon('out')+'Open Claude to press Send</button></div>';
     if(body)h+='<div class="reply final">'+md(body)+'</div>';
     h+=editsHTML(e);
-    if(!live&&e.text)h+='<div class="meta"><span>'+esc(e.account?'Claude · '+e.account:'Claude')+'</span><button onclick="copyEntry(this)">Copy</button></div>';
+    if(!live&&e.text)h+='<div class="meta"><span>'+esc(e.account?'Claude · '+e.account:'Claude')+(e.cost?' · ≈'+U.fmtTokens(e.cost)+' tokens':'')+'</span><button onclick="copyEntry(this)">Copy</button></div>';
     return h;
   }
   if(e.k==='run'){
@@ -756,7 +812,7 @@ const LIVE=['sending','queued','awaiting','streaming','working','planning'];
 function stepRow(key,label,x,detail){
   const st=LIVE.includes(x.state)?'<span class="spin" style="width:13px;height:13px"></span>':x.state==='done'?icon('check'):['failed','partial'].includes(x.state)?icon('alert'):icon('dot');
   return '<details class="srow '+esc(x.state||'')+'"'+(x.open?' open':'')+' ontoggle="toggleStep(this,\''+key+'\')"><summary><span class="st">'+st+'</span><span class="lbl">'+esc(label)+'</span><span class="car"></span>'+
-    (x.account?'<span class="who">'+esc(x.account)+'</span>':'')+'</summary><div class="detail">'+detail+'</div></details>';
+    (x.account?'<span class="who">'+esc(x.account)+(x.cost?' · '+U.fmtTokens(x.cost):x.est&&LIVE.includes(x.state)?' · ≈'+U.fmtTokens(x.est):'')+'</span>':'')+'</summary><div class="detail">'+detail+'</div></details>';
 }
 /** The manager's JSON plan, coloured like claude.ai shows tool requests. */
 function jsonHTML(text){
@@ -786,6 +842,16 @@ function renderDock(){
   $('composer').style.borderTopLeftRadius=$('composer').style.borderTopRightRadius=n?'14px':'';
   renderSend();
 }
+/** "≈ 9k tokens · about 6% of a free session": what the message in the box will probably cost. */
+function renderEstimate(){
+  const el=$('footNote');if(!el)return;
+  const text=$('task').value.trim();
+  if(!text||!inApp()||!S.profiles.length){el.textContent='Claude is AI and can make mistakes.';return;}
+  const hist=workerHist(),ctx=hist.length?hist.slice(-10).map(h=>h.in).sort((a,b)=>a-b)[Math.min(9,hist.length-1)>>1]:8000;
+  const est=U.predict(text.length,hist)+ctx;
+  const cap=U.capacity(usageDB().samples);
+  el.textContent='≈'+U.fmtTokens(est)+' tokens · about '+Math.max(1,Math.round(est/cap*100))+'% of a free session'+(teamMode()==='team'&&!A.isQuickQuestion(text)?' per task':'');
+}
 function renderSend(){
   const b=$('send'),has=!!($('task').value.trim()||S.atts.length);
   b.classList.toggle('stop',S.busy);b.classList.toggle('ready',!S.busy&&has);
@@ -808,19 +874,23 @@ function renderTeamBits(){
 
 /* ===================== ATTACHMENTS ===================== */
 function pickFiles(){$('fileInput').click();}
+/** Any file: photos are resized, readable text goes into the message, everything else (PDF, Word, Revit…) is attached in Claude. */
+const TEXTLIKE=/\.(?:txt|md|markdown|csv|tsv|json|ya?ml|xml|html?|css|scss|js|cjs|mjs|jsx|ts|tsx|py|rb|go|rs|java|kt|swift|c|h|cpp|hpp|cs|php|sh|sql|toml|ini|cfg|log|env\.example)$/i;
 async function addFiles(list){
-  for(const f of [...list].slice(0,6)){
+  for(const f of [...list].slice(0,8)){
     try{
-      if(/^image\//.test(f.type)){S.atts.push({name:f.name,image:true,mime:'image/jpeg',data:(await shrinkImage(f)).split(',')[1],thumb:URL.createObjectURL(f)});}
-      else if(f.size<=400000)S.atts.push({name:f.name,text:await f.text()});
-      else toast(f.name+' is too large to attach.');
+      if(/^image\/(?:jpeg|png|webp|gif|heic|heif)/.test(f.type)||/\.(?:heic|heif)$/i.test(f.name)){S.atts.push({name:f.name,image:true,mime:'image/jpeg',data:(await shrinkImage(f)).split(',')[1],thumb:URL.createObjectURL(f)});}
+      else if((TEXTLIKE.test(f.name)||/^text\//.test(f.type))&&f.size<=400000)S.atts.push({name:f.name,text:await f.text()});
+      else if(f.size<=10*1024*1024)S.atts.push({name:f.name,file:true,mime:f.type||'application/octet-stream',data:await fileBase64(f)});
+      else toast(f.name+' is over 10 MB, too large to send to Claude.');
     }catch{toast('Could not read '+f.name);}
   }
-  renderAtts();
+  renderAtts();renderSend();
 }
+function fileBase64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]||'');r.onerror=rej;r.readAsDataURL(f);});}
 function shrinkImage(file){return new Promise((res,rej)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{const k=Math.min(1,1600/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',.85));};img.onerror=rej;img.src=url;});}
 function renderAtts(){
-  const el=$('atts');el.hidden=!S.atts.length;
+  const el=$('atts');el.hidden=!S.atts.length;renderEstimate();
   el.innerHTML=S.atts.map((a,i)=>'<span class="att-chip">'+(a.thumb?'<img alt="" src="'+esc(a.thumb)+'">':'')+'<span>'+esc(a.name)+'</span><button onclick="S.atts.splice('+i+',1);renderAtts()" aria-label="Remove">'+icon('x')+'</button></span>').join('');
 }
 
@@ -850,9 +920,20 @@ function openAdd(){
     '<hr>'+
     mi('team','Team mode','The manager plans, sub-agents build','toggleAddTeam()',chk(teamMode()==='team'))+
     mi('commit','Commit automatically','When every edit applied','toggleAddCommit()',chk(autoCommit()))+
+    mi('globe','Research','Search the web and cite sources','toggleFlag(\'research\')',chk(ls('research')==='1'))+
+    mi('plug','Use my connectors','Google Drive, Gmail and your own','toggleFlag(\'connectors\')',chk(ls('connectors')==='1'))+
+    '<hr>'+mi('plug','Manage connectors','Add Google Drive, Gmail or a custom one on claude.ai','manageConnectors()',chev)+
   '</div>',null,'add');
 }
 function toggleAddTeam(){ls('team_mode',teamMode()==='team'?'single':'team');renderTeamBits();openAdd();}
+function toggleFlag(k){ls(k,ls(k)==='1'?'0':'1');openAdd();}
+/** Connectors live in each Claude account; this opens that account's connector settings in the Claude tab. */
+function manageConnectors(){
+  const T=team(),target=T.manager||T.all[0];
+  if(!target){toast('Add a Claude account in the Claude tab first.');return;}
+  closeSheet();toast('Connect them in each account you want to use them in.');
+  native({op:'openClaude',profile:target.id,path:'/settings/connectors'}).catch(()=>{});
+}
 function toggleAddCommit(){ls('auto_commit',autoCommit()?'0':'1');openAdd();}
 async function openRepoPicker(){
   drawer(false);
@@ -890,9 +971,9 @@ function openTeam(){
   if(!inApp()){showSheet('Claude team','<div class="group"><div class="list">'+row('Containers run in the iPhone app','Each Claude account is its own container with its own sign-in. Open AI Studio on your iPhone to add accounts and run the team.')+'</div></div>',null,'team');return;}
   const T=team(),mode=teamMode();
   const status=p=>p.busy?'<span class="pill warn">Working</span>':!p.enabled?'<span class="pill">Paused</span>':p.status==='Active'?'<span class="pill ok">Ready</span>':p.status==='Rate-Limited'?'<span class="pill err">Limited</span>':'<span class="pill">Signed out</span>';
-  const people=T.all.length?T.all.map(p=>'<div class="row"><span class="grow"><b>'+esc(p.name)+(p.manager?' <span class="pill star">Manager</span>':'')+' '+status(p)+'</b><small>'+(p.manager?'Plans the work. You press Send in this account.':'Sub-agent · sends by itself')+'</small></span>'+
-      '<button class="icon-btn" style="width:32px;height:32px" onclick="openClaude(\''+p.id+'\')" aria-label="Open '+esc(p.name)+'">'+icon('out')+'</button>'+
-      toggle('en_'+p.id,p.enabled,"setEnabled('"+p.id+"',this.checked)")+'</div>').join(''):row('No accounts yet','Add your Claude accounts in the Claude tab and sign in to each.');
+  const people=T.all.length?T.all.map(p=>containerHTML(p,status(p))).join(''):row('No accounts yet','Add your Claude accounts in the Claude tab and sign in to each.');
+  // The manager's official numbers are read when the sheet opens, at most every 10 minutes.
+  const m=T.manager;if(m&&!m.busy){const o=usageOf(m).rec.official;if(!o||Date.now()-o.at>600e3)setTimeout(()=>refreshOfficial(m.id,true),50);}
   showSheet('Claude team',
     '<div class="group"><h3>How tasks run</h3><div class="list">'+
       row('Mode',mode==='team'?'The manager splits the work; sub-agents edit in parallel.':'One sub-agent does the whole task.',seg([['team','Team'],['single','Single']],mode,'setTeamMode'))+
@@ -906,6 +987,32 @@ function openTeam(){
 }
 async function setEnabled(id,on){
   try{await native({op:'claudeSetEnabled',profile:id,enabled:!!on});await refreshProfiles();toast(on?'Container on':'Container paused: tasks skip it');}catch(e){toast(e.message);openTeam();}
+}
+const openUsage=new Set();
+function bar(pct){return '<div class="ubar"><i style="width:'+Math.max(0,Math.min(100,pct))+'%"></i></div>';}
+function ucard(title,pct,sub,extra=''){return '<div class="ucard"><div class="uh"><b>'+title+'</b><span>'+(pct==null?'':pct+'% used')+'</span></div>'+(pct==null?'':bar(pct))+'<small>'+sub+'</small>'+extra+'</div>';}
+/** One container: name, status and session bar; opens to the claude.ai-style usage cards. */
+function containerHTML(p,status){
+  const {rec,est}=usageOf(p),off=rec.official&&!rec.official.none?rec.official:null,now=Date.now();
+  const sess=off?.session,week=off?.weekly;
+  const sessPct=sess?sess.pct:est.pct;
+  const limited=p.status==='Rate-Limited'&&p.limitedUntil>now;
+  const resetWords=sess?.reset?'Resets '+sess.reset:limited?'Resets in '+U.fmtIn(p.limitedUntil-now):est.resetAt?'Resets in '+U.fmtIn(est.resetAt-now):'No messages in the last 5 hours';
+  const predicted=!sess&&est.runsOutAt?'At this pace it runs out in about '+U.fmtIn(est.runsOutAt-now)+(est.messagesLeft!=null?' (≈'+est.messagesLeft+' more messages)':'')+'.':
+    !sess&&est.messagesLeft!=null?'About '+est.messagesLeft+' more messages like the last ones.':'';
+  const learning=!sess&&!p.manager?'<div class="learn">'+(est.calibrated?'Learned from 12 real limits':'Learning your free plan: '+est.calibration+' of 12 limits seen')+' · a session ≈ '+U.fmtTokens(est.cap)+' tokens'+(est.calibration?'':' (starting guess)')+'</div>':'';
+  return '<details class="ctr"'+(openUsage.has(p.id)?' open':'')+' ontoggle="this.open?openUsage.add(\''+p.id+'\'):openUsage.delete(\''+p.id+'\')">'+
+    '<summary><span class="grow"><b>'+esc(p.name)+(p.manager?' <span class="pill star">Manager</span>':'')+' '+status+'</b><small>'+(sess?'':'≈ ')+sessPct+'% of session'+(week?' · '+week.pct+'% weekly':'')+'</small>'+bar(limited?100:sessPct)+'</span>'+icon('down','ic chev')+'</summary>'+
+    '<div class="ubody">'+
+      '<h4>Context</h4>'+ucard('Context window',est.context.pct,U.fmtTokens(est.context.used)+' of '+U.fmtTokens(est.context.limit)+' tokens · this chat, estimated')+
+      '<h4>Plan usage</h4>'+ucard('Current session',limited?100:sessPct,esc(resetWords)+(sess?' · from claude.ai':' · estimated'),predicted?'<small>'+esc(predicted)+'</small>':'')+learning+
+      (week?'<h4>Weekly limits</h4>'+ucard('All models',week.pct,esc('Resets '+week.reset)+' · from claude.ai'):
+        '<h4>Last 7 days</h4>'+ucard('Sent from this app',null,'≈'+U.fmtTokens(est.week)+' tokens'+(p.manager?'':' · free plans show no weekly numbers'))
+      )+
+      '<div class="uact"><button class="btn small" onclick="refreshOfficial(\''+p.id+'\')">'+icon('refresh')+'Refresh</button><button class="btn small" onclick="openClaude(\''+p.id+'\')">'+icon('out')+'Open</button><span class="grow"></span><span class="lbl">On</span>'+
+      toggle('en_'+p.id,p.enabled,"setEnabled('"+p.id+"',this.checked)")+'</div>'+
+      (rec.official?.none?'<p class="hint">claude.ai showed no usage numbers for this account'+(rec.official.signedOut?' (signed out)':'')+', so these are estimates.</p>':'')+
+    '</div></details>';
 }
 function setTeamMode(v,quiet){ls('team_mode',v);renderTeamBits();if(quiet)toast(v==='team'?'Team mode':'Solo mode');else openTeam();}
 function setParallel(v){ls('team_parallel',String(v));openTeam();}

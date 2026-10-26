@@ -259,7 +259,10 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         case "dictateStop":
             dictation.stop(); replyHandler(true, nil); return
         case "openClaude":
-            tabs?.openClaude(profile: msg["profile"] as? String); replyHandler(true, nil); return
+            tabs?.openClaude(profile: msg["profile"] as? String, path: msg["path"] as? String); replyHandler(true, nil); return
+        case "claudeUsage":
+            guard let host = tabs else { replyHandler(nil, "Unavailable"); return }
+            host.claudeUsage(msg["profile"] as? String, reply: replyHandler); return
         case "studioUpdateStatus":
             replyHandler(updater.status(), nil); return
         case "studioUpdateCheck":

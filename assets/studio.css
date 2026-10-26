@@ -368,3 +368,31 @@ body.empty #topText,body.empty #topTitle [data-icon]{visibility:hidden}
 .send:hover:not(.ready):not(.stop){background:var(--send)}
 .send.ready:hover{background:var(--accent-2)}
 .toast{padding:7px 14px;border-radius:999px;font-size:13px;max-width:min(80vw,360px);line-height:1.35}
+
+/* Usage: a dropdown per container, laid out like claude.ai's Usage screen. */
+:root{--ubar:#4b7fdc;--utrack:#dfe7f7;--ucard:var(--surface)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--utrack:#10213f;--ucard:#262626}}
+:root[data-theme="dark"]{--utrack:#10213f;--ucard:#262626}
+.ctr{border-top:.5px solid var(--border)}
+.ctr:first-child{border-top:0}
+.ctr>summary{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;list-style:none}
+.ctr>summary::-webkit-details-marker{display:none}
+.ctr>summary .grow{flex:1;min-width:0}
+.ctr>summary b{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-weight:500;font-size:15px}
+.ctr>summary small{display:block;color:var(--text-3);font-size:12.5px;margin:3px 0 6px}
+.ctr>summary .chev{transition:transform .15s;color:var(--text-3)}
+.ctr[open]>summary .chev{transform:rotate(180deg)}
+.ubar{height:7px;border-radius:4px;background:var(--utrack);overflow:hidden}
+.ubar i{display:block;height:100%;border-radius:4px;background:var(--ubar)}
+.ubody{padding:2px 12px 14px;display:flex;flex-direction:column;gap:8px}
+.ubody h4{font-size:13.5px;font-weight:400;color:var(--text-3);margin:8px 4px 0}
+.ucard{background:var(--ucard);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:9px}
+.ucard .uh{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.ucard .uh b{font-weight:400;font-size:16px}
+.ucard .uh span{color:var(--text-3);font-size:14.5px}
+.ucard small{color:var(--text-3);font-size:13px}
+.learn{font-size:12.5px;color:var(--text-3);padding:0 4px}
+.uact{display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:nowrap}
+.uact .grow{flex:1}
+.uact .lbl{font-size:13px;color:var(--text-3)}
+.think-head .est{font-size:13px;color:var(--text-4);flex:none}
