@@ -34,6 +34,6 @@ Build passed (run 40207609731).
 ## v1.1 — Claude team workspace (native level 3, needs a new IPA)
 Built on this branch; not yet built in CI or tried on a device.
 - One Code workspace that looks like claude.ai (sessions sidebar, serif greeting, composer with repo and team chips, review sheet, light and dark). Chat, Projects, model providers, API keys, Drive, optimizer, budget and wallpapers are removed.
-- Manager (Opus, you press Send) writes a JSON plan; sub-agents (free Sonnet containers) do the tasks in parallel and send by themselves; the app applies their edit blocks exactly, repairs mismatches once, and commits without force.
+- Manager (Opus, sent by the app) writes a JSON plan; sub-agents (free Sonnet containers) do the tasks in parallel and send by themselves; the app applies their edit blocks exactly, repairs mismatches once, and commits without force.
 - Native: several jobs at once, one per container; off-screen containers stay in the window so they keep running; a limit moves only that container's task to the next free sub-agent; idle containers beyond five unload.
 - Tests: tests/agents.cjs, tests/git-workflow.cjs (github.js), observer code-block reading, OTA ops for level 3, browser end-to-end team run, iOS manager/rotation/migration.

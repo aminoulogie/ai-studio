@@ -558,7 +558,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             images.append(["data": data, "mime": mime, "name": String(((item["name"] as? String) ?? "photo.jpg").prefix(80))])
         }
         let role = Role(rawValue: message["role"] as? String ?? "") ?? .worker
-        var job = ClaudeJob(id: id, text: text, images: images, role: role, manual: role == .manager,
+        var job = ClaudeJob(id: id, text: text, images: images, role: role, manual: false,
                             fresh: (message["fresh"] as? Bool) ?? true)
         job.moveOnLimit = (message["moveOnLimit"] as? Bool) ?? true
         job.model = Self.menuWord(message["model"])
@@ -568,7 +568,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             guard !busy(pinned) else { reply(nil, p.name + " is busy with another task."); return }
             // The Code tab reads the "limited:" prefix and hands the conversation over to another container.
             guard store.ready(p) else { reply(nil, "limited: " + p.name + " is " + (p.enabled ? store.status(p).rawValue.lowercased() : "paused") + "."); return }
-            job.profileID = pinned; job.manual = p.manager; job.role = p.manager ? .manager : .worker
+            job.profileID = pinned; job.manual = false; job.role = p.manager ? .manager : .worker
         } else if role == .manager {
             if let m = store.managerProfile, store.ready(m), !busy(m.id) { job.profileID = m.id }
             else {

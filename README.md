@@ -5,11 +5,11 @@ A Claude Code-style workspace on your iPhone, run by your own claude.ai accounts
 Two tabs:
 
 - **Code**: sessions on a GitHub repository. Describe a task; the Claude team does it; you review the diff and commit.
-- **Claude**: your Claude accounts on the real claude.ai, each in its own container (separate cookies and storage). This is where you sign in, and where the manager's message waits for you to press Send.
+- **Claude**: your Claude accounts on the real claude.ai, each in its own container (separate cookies and storage). This is where you sign in.
 
 ## How the team works
 
-1. **Manager** (your paid Opus account): gets your request and the file list and writes a short JSON plan of up to a few tasks that touch different files. It only plans, so it uses little of your limit. The app types the message; **you press Send** in the Claude tab, then the app jumps back to Code by itself.
+1. **Manager** (your paid Opus account): gets your request and the file list and writes a short JSON plan of up to a few tasks that touch different files. It only plans, so it uses little of your limit. The app types and sends the message by itself, like it does for the sub-agents.
 2. **Sub-agents** (your free Sonnet accounts): each task goes to a free container in a new chat with its files and an exact edit format. They work in parallel (1–4 at once, Settings → Claude team) and send by themselves.
 3. **The app applies the edits** character for character. An edit whose old text does not match goes back to a sub-agent once, with the current file. Nothing is committed until you tap **Commit**, or until a task finishes cleanly with **Commit finished tasks automatically** on.
 
