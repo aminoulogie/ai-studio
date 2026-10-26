@@ -1,0 +1,77 @@
+# Builds the unsigned IPA on Codemagic's free Mac minutes (separate from GitHub Actions).
+# codemagic.io → sign in with GitHub → add this repository → start the "AI Studio IPA" workflow on your branch.
+# The IPA is in the build's Artifacts (and emailed to you). Optional: see "groups" below to also publish the
+# GitHub release that Settings → App updates reads.
+workflows:
+  ios-ipa:
+    name: AI Studio IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 40
+    environment:
+      xcode: latest
+      node: 22
+      # To also publish releases: create a variable group named "github" with GITHUB_TOKEN in Codemagic, then add
+      # groups:
+      #   - github
+    scripts:
+      - name: Version (the same number GitHub Actions uses)
+        script: |
+          git fetch --unshallow --quiet 2>/dev/null || true
+          echo "STUDIO_VERSION=$(git rev-list --count HEAD)" >> $CM_ENV
+      - name: Tests
+        script: |
+          node tests/agents.cjs
+          node tests/usage.cjs
+          node tests/git-workflow.cjs
+          node tests/repo-privacy.cjs
+          node tests/claude-observer.cjs
+          node tests/ota-update.cjs
+      - name: Bundle the page and the app icon
+        script: |
+          mkdir -p ios/www
+          cp index.html ios/www/index.html
+          cp -R assets ios/www/assets
+          python3 -m venv .art-tools
+          .art-tools/bin/pip install -q Pillow==11.3.0
+          .art-tools/bin/python ios/scripts/generate_artwork.py
+          python3 ios/scripts/inline_libs.py ios/www/index.html
+      - name: Write web update manifest
+        script: |
+          python3 ios/scripts/write_manifest.py "$STUDIO_VERSION"
+      - name: Generate Xcode project
+        script: |
+          if curl -fsSL -o xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.42.0/xcodegen.zip \
+             && unzip -q xcodegen.zip -d xcodegen-bin && [ -x xcodegen-bin/xcodegen/bin/xcodegen ]; then
+            XG="$PWD/xcodegen-bin/xcodegen/bin/xcodegen"
+          else
+            brew install xcodegen && XG=xcodegen
+          fi
+          cd ios && "$XG" generate
+      - name: Build (unsigned)
+        script: |
+          cd ios
+          xcodebuild -project AIStudio.xcodeproj -scheme AIStudio -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            COMPILER_INDEX_STORE_ENABLE=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -quiet build
+      - name: Package IPA
+        script: |
+          cd ios
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/AIStudio.app Payload/
+          zip -qry "AIStudio-v1.0.$STUDIO_VERSION.ipa" Payload
+          ls -lh "AIStudio-v1.0.$STUDIO_VERSION.ipa"
+      - name: Publish the release (when GITHUB_TOKEN is set)
+        script: |
+          if [ -z "$GITHUB_TOKEN" ]; then echo "No GITHUB_TOKEN: download the IPA from this build's artifacts."; exit 0; fi
+          TAG="v1.0.$STUDIO_VERSION"
+          PRE=$([ "$CM_BRANCH" = "main" ] && echo "" || echo "--prerelease")
+          cd ios
+          gh release view "$TAG" -R aminoulogie/ai-studio >/dev/null 2>&1 || \
+            gh release create "$TAG" -R aminoulogie/ai-studio --target "$CM_COMMIT" $PRE \
+              --title "AI Studio $TAG" --notes "Built on Codemagic. Install the IPA once; later screen changes arrive through Settings → App updates."
+          gh release upload "$TAG" -R aminoulogie/ai-studio --clobber \
+            "AIStudio-$TAG.ipa" studio-web.html studio-web.json studio-observer.js
+    artifacts:
+      - ios/*.ipa
+      - ios/studio-web.html
+      - ios/studio-web.json

@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,'..',...p.split('/')),'utf8');
-const html=read('index.html'),app=read('ios/AIStudio/App.swift'),upd=read('ios/AIStudio/StudioUpdater.swift'),wf=read('.github/workflows/ios.yml');
+const html=read('index.html'),app=read('ios/AIStudio/App.swift'),upd=read('ios/AIStudio/StudioUpdater.swift'),wf=read('.github/workflows/ios.yml'),manifestScript=read('ios/scripts/write_manifest.py'),cm=read('codemagic.yaml');
 
 // Settings entry and page code
 assert.ok(/row\('App updates'[^\n]*'openAppUpdates\(\)'\)/.test(html),'Settings needs an App updates entry');
@@ -57,7 +57,7 @@ const studioOps=[...app.matchAll(/^\s*case ((?:"[A-Za-z]+"(?:,\s*)?)+):/gm)].fla
 const LEVEL_3=['claudeProfiles','claudeSend','claudeSetEnabled','claudeSetManager','claudeStop','claudeUsage','dictateStart','dictateStop','credentialGet','credentialSet','github'+'DeviceCode','githubToken','memoryGet','memorySet','openClaude','selectStudioTab','share',...OPS].sort();
 assert.deepEqual(studioOps,LEVEL_3,'native ops changed: bump nativeLevel (StudioUpdater.swift) and min_native (ios.yml), then update this list');
 const level=Number(upd.match(/static let nativeLevel = (\d+)/)[1]);
-const ciLevel=Number(wf.match(/'min_native':\s*(\d+)/)[1]);
+const ciLevel=Number(manifestScript.match(/'min_native':\s*(\d+)/)[1]);
 assert.equal(level,3,'this list describes native level 3');
 const browserSrc=read('ios/AIStudio/ClaudeBrowserController.swift');
 assert.match(browserSrc,/message\["images"\] as\? \[\[String: Any\]\]/,'claudeSend must read the photos');
@@ -70,9 +70,11 @@ assert.equal(ciLevel,level,'CI min_native must equal the app nativeLevel');
 // CI publishes the exact page the app bundles
 assert.ok(wf.indexOf('inline_libs.py')<wf.indexOf('Write web update manifest'),'the manifest must be computed after the page is fully processed');
 assert.ok(wf.indexOf('Write web update manifest')<wf.indexOf('Generate Xcode project'),'the manifest must exist before the app is built');
-assert.match(wf,/hashlib\.sha256\(page\)/);
-assert.match(wf,/ios\/studio-web\.html/);
-assert.match(wf,/ios\/studio-web\.json/);
+assert.match(manifestScript,/hashlib\.sha256\(page\)/);assert.match(wf,/write_manifest\.py/);assert.match(cm,/write_manifest\.py/);
+assert.ok(cm.indexOf('inline_libs.py')<cm.indexOf('write_manifest.py')&&cm.indexOf('write_manifest.py')<cm.indexOf('xcodebuild'),'Codemagic bundles, then writes the manifest, then builds');
+assert.match(wf,/git rev-list --count HEAD/);assert.match(cm,/git rev-list --count HEAD/,'both builders number versions the same way');
+assert.match(manifestScript,/ios\/studio-web\.html/);
+assert.match(manifestScript,/ios\/studio-web\.json/);
 assert.match(wf,/files: \|[\s\S]*studio-web\.html[\s\S]*studio-web\.json/,'the release must carry both web assets');
 // The Claude-tab helper script travels with the web update and is held to the same checks
 const browser=read('ios/AIStudio/ClaudeBrowserController.swift');
@@ -86,9 +88,9 @@ assert.match(app,/StudioUpdater\.shared/,'the app must use the shared updater');
 assert.doesNotMatch(app,/StudioUpdater\(\)/,'no second updater instance');
 assert.match(browser,/StudioUpdater\.shared\.observerSource\(\)/,'the Claude tab must read the verified update');
 assert.match(browser,/claude-observer/,'the Claude tab must still fall back to the built-in script');
-assert.match(wf,/'observer_sha256':\s*hashlib\.sha256\(observer\)/,'CI must hash the observer script');
-assert.match(wf,/'observer_size':\s*len\(observer\)/,'CI must record the observer size');
-assert.match(wf,/ios\/AIStudio\/claude-observer\.js/,'CI must publish the observer from the app sources');
+assert.match(manifestScript,/'observer_sha256':\s*hashlib\.sha256\(observer\)/,'CI must hash the observer script');
+assert.match(manifestScript,/'observer_size':\s*len\(observer\)/,'CI must record the observer size');
+assert.match(manifestScript,/ios\/AIStudio\/claude-observer\.js/,'CI must publish the observer from the app sources');
 assert.match(wf,/files: \|[\s\S]*studio-observer\.js/,'the release must carry the observer script');
 const observerSrc=read('ios/AIStudio/claude-observer.js');
 assert.ok(observerSrc.length<Number(upd.match(/maxObserverBytes = ([\d_]+)/)[1].replace(/_/g,'')),'the observer must fit the download limit');

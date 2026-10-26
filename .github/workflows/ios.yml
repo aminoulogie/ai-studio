@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       native: ${{ steps.native.outputs.changed }}
+      version: ${{ steps.version.outputs.number }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,29 +94,12 @@ jobs:
           python3 ios/scripts/inline_libs.py ios/www/index.html
 
       - name: Write web update manifest
-        env:
-          RUN_NUMBER: ${{ github.run_number }}
+        # The version is the commit count, the same number Codemagic uses, so releases from both line up.
+        id: version
         run: |
-          python3 - <<'PY'
-          import hashlib, json, os
-          from pathlib import Path
-          page = Path('ios/www/index.html').read_bytes()
-          observer = Path('ios/AIStudio/claude-observer.js').read_bytes()
-          manifest = {
-              'version': int(os.environ['RUN_NUMBER']),
-              'sha256': hashlib.sha256(page).hexdigest(),
-              'size': len(page),
-              'min_native': 3,
-              'observer_sha256': hashlib.sha256(observer).hexdigest(),
-              'observer_size': len(observer),
-          }
-          text = json.dumps(manifest, indent=2)
-          Path('ios/www/studio-web.json').write_text(text)
-          Path('ios/studio-web.json').write_text(text)
-          Path('ios/studio-web.html').write_bytes(page)
-          Path('ios/studio-observer.js').write_bytes(observer)
-          print(text)
-          PY
+          VERSION=$(git rev-list --count HEAD)
+          echo "number=$VERSION" >> "$GITHUB_OUTPUT"
+          python3 ios/scripts/write_manifest.py "$VERSION"
 
       - name: Hand the bundle to the macOS job
         uses: actions/upload-artifact@v4
@@ -132,10 +116,10 @@ jobs:
       - name: Publish web update
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
+          tag_name: v1.0.${{ needs.web.outputs.version || steps.version.outputs.number }}
           target_commitish: ${{ github.event.pull_request.head.sha || github.sha }}
           prerelease: ${{ github.ref != 'refs/heads/main' }}
-          name: AI Studio v1.0.${{ github.run_number }}
+          name: AI Studio v1.0.${{ needs.web.outputs.version || steps.version.outputs.number }}
           body: |
             Web update: install it in the app from Settings → App updates (no new IPA).
             If an IPA is attached below, this build also changed the native app: install that once.
@@ -192,19 +176,19 @@ jobs:
           cd ios
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/AIStudio.app Payload/
-          zip -qry AIStudio-v1.0.${{ github.run_number }}.ipa Payload
-          ls -lh AIStudio-v1.0.${{ github.run_number }}.ipa
+          zip -qry AIStudio-v1.0.${{ needs.web.outputs.version || steps.version.outputs.number }}.ipa Payload
+          ls -lh AIStudio-v1.0.${{ needs.web.outputs.version || steps.version.outputs.number }}.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AIStudio-v1.0.${{ github.run_number }}
-          path: ios/AIStudio-v1.0.${{ github.run_number }}.ipa
+          name: AIStudio-v1.0.${{ needs.web.outputs.version || steps.version.outputs.number }}
+          path: ios/AIStudio-v1.0.${{ needs.web.outputs.version || steps.version.outputs.number }}.ipa
           retention-days: 30
 
       - name: Attach the IPA to the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
+          tag_name: v1.0.${{ needs.web.outputs.version || steps.version.outputs.number }}
           target_commitish: ${{ github.event.pull_request.head.sha || github.sha }}
           prerelease: ${{ github.ref != 'refs/heads/main' }}
-          files: ios/AIStudio-v1.0.${{ github.run_number }}.ipa
+          files: ios/AIStudio-v1.0.${{ needs.web.outputs.version || steps.version.outputs.number }}.ipa

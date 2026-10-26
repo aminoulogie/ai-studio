@@ -56,6 +56,8 @@ Each session pins the commit it started from. A commit re-checks every changed f
 
 Download the IPA from the release (or the **AIStudio-v1.0.N** artifact) and sign/install it with Sideloadly, AltStore, ESign or Feather (iOS 17+). The CI build is unsigned.
 
+**Codemagic (free Mac minutes, no GitHub Actions needed):** sign in at codemagic.io with GitHub, add this repository, and start the **AI Studio IPA** workflow on your branch (it reads `codemagic.yaml`). The free plan has about 500 Mac minutes a month; a build takes about 6–10. Download the IPA from the build's Artifacts. Both builders number versions by the repository's commit count, so their releases line up.
+
 **On a Mac** (Xcode 16+, XcodeGen, Python 3.12, Node 22):
 
 ```bash
