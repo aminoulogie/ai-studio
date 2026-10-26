@@ -215,6 +215,11 @@ const nativeMock=`(()=>{
     assert.ok(await page.evaluate(()=>Object.values(usageDB().profiles).some(r=>r.win?.tokens>0)),'tokens were counted');
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-usage.png')});
     await page.evaluate(()=>closeSheet());
+    // The top-right ring shows the manager's claude.ai session (52%) in Team mode, and opens the usage sheet.
+    assert.match(await page.getAttribute('#usageRing','aria-label'),/52% of the session used/);
+    assert.equal(await page.getAttribute('#ringVal','stroke-dasharray'),'52 100');
+    await page.screenshot({path:path.join(root,'test-artifacts',name+'-ring.png'),clip:{x:0,y:0,width:viewport.width,height:70}});
+    await page.click('#usageRing');await page.waitForSelector('.ctr');await page.evaluate(()=>closeSheet());
     await page.setInputFiles('#fileInput',{name:'plan.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 test')});
     assert.match(await page.locator('#atts').innerText(),/plan\.pdf/);
     await page.evaluate(()=>{ls('research','1');setTeamMode('single',true);});

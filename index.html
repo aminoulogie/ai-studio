@@ -31,7 +31,8 @@
     <header class="top">
       <button class="icon-btn only-mobile" onclick="drawer(true)" aria-label="Open sidebar" data-icon="panel"></button>
       <button class="top-title" id="topTitle" onclick="openRepoPicker()"><span id="topText">AI Studio</span><span data-icon="down"></span></button>
-      <button class="icon-btn" onclick="newSession()" aria-label="New session" data-icon="pen"></button>
+      <button class="glass" id="usageRing" onclick="openTeam()" aria-label="Usage"><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="trk" cx="18" cy="18" r="13"/><circle class="val" id="ringVal" cx="18" cy="18" r="13" pathLength="100" stroke-dasharray="0 100"/></svg></button>
+      <button class="glass" onclick="openMore()" aria-label="More" data-icon="dots"></button>
     </header>
     <div class="thread" id="thread"><div class="thread-inner" id="threadInner"></div></div>
     <div class="dock">
@@ -97,7 +98,7 @@ function ago(ts){const m=Math.round((Date.now()-ts)/60000);return m<1?'just now'
 
 /* Line icons, drawn once. */
 const ICONS={
-  menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',refresh:'<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',dots:'<circle cx="6" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18" cy="12" r="1.4" fill="currentColor"/>',refresh:'<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
   plug:'<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>',ask:'<circle cx="12" cy="12" r="9"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.3-2.7 4"/><path d="M12 17.3h.01"/>',
   mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',panel:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M8 9.5v5"/>',
   clip:'<path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7-7l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/>',
@@ -341,12 +342,12 @@ function usageOf(p){
 function noteUsage(profile,meta,outChars){
   if(!profile)return 0;
   const d=usageDB(),cost=U.record(usageRec(d,profile),{inChars:meta.inChars,outChars,fresh:meta.fresh});
-  usageSave(d);return cost;
+  usageSave(d);setTimeout(renderUsageRing);return cost;
 }
 function noteLimit(profile){
   const d=usageDB(),rec=usageRec(d,profile),tokens=U.recordLimit(rec);
   if(tokens){if(S.profiles.find(x=>x.id===profile)?.manager)rec.samples=[...rec.samples,tokens].slice(-12);else d.samples=[...d.samples,tokens].slice(-12);}
-  usageSave(d);
+  usageSave(d);setTimeout(renderUsageRing);
 }
 /** Recent history of the sub-agents together: what a message usually costs. */
 function workerHist(){const d=usageDB();return Object.entries(d.profiles).filter(([id])=>!S.profiles.find(p=>p.id===id)?.manager).flatMap(([,r])=>r.hist).sort((a,b)=>a.t-b.t).slice(-60);}
@@ -363,6 +364,7 @@ async function refreshOfficial(id,quiet){
     const off=U.parseOfficial(r?.text);
     const d=usageDB(),rec=usageRec(d,id);
     rec.official=off?{...off}:{none:true,signedOut:!!r?.signedOut,at:Date.now()};usageSave(d);
+    renderUsageRing();
     if(!quiet)toast(off?'Usage updated':r?.signedOut?'That account is signed out':'claude.ai shows no usage numbers for this account');
   }catch(e){if(!quiet)toast(e.message);}
   if($('sheet').dataset.kind==='team')openTeam();
@@ -870,6 +872,43 @@ function renderTeamBits(){
   $('footModel').innerHTML='<span class="live'+(T.ready.length||T.managerReady?' on':'')+'"></span>'+modelHTML();
   $('askBtn').classList.toggle('on',!!S.ask);$('askBtn').setAttribute('aria-pressed',S.ask?'true':'false');
   $('sbTeam').textContent=inApp()?(T.ready.length+(T.managerReady?1:0))+'/'+T.all.length+' ready':'';
+  renderUsageRing();
+}
+/**
+ * The ring in the top bar: session usage of whoever works next. The Solo conversation's container, else the
+ * manager in Team mode, else the free sub-agents on average. claude.ai's own number wins over an estimate.
+ */
+function ringTarget(){
+  const T=team(),s=sess();
+  const solo=s?.thread&&teamMode()==='single'?T.all.find(x=>x.id===s.thread.profile):null;
+  if(solo)return {list:[solo],label:solo.name};
+  if(teamMode()==='team'&&T.manager)return {list:[T.manager],label:T.manager.name+' (manager)'};
+  const pool=T.workers.filter(p=>p.enabled);
+  return {list:pool,label:pool.length+' sub-agents'};
+}
+function sessionPct(p){
+  if(p.status==='Rate-Limited'&&p.limitedUntil>Date.now())return 100;
+  const {rec,est}=usageOf(p);return rec.official&&!rec.official.none&&rec.official.session?rec.official.session.pct:est.pct;
+}
+function renderUsageRing(){
+  const ring=$('usageRing');if(!ring)return;
+  const {list,label}=ringTarget();
+  ring.hidden=!inApp()||!list.length;if(ring.hidden)return;
+  const pct=Math.round(list.reduce((n,p)=>n+sessionPct(p),0)/list.length);
+  $('ringVal').setAttribute('stroke-dasharray',Math.max(pct,2)+' 100');
+  ring.dataset.level=pct>=95?'full':pct>=80?'high':'';
+  ring.setAttribute('aria-label','Usage: '+pct+'% of the session used · '+label);
+  ring.title=pct+'% · '+label;
+}
+/** The "…" button: everything else, in one sheet. */
+function openMore(){
+  const mi=(ic,label,sub,click)=>'<button class="mi" onclick="'+click+'">'+icon(ic)+'<span class="grow">'+label+(sub?'<small>'+sub+'</small>':'')+'</span>'+icon('chev','ic chev')+'</button>';
+  showSheet('AI Studio','<div class="menu">'+
+    mi('pen','New session','','closeSheet();newSession()')+
+    mi('repo','Repositories',esc(ls('repo')||'None chosen'),'openRepoPicker()')+
+    mi('team','Claude team and usage','','openTeam()')+
+    (Object.keys(sess()?.staged||{}).length?mi('commit','Review changes','','openReview()'):'')+
+    '<hr>'+mi('gear','Settings','','openSettings()')+'</div>',null,'more');
 }
 
 /* ===================== ATTACHMENTS ===================== */

@@ -396,3 +396,22 @@ body.empty #topText,body.empty #topTitle [data-icon]{visibility:hidden}
 .uact .grow{flex:1}
 .uact .lbl{font-size:13px;color:var(--text-3)}
 .think-head .est{font-size:13px;color:var(--text-4);flex:none}
+
+/* Top-right: round glass buttons, the usage ring and "…", like the Claude app. */
+.glass{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none;color:var(--text);
+  background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.03)),var(--surface);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 0 0 1px var(--border-2),0 4px 14px rgba(0,0,0,.18)}
+.glass+.glass{margin-left:8px}
+.glass:active{transform:scale(.96)}
+.glass svg.ic{width:22px;height:22px}
+#usageRing svg{width:30px;height:30px;transform:rotate(-90deg)}
+#usageRing circle{fill:none;stroke-width:3.2;stroke-linecap:round}
+#usageRing .trk{stroke:rgba(128,128,128,.32)}
+#usageRing .val{stroke:#7fb6f2;transition:stroke-dasharray .5s ease}
+#usageRing[data-level="high"] .val{stroke:#e8a54b}
+#usageRing[data-level="full"] .val{stroke:#e5675d}
+:root:not([data-theme="dark"]) #usageRing .val{stroke:#3d7fe0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #usageRing .val{stroke:#7fb6f2}}
+.top{gap:4px}
+:root #usageRing[data-level="high"] .val{stroke:#e8a54b}
+:root #usageRing[data-level="full"] .val{stroke:#e5675d}
