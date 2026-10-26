@@ -7,6 +7,25 @@ workflows:
     name: AI Studio IPA
     instance_type: mac_mini_m2
     max_build_duration: 40
+    # Builds start by themselves when Claude (or you) pushes to these branches; a newer push cancels the older build.
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'claude/*'
+          include: true
+        - pattern: 'main'
+          include: true
+      cancel_previous_builds: true
+    # Pushes that touch only docs never start a build.
+    when:
+      changeset:
+        includes:
+          - 'index.html'
+          - 'assets/**'
+          - 'ios/**'
+          - 'tests/**'
+          - 'codemagic.yaml'
     environment:
       xcode: latest
       node: 22
@@ -18,6 +37,16 @@ workflows:
         script: |
           git fetch --unshallow --quiet 2>/dev/null || true
           echo "STUDIO_VERSION=$(git rev-list --count HEAD)" >> $CM_ENV
+          # Compile the app only when native code changed since the last good build (or there is none yet).
+          # Screen-only changes publish just the web update, which the app installs from Settings → App updates.
+          NATIVE=true
+          if [ -n "$CM_PREVIOUS_COMMIT" ] && git cat-file -e "$CM_PREVIOUS_COMMIT^{commit}" 2>/dev/null \
+             && ! git diff --name-only "$CM_PREVIOUS_COMMIT" HEAD | grep -qE '^(ios/AIStudio/|ios/project\.yml|codemagic\.yaml)'; then
+            NATIVE=false
+          fi
+          [ "$FORCE_IPA" = "true" ] && NATIVE=true
+          echo "BUILD_IPA=$NATIVE" >> $CM_ENV
+          echo "Build the IPA: $NATIVE"
       - name: Tests
         script: |
           node tests/agents.cjs
@@ -40,6 +69,7 @@ workflows:
           python3 ios/scripts/write_manifest.py "$STUDIO_VERSION"
       - name: Generate Xcode project
         script: |
+          [ "$BUILD_IPA" = "true" ] || { echo "Screens only: no IPA this time."; exit 0; }
           if curl -fsSL -o xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.42.0/xcodegen.zip \
              && unzip -q xcodegen.zip -d xcodegen-bin && [ -x xcodegen-bin/xcodegen/bin/xcodegen ]; then
             XG="$PWD/xcodegen-bin/xcodegen/bin/xcodegen"
@@ -49,12 +79,14 @@ workflows:
           cd ios && "$XG" generate
       - name: Build (unsigned)
         script: |
+          [ "$BUILD_IPA" = "true" ] || { echo "Screens only: no IPA this time."; exit 0; }
           cd ios
           xcodebuild -project AIStudio.xcodeproj -scheme AIStudio -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
             COMPILER_INDEX_STORE_ENABLE=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -quiet build
       - name: Package IPA
         script: |
+          [ "$BUILD_IPA" = "true" ] || { echo "Screens only: no IPA this time."; exit 0; }
           cd ios
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/AIStudio.app Payload/
@@ -69,8 +101,9 @@ workflows:
           gh release view "$TAG" -R aminoulogie/ai-studio >/dev/null 2>&1 || \
             gh release create "$TAG" -R aminoulogie/ai-studio --target "$CM_COMMIT" $PRE \
               --title "AI Studio $TAG" --notes "Built on Codemagic. Install the IPA once; later screen changes arrive through Settings → App updates."
-          gh release upload "$TAG" -R aminoulogie/ai-studio --clobber \
-            "AIStudio-$TAG.ipa" studio-web.html studio-web.json studio-observer.js
+          FILES="studio-web.html studio-web.json studio-observer.js"
+          [ -f "AIStudio-$TAG.ipa" ] && FILES="AIStudio-$TAG.ipa $FILES"
+          gh release upload "$TAG" -R aminoulogie/ai-studio --clobber $FILES
     artifacts:
       - ios/*.ipa
       - ios/studio-web.html
