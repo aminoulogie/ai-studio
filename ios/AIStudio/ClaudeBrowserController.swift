@@ -269,8 +269,7 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
             store.state.profiles.map { p in
                 UIAction(title: p.name, subtitle: subtitle(p), image: UIImage(systemName: p.manager ? "star.circle" : "person.crop.circle"),
                          state: p.id == currentID ? .on : .off) { [weak self] _ in self?.show(p.id) }
-            } + [UIAction(title: "Add account", image: UIImage(systemName: "plus"),
-                          attributes: store.state.profiles.count >= ClaudeProfileStore.maxProfiles ? .disabled : []) { [weak self] _ in self?.addAccount() }])
+            } + [UIAction(title: "Add account", image: UIImage(systemName: "plus")) { [weak self] _ in self?.addAccount() }])
         actionsButton.menu = UIMenu(children: [
             UIAction(title: "Account settings", image: UIImage(systemName: "person.crop.circle.badge.gearshape")) { [weak self] _ in self?.accountSettings() },
             UIAction(title: "Export visible chat", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in self?.exportContext() },
@@ -472,6 +471,8 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         var delivering = false
         var polling = false
         var note = ""
+        /// false: at a limit the job ends as "limited" and the Code tab compresses the conversation before moving on.
+        var moveOnLimit = true
     }
     private var jobs: [String: ClaudeJob] = [:]
     private var timers: [String: Timer] = [:]
@@ -520,9 +521,12 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         let role = Role(rawValue: message["role"] as? String ?? "") ?? .worker
         var job = ClaudeJob(id: id, text: text, images: images, role: role, manual: role == .manager,
                             fresh: (message["fresh"] as? Bool) ?? true)
+        job.moveOnLimit = (message["moveOnLimit"] as? Bool) ?? true
         if let raw = message["profile"] as? String, let pinned = UUID(uuidString: raw) {
-            guard let p = store.state.profiles.first(where: { $0.id == pinned }) else { reply(nil, "That container no longer exists."); return }
+            guard let p = store.state.profiles.first(where: { $0.id == pinned }) else { reply(nil, "limited: That container no longer exists."); return }
             guard !busy(pinned) else { reply(nil, p.name + " is busy with another task."); return }
+            // The Code tab reads the "limited:" prefix and hands the conversation over to another container.
+            guard store.ready(p) else { reply(nil, "limited: " + p.name + " is " + (p.enabled ? store.status(p).rawValue.lowercased() : "paused") + "."); return }
             job.profileID = pinned; job.manual = p.manager; job.role = p.manager ? .manager : .worker
         } else if role == .manager {
             if let m = store.managerProfile, store.ready(m), !busy(m.id) { job.profileID = m.id }
@@ -715,6 +719,9 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
     /// A limit or sign-out in the middle of a task: the task restarts on the next free sub-agent.
     private func moveJob(_ id: String, from pid: UUID, loggedOut: Bool) {
         guard var job = jobs[id], job.profileID == pid else { return }
+        if !job.moveOnLimit {
+            endJob(id, "limited", note: name(pid) + (loggedOut ? " is signed out." : " reached its limit.")); return
+        }
         timers.removeValue(forKey: id)?.invalidate()
         job.tried.insert(pid); job.profileID = nil; job.sent = false; job.manual = false; job.fresh = true
         job.role = .worker; job.awaitingLoad = false; job.delivering = false; job.queuedAt = Date()
@@ -746,6 +753,11 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         onFocus?(true)
     }
 
+    /// Pause or resume a container from the Code tab's team sheet. A paused container is skipped for tasks.
+    func setEnabled(_ id: UUID, _ enabled: Bool) throws {
+        guard store.state.profiles.contains(where: { $0.id == id }) else { throw store.problem("Account not found.") }
+        try store.update(id) { $0.enabled = enabled }; refreshMenus()
+    }
     /// Chosen in the Code tab's Team sheet or in Account settings here.
     func setManager(_ id: UUID?) throws {
         if let id = id, !store.state.profiles.contains(where: { $0.id == id }) { throw store.problem("Account not found.") }

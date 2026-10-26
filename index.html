@@ -45,12 +45,14 @@
             <button class="plain" onclick="openAdd()" aria-label="Add" data-icon="plus"></button>
             <div class="mode" id="modeSeg" role="group" aria-label="How tasks run"><button data-m="team" onclick="setTeamMode('team',true)">Team</button><button data-m="single" onclick="setTeamMode('single',true)" aria-label="One sub-agent" data-icon="tasks"></button></div>
             <span class="grow"></span>
-            <button class="model-label" id="modelLabel" onclick="openTeam()"></button>
+            <button class="plain" id="askBtn" onclick="toggleAsk()" aria-label="Question mode: Claude asks before it works" aria-pressed="false" data-icon="ask"></button>
+            <button class="plain" id="fixBtn" onclick="openFixer()" aria-label="Fix my prompt" data-icon="wand"></button>
+            <button class="plain" id="micBtn" onclick="toggleMic()" aria-label="Voice typing" aria-pressed="false" data-icon="mic"></button>
             <button class="send" id="send" onclick="sendOrStop()" aria-label="Send" data-icon="up"></button>
           </div>
           <input type="file" id="fileInput" multiple hidden accept="image/*,.txt,.md,.json,.js,.ts,.tsx,.jsx,.html,.css,.swift,.py,.yml,.yaml,.csv,.xml,.sh" onchange="addFiles(this.files);this.value=''">
         </div>
-        <div class="foot" id="foot"><span>Claude is AI and can make mistakes.</span><button onclick="openTeam()" id="footModel"></button></div>
+        <div class="foot" id="foot"><span>Claude is AI and can make mistakes.</span><button onclick="openTeam()" id="footModel" aria-label="Claude containers"></button></div>
       </div>
     </div>
   </main>
@@ -94,7 +96,8 @@ function ago(ts){const m=Math.round((Date.now()-ts)/60000);return m<1?'just now'
 
 /* Line icons, drawn once. */
 const ICONS={
-  menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',panel:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M8 9.5v5"/>',
+  menu:'<path d="M4 7h16M4 12h16M4 17h10"/>',ask:'<circle cx="12" cy="12" r="9"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.3-2.7 4"/><path d="M12 17.3h.01"/>',
+  mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',panel:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M8 9.5v5"/>',
   clip:'<path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7-7l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/>',
   tasks:'<circle cx="5.5" cy="7.5" r="1.6"/><circle cx="5.5" cy="16.5" r="1.6"/><path d="M10 7.5h10M10 16.5h10M10 12h6"/>',brain:'<path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V6a2 2 0 0 0-3-2zm6 0a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',plus:'<path d="M12 5v14M5 12h14"/>',
   up:'<path d="M12 19V5M6 11l6-6 6 6"/>',stop:'<rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none"/>',
@@ -320,21 +323,39 @@ function team(){
 }
 const jobs={};
 /** One message to one container. Resolves with Claude's finished reply; events stream into onEvent. */
-function claudeJob(text,{role='worker',fresh=true,profile,images=[],onEvent}={}){
+/** One message to one container. Resolves with Claude's finished reply; events stream into onEvent.
+ *  moveOnLimit:false hands a limit back here (error.limited) so the conversation can be compressed first. */
+function claudeJob(text,{role='worker',fresh=true,profile,images=[],onEvent,moveOnLimit=true}={}){
   const id=uid('j');
   return new Promise((resolve,reject)=>{
     jobs[id]={onEvent,resolve,reject};
-    native({op:'claudeSend',id,text,role,fresh,images,...(profile?{profile}:{})})
+    native({op:'claudeSend',id,text,role,fresh,images,moveOnLimit,...(profile?{profile}:{})})
       .then(r=>{if(jobs[id])onEvent?.({id,state:'sending',account:r?.account||'',profile:r?.profile||'',note:''});})
-      .catch(e=>{if(!jobs[id])return;delete jobs[id];reject(new Error(e?.message||String(e)));});
+      .catch(e=>{if(!jobs[id])return;delete jobs[id];const msg=e?.message||String(e);
+        reject(Object.assign(new Error(msg.replace(/^limited:\s*/,'')),{limited:/^limited:/.test(msg)}));});
   });
 }
 window.onClaudeStream=p=>{
   const j=p&&jobs[p.id];if(!j)return;
   try{j.onEvent?.(p);}catch{}
-  if(p.state==='done'){delete jobs[p.id];j.resolve(p);}
-  else if(p.state==='failed'||p.state==='stopped'){delete jobs[p.id];j.reject(Object.assign(new Error(p.note||'Claude did not answer.'),{stopped:p.state==='stopped'}));}
+  if(p.state==='done'){delete jobs[p.id];learn(p.text);j.resolve(p);}
+  else if(['failed','stopped','limited'].includes(p.state)){delete jobs[p.id];j.reject(Object.assign(new Error(p.note||'Claude did not answer.'),{stopped:p.state==='stopped',limited:p.state==='limited',account:p.account}));}
 };
+/** Shared memory learns from every reply: new lines are added for every container, with Undo. */
+function learn(text){
+  const lines=A.parseMemory(text);if(!lines.length)return;
+  const before=S.memory,{next,added}=A.mergeMemory(S.memory,lines,MEMORY_MAX,localSecrets());
+  if(!added.length)return;
+  saveMemory(next);
+  const s=sess();if(s){s.log.push({k:'memory',added,before,ts:Date.now()});save(s);renderThread();scrollDown();}
+}
+function undoMemory(i){
+  const s=sess(),e=s?.log[i];if(!e||e.undone)return;
+  // Remove only the lines this note added; anything learned later stays.
+  const drop=new Set(e.added.map(l=>'- '+l));
+  saveMemory(S.memory.split('\n').filter(l=>!drop.has(l.trim())).join('\n'));
+  e.undone=true;save(s);updateEntry(s,e);toast('Memory change undone');
+}
 function openClaude(profile){if(inApp())native({op:'openClaude',...(profile?{profile}:{})}).catch(()=>{});else toast('Your Claude containers live in the AI Studio iPhone app.');}
 async function setManager(id){
   try{await native({op:'claudeSetManager',profile:id||''});await refreshProfiles();toast(id?'Manager set':'No manager: sub-agents plan too');}catch(e){toast(e.message);}
@@ -350,8 +371,8 @@ function stopAll(){
   if(inApp())native({op:'claudeStop'}).catch(()=>{});
   for(const id of Object.keys(jobs)){const j=jobs[id];delete jobs[id];j.reject(Object.assign(new Error('Stopped.'),{stopped:true}));}
 }
-async function sendTask(){
-  const text=$('task').value.trim();if(!text&&!S.atts.length)return;
+async function sendTask(opts={}){
+  const text=opts.text??$('task').value.trim();if(!text&&!S.atts.length)return;
   let s=sess();
   if(!s||s.repo!==(ls('repo')||'')||s.branch!==(ls('branch')||''))s=newSession(false);
   if(!s.repo){openRepoPicker();toast('Choose a repository first.');return;}
@@ -359,7 +380,7 @@ async function sendTask(){
   const atts=S.atts;S.atts=[];renderAtts();
   const fileText=atts.filter(a=>!a.image).map(a=>'\n\n--- Attached file: '+a.name+' ---\n'+a.text).join('');
   const images=atts.filter(a=>a.image).slice(0,4).map(a=>({name:a.name,mime:a.mime,data:a.data}));
-  $('task').value='';ls('draft','');autosize($('task'));
+  if(opts.text==null){$('task').value='';ls('draft','');autosize($('task'));renderSend();}
   if(!s.title)s.title=short(text||atts[0]?.name||'New session',60);
   s.log.push({k:'user',text,files:atts.map(a=>a.name),ts:Date.now()});
   save(s);renderAll();scrollDown(true);
@@ -373,7 +394,8 @@ async function sendTask(){
   try{
     await ensureBase(s);
     const useTeam=teamMode()==='team'&&T.managerReady&&T.ready.length>0&&!A.isQuickQuestion(text);
-    if(useTeam)await runTeam(s,goal,images);
+    if(S.ask&&!opts.answered&&!A.isQuickQuestion(text))await runQuestions(s,goal,images);
+    else if(useTeam)await runTeam(s,goal,images);
     else await runSingle(s,goal,images,T.ready.length?'worker':'manager');
   }catch(e){
     if(!e.stopped)s.log.push({k:'note',tone:'err',text:e.message||String(e)});
@@ -410,21 +432,63 @@ async function loadFiles(s,paths,{limit=40000,budget=100000}={}){
   }
   return out;
 }
+/** Earlier in this session, in a few thousand characters, for a message that starts a new chat. No AI needed. */
+function recap(s,upTo){
+  const prior=s.log.slice(0,upTo);
+  const lastHand=[...prior].reverse().find(e=>e.k==='handover');
+  return prior.some(e=>e.k!=='user')?A.transcript(lastHand?prior.slice(prior.indexOf(lastHand)):prior,6000):'';
+}
+/**
+ * Solo: one conversation in one container, so Claude remembers the session. When that container hits its
+ * limit, a free sub-agent compresses the conversation and the next container continues from the handover.
+ */
 async function runSingle(s,goal,images,role){
   const paths=await ensureBase(s);
   const entry={k:'reply',state:'sending',text:'',account:'',ts:Date.now(),note:role==='manager'?'Opening your manager account…':'Finding a free sub-agent…',applied:[],failed:[]};
   s.log.push(entry);renderAll();scrollDown(true);
-  setStatus('Claude is working…',true);
-  const files=await loadFiles(s,A.contextPaths(paths,goal,{staged:Object.keys(s.staged),max:8}));
-  const prompt=A.workerPrompt({task:goal,repo:s.repo,branch:s.branch,files,memory:S.memory,single:true});
+  const at=s.log.indexOf(entry),staged=Object.keys(s.staged);
+  const pick=A.contextPaths(paths,goal,{staged,max:8});
+  const fresh=async(handover)=>{
+    const files=await loadFiles(s,pick);
+    return claudeJob(A.workerPrompt({task:goal,repo:s.repo,branch:s.branch,files,memory:S.memory,single:true,handover,recap:handover?'':recap(s,at-1)}),
+      {role,images,onEvent:follow(s,entry)});
+  };
   try{
-    const r=await claudeJob(prompt,{role,images,onEvent:follow(s,entry)});
+    let r;
+    if(s.thread&&role==='worker'){
+      // Follow-up in the same chat: only the message and the files as they are now.
+      const files=await loadFiles(s,pick.filter(p=>staged.includes(p)||goal.includes(p.split('/').pop())),{budget:40000});
+      try{
+        r=await claudeJob(A.workerPrompt({task:goal,files,followUp:true}),{profile:s.thread.profile,fresh:false,moveOnLimit:false,images,onEvent:follow(s,entry)});
+      }catch(e){
+        if(e.limited)r=await fresh(await compressHandover(s,entry,at,e.account||s.thread.account));
+        else if(/busy/i.test(e.message)){s.thread=null;r=await fresh('');}
+        else throw e;
+      }
+    }else r=await fresh('');
+    if(role==='worker'&&r.profile)s.thread={profile:r.profile,account:r.account};
     entry.text=r.text||'';entry.account=r.account||entry.account;
     await applyReply(s,entry,entry.text,goal);
     entry.state=entry.failed.length?(entry.applied.length?'partial':'failed'):'done';
     entry.note='';
   }catch(e){entry.state='failed';entry.note=e.stopped?'Stopped.':e.message;}
   entry.tEnd=Date.now();updateEntry(s,entry);save(s);
+}
+/** Compresses the session with a free sub-agent and records the handover in the conversation. */
+async function compressHandover(s,entry,at,from){
+  entry.state='sending';entry.note=(from||'The container')+' reached its limit. Compressing the conversation for the next one…';updateEntry(s,entry);
+  const prior=s.log.slice(0,at-1); // everything before this message; the message itself is sent with the handover
+  let summary='';
+  try{
+    const r=await claudeJob(A.compressPrompt({transcript:A.transcript(prior),repo:s.repo,branch:s.branch,staged:Object.keys(s.staged)}),{role:'worker'});
+    summary=A.stripEdits(r.text||'').trim();
+  }catch(e){if(e.stopped)throw e;}
+  // If compression itself failed, the recent conversation goes over as text: still far smaller than the whole chat.
+  if(!summary)summary=A.transcript(prior,6000);
+  const hand={k:'handover',from:from||'',summary,ts:Date.now()};
+  s.log.splice(s.log.indexOf(entry),0,hand);s.thread=null;save(s);renderThread();
+  entry.note='Continuing on the next container…';updateEntry(s,entry);
+  return A.handoverText(summary,prior);
 }
 async function runTeam(s,goal,images){
   const paths=await ensureBase(s),T=team();
@@ -436,7 +500,7 @@ async function runTeam(s,goal,images){
   const keyFiles=await loadFiles(s,A.contextPaths(paths,goal,{staged:Object.keys(s.staged),max:3}),{limit:4000,budget:12000});
   let plan;
   try{
-    const r=await claudeJob(A.managerPrompt({task:goal,repo:s.repo,branch:s.branch,paths,files:keyFiles,maxTasks,memory:S.memory}),
+    const r=await claudeJob(A.managerPrompt({task:goal,repo:s.repo,branch:s.branch,paths,files:keyFiles,maxTasks,memory:S.memory,recap:recap(s,s.log.indexOf(run)-1).slice(-3000)}),
       {role:'manager',images,onEvent:follow(s,run.manager)});
     run.manager.text=r.text||'';run.manager.account=r.account||run.manager.account;run.manager.state='done';run.manager.note='';
     plan=A.parsePlan(run.manager.text,maxTasks);
@@ -488,6 +552,99 @@ async function applyReply(s,entry,text,goal,onChange,depth=0){
     await applyReply(s,entry,r.text||'',goal,onChange,depth+1);
   }catch(e){if(e.stopped)throw e;}
   entry.note='';
+}
+
+/* ===================== QUESTION MODE ===================== */
+// Claude asks a few multiple-choice questions first; you tap answers and the task runs with them.
+function toggleAsk(){S.ask=!S.ask;ls('ask_mode',S.ask?'1':'0');renderTeamBits();toast(S.ask?'Question mode on':'Question mode off');}
+async function runQuestions(s,goal,images){
+  const paths=await ensureBase(s);
+  const e={k:'questions',state:'sending',goal,images,items:[],ts:Date.now(),note:'Thinking of questions…'};
+  s.log.push(e);renderAll();scrollDown(true);
+  try{
+    const r=await claudeJob(A.questionsPrompt({task:goal,repo:s.repo,paths}),{role:team().ready.length?'worker':'manager',onEvent:p=>{if(p.account)e.account=p.account;updateEntry(s,e);}});
+    e.items=A.parseQuestions(r.text).map(q=>({...q,pick:[],own:''}));
+    e.state=e.items.length?'asking':'failed';e.note=e.items.length?'':'Claude had no questions. Send again to start.';
+  }catch(err){e.state='failed';e.note=err.stopped?'Stopped.':err.message;}
+  delete e.images;e.tEnd=Date.now();updateEntry(s,e);save(s);
+}
+function questionsHTML(e){
+  if(e.state!=='asking'&&e.state!=='answered'){
+    const live=LIVE.includes(e.state);
+    return '<div class="think"><div class="think-head">'+(live?'<span class="dots"><i></i><i></i><i></i></span>':icon('ask'))+'<span class="t">'+esc(e.note||'Questions')+'</span><span class="time">'+elapsed(e)+'</span></div></div>';
+  }
+  const done=e.state==='answered';
+  return '<div class="qcard'+(done?' done':'')+'">'+e.items.map((q,qi)=>'<div class="q"><b>'+esc(q.q)+'</b><div class="opts">'+
+    q.options.map((o,oi)=>'<button class="opt'+(q.pick.includes(oi)?' on':'')+'" '+(done?'disabled':'')+' onclick="pickAnswer(this,'+qi+','+oi+')">'+esc(o)+'</button>').join('')+
+    (done?(q.own?'<span class="opt on">'+esc(q.own)+'</span>':''):'<input class="own" placeholder="Other…" value="'+esc(q.own)+'" oninput="ownAnswer(this,'+qi+')">')+'</div></div>').join('')+
+    (done?'':'<div class="qact"><button class="btn small" onclick="answerQuestions(this,true)">Skip</button><button class="btn small accent" onclick="answerQuestions(this)">Continue</button></div>')+'</div>';
+}
+function qEntry(el){const i=+el.closest('[id^=e]').id.slice(1);return sess()?.log[i];}
+function pickAnswer(el,qi,oi){const e=qEntry(el),q=e?.items[qi];if(!q)return;q.pick=q.pick.includes(oi)?q.pick.filter(x=>x!==oi):[...q.pick,oi];el.classList.toggle('on',q.pick.includes(oi));save();}
+function ownAnswer(el,qi){const e=qEntry(el);if(e)e.items[qi].own=el.value;}
+function answerQuestions(el,skip){
+  if(S.busy){toast('Wait for the current task, or stop it.');return;}
+  const e=qEntry(el);if(!e)return;
+  const lines=e.items.map(q=>{const a=[...q.pick.map(i=>q.options[i]),q.own.trim()].filter(Boolean);return a.length?'- '+q.q+' → '+a.join(', '):'';}).filter(Boolean);
+  e.state='answered';save();updateEntry(sess(),e);
+  sendTask({text:skip||!lines.length?e.goal:e.goal+'\n\nMy answers:\n'+lines.join('\n'),answered:true});
+}
+
+/* ===================== PROMPT FIXER ===================== */
+// A free Claude sub-agent rewrites your draft. It never answers it. Undo puts your words back.
+function openFixer(){
+  const draft=$('task').value.trim();
+  if(!draft&&!S.fixUndo){toast('Type a message first, then fix it.');return;}
+  const mi=(ic,label,sub,click)=>'<button class="mi" onclick="'+click+'">'+icon(ic)+'<span class="grow">'+label+'<small>'+sub+'</small></span></button>';
+  showSheet('Fix my prompt','<div class="menu">'+
+    (S.fixUndo?mi('out','Undo','Bring back what you wrote','undoFix()')+'<hr>':'')+
+    (draft?mi('wand','Clearer','Fix the wording, make the goal obvious','fixDraft(\'clear\')')+
+      mi('code','For coding','What, where, and how to check it','fixDraft(\'code\')')+
+      mi('book','Detailed','Add context, steps and the result you want','fixDraft(\'detailed\')')+
+      mi('pen','Shorter','Same meaning, fewer words','fixDraft(\'short\')'):'')+
+    '</div><p class="hint">A free sub-agent rewrites it, so it uses a little of that account’s limit.</p>',null,'fixer');
+}
+async function fixDraft(style){
+  closeSheet();
+  if(!inApp()){toast('The prompt fixer runs on your Claude containers in the iPhone app.');return;}
+  const draft=$('task').value.trim();if(!draft)return;
+  const btn=$('fixBtn');btn.classList.add('busy');btn.disabled=true;
+  try{
+    const r=await claudeJob(A.fixPrompt(draft,style),{role:team().ready.length?'worker':'manager'});
+    const fixed=A.parseFixed(r.text);
+    if(!fixed)throw new Error('Claude returned nothing.');
+    if($('task').value.trim()!==draft){toast('You changed the draft meanwhile, so it was kept.');return;}
+    S.fixUndo=draft;$('task').value=fixed;ls('draft',fixed);autosize($('task'));renderSend();toast('Prompt fixed. Tap the wand to undo.');
+  }catch(e){toast('Could not fix the prompt: '+e.message);}
+  finally{btn.classList.remove('busy');btn.disabled=false;}
+}
+function undoFix(){if(S.fixUndo==null)return;$('task').value=S.fixUndo;ls('draft',S.fixUndo);S.fixUndo=null;autosize($('task'));renderSend();closeSheet();}
+
+/* ===================== VOICE TYPING ===================== */
+// In the app iOS listens natively (web views cannot); in a browser the Web Speech API is used when present.
+let rec=null,dictBase='';
+function setMic(on){S.dictating=on;$('micBtn').classList.toggle('rec',on);$('micBtn').setAttribute('aria-pressed',on?'true':'false');}
+window.onDictation=d=>{
+  if(!S.dictating&&!d.final)return;
+  if(d.text){$('task').value=dictBase+d.text;autosize($('task'));ls('draft',$('task').value);renderSend();}
+  if(d.final)setMic(false);
+};
+async function toggleMic(){
+  const box=$('task');
+  if(S.dictating){if(inApp())native({op:'dictateStop'}).catch(()=>{});else rec?.stop();setMic(false);return;}
+  dictBase=box.value?box.value.replace(/\s*$/,' '):'';
+  if(inApp()){
+    try{setMic(true);await native({op:'dictateStart',locale:navigator.language||'en-US'});toast('Listening…');}
+    catch(e){setMic(false);toast(e.message||String(e));}
+    return;
+  }
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Voice typing is not available in this browser. Use the keyboard mic.');box.focus();return;}
+  rec=new SR();rec.lang=navigator.language||'en-US';rec.interimResults=true;rec.continuous=true;
+  rec.onresult=e=>{let t='';for(const r of e.results)t+=r[0].transcript;window.onDictation({text:t,final:false});};
+  rec.onerror=e=>{if(e.error!=='aborted')toast('Mic: '+e.error);};
+  rec.onend=()=>{rec=null;setMic(false);};
+  rec.start();setMic(true);
 }
 
 /* ===================== RENDER ===================== */
@@ -549,6 +706,9 @@ function editsHTML(e){
 function entryHTML(e){
   if(e.k==='user')return '<div class="msg-user">'+esc(e.text)+(e.files?.length?'<span class="att">'+esc(e.files.join(', '))+'</span>':'')+'</div>';
   if(e.k==='note')return '<div class="note'+(e.tone?' '+e.tone:'')+'">'+icon(e.tone==='err'?'alert':'info')+'<span>'+esc(e.text)+(e.action==='claude'?' <a href="#" onclick="openClaude();return false">Open Claude tab</a>':'')+'</span></div>';
+  if(e.k==='memory')return '<div class="note">'+icon('brain')+'<span>'+(e.undone?'<s>':'')+'Memory updated: '+esc(e.added.join(' · '))+(e.undone?'</s>':' <a href="#" onclick="undoMemory(+this.closest(\'[id^=e]\').id.slice(1));return false">Undo</a>')+'</span></div>';
+  if(e.k==='handover')return '<details class="handover"><summary>'+icon('team')+'<span>'+esc((e.from?e.from+' reached its limit. ':'')+'Conversation compressed and handed to the next container')+'</span></summary><div class="reply">'+md(e.summary)+'</div></details>';
+  if(e.k==='questions')return questionsHTML(e);
   if(e.k==='commit')return '<div class="note ok">'+icon('commit')+'<span>Committed <a href="https://github.com/'+esc(e.repo)+'/commit/'+esc(e.sha)+'" target="_blank" rel="noopener">'+esc(e.sha.slice(0,7))+'</a> to '+esc(e.branch)+' · '+e.files.length+' file'+(e.files.length>1?'s':'')+'</span></div>';
   if(e.k==='reply'){
     const live=LIVE.includes(e.state),body=A.stripEdits(e.text);
@@ -641,7 +801,8 @@ function modelHTML(){
 function renderTeamBits(){
   const T=team(),mode=teamMode();
   $('modeSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
-  $('modelLabel').innerHTML=modelHTML();$('footModel').innerHTML=modelHTML();
+  $('footModel').innerHTML='<span class="live'+(T.ready.length||T.managerReady?' on':'')+'"></span>'+modelHTML();
+  $('askBtn').classList.toggle('on',!!S.ask);$('askBtn').setAttribute('aria-pressed',S.ask?'true':'false');
   $('sbTeam').textContent=inApp()?(T.ready.length+(T.managerReady?1:0))+'/'+T.all.length+' ready':'';
 }
 
@@ -729,19 +890,24 @@ function openTeam(){
   if(!inApp()){showSheet('Claude team','<div class="group"><div class="list">'+row('Containers run in the iPhone app','Each Claude account is its own container with its own sign-in. Open AI Studio on your iPhone to add accounts and run the team.')+'</div></div>',null,'team');return;}
   const T=team(),mode=teamMode();
   const status=p=>p.busy?'<span class="pill warn">Working</span>':!p.enabled?'<span class="pill">Paused</span>':p.status==='Active'?'<span class="pill ok">Ready</span>':p.status==='Rate-Limited'?'<span class="pill err">Limited</span>':'<span class="pill">Signed out</span>';
-  const people=T.all.length?T.all.map(p=>row(esc(p.name)+(p.manager?' <span class="pill star">Manager</span>':''),p.manager?'Plans the work. You press Send in this account.':'Sub-agent · sends by itself',status(p),'openClaude(\''+p.id+'\')')).join(''):row('No accounts yet','Add your Claude accounts in the Claude tab and sign in to each.');
+  const people=T.all.length?T.all.map(p=>'<div class="row"><span class="grow"><b>'+esc(p.name)+(p.manager?' <span class="pill star">Manager</span>':'')+' '+status(p)+'</b><small>'+(p.manager?'Plans the work. You press Send in this account.':'Sub-agent · sends by itself')+'</small></span>'+
+      '<button class="icon-btn" style="width:32px;height:32px" onclick="openClaude(\''+p.id+'\')" aria-label="Open '+esc(p.name)+'">'+icon('out')+'</button>'+
+      toggle('en_'+p.id,p.enabled,"setEnabled('"+p.id+"',this.checked)")+'</div>').join(''):row('No accounts yet','Add your Claude accounts in the Claude tab and sign in to each.');
   showSheet('Claude team',
     '<div class="group"><h3>How tasks run</h3><div class="list">'+
       row('Mode',mode==='team'?'The manager splits the work; sub-agents edit in parallel.':'One sub-agent does the whole task.',seg([['team','Team'],['single','Single']],mode,'setTeamMode'))+
       row('Sub-agents at once','More is faster but uses more accounts at the same time.',seg([[1,'1'],[2,'2'],[3,'3'],[4,'4']],parallel(),'setParallel'))+
-    '</div><p class="hint">Short questions skip the manager. If a sub-agent hits its limit, its task restarts on the next free one by itself.</p></div>'+
+    '</div><p class="hint">The switch next to a container turns it on or off for tasks. Short questions skip the manager. If a sub-agent hits its limit, its task restarts on the next free one by itself.</p></div>'+
     '<div class="group"><h3>Containers · '+(T.ready.length+(T.managerReady?1:0))+' of '+T.all.length+' ready</h3><div class="list">'+people+'</div></div>'+
     '<div class="group"><h3>Manager</h3><div class="list">'+
       (T.workers.concat(T.manager?[T.manager]:[]).length?'<div class="row"><span class="grow"><b>Manager account</b><small>Use your Opus account. It only plans, so it uses little.</small></span><select class="field" style="width:auto;max-width:48%" onchange="setManager(this.value)"><option value="">None</option>'+T.all.map(p=>'<option value="'+esc(p.id)+'" '+(p.manager?'selected':'')+'>'+esc(p.name)+'</option>').join('')+'</select></div>':'')+
       row('Add or sign in to accounts','Opens the Claude tab',icon('out'),'openClaude()')+
     '</div></div>',null,'team');
 }
-function setTeamMode(v,quiet){ls('team_mode',v);renderTeamBits();if(quiet)toast(v==='team'?'Team: the manager plans, sub-agents build':'Solo: one sub-agent does the task');else openTeam();}
+async function setEnabled(id,on){
+  try{await native({op:'claudeSetEnabled',profile:id,enabled:!!on});await refreshProfiles();toast(on?'Container on':'Container paused: tasks skip it');}catch(e){toast(e.message);openTeam();}
+}
+function setTeamMode(v,quiet){ls('team_mode',v);renderTeamBits();if(quiet)toast(v==='team'?'Team mode':'Solo mode');else openTeam();}
 function setParallel(v){ls('team_parallel',String(v));openTeam();}
 
 function openReview(commitFocus){
@@ -859,7 +1025,7 @@ async function appUpdateReset(){
 async function init(){
   applyTheme();
   $('sbSpark').innerHTML=spark();drawIcons();
-  S.token=ls('gh_token')||'';S.user=lsj('gh_user');S.memory=ls('studio_memory')||'';
+  S.token=ls('gh_token')||'';S.user=lsj('gh_user');S.memory=ls('studio_memory')||'';S.ask=ls('ask_mode')==='1';
   await loadSessions();
   const last=ls('cur_session');
   if(last&&S.sessions[last])S.cur=last;else newSession(false);

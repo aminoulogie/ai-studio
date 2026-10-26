@@ -15,13 +15,19 @@ Two tabs:
 
 Short questions ("What does this app do?") skip the manager and go straight to one sub-agent. With no manager set, or Mode → Single, one sub-agent does the whole task.
 
+**Solo conversations remember.** In Solo mode your follow-ups stay in the same container's chat, so Claude keeps the context. When that container hits its limit, a free Sonnet sub-agent **compresses the conversation** (goal, decisions, files changed, next step, at most 250 words) and the next container gets that summary plus your last messages word for word, then continues. The handover shows in the conversation so you can read what was passed on.
+
+**Shared memory.** One memory goes into every message, from the Code tab and from every container, so you never repeat yourself. When Claude learns something lasting (a preference, a decision), it adds a line by itself; a "Memory updated" note appears with **Undo**. Edit it any time in Settings. It stays on the phone and is never committed.
+
+**Message box tools.** **?** question mode (Claude asks a few multiple-choice questions first; tap the answers and Continue), **wand** prompt fixer (a free sub-agent rewrites your draft: Clearer, For coding, Detailed or Shorter, with Undo), **mic** voice typing (native iOS speech recognition, since web views cannot listen). The dot in the footer shows whether containers are ready; tap it to see them, switch each one on or off, and pick the manager.
+
 **Limits.** When a container shows Claude's usage-limit notice, it is marked limited (for the time Claude shows, otherwise five hours) and its task restarts on the next free sub-agent automatically. When every sub-agent is limited the task stops and says so. **Limit → Next** in the Claude tab does the same by hand. **Mark signed in / Reset limit** clears it early.
 
 Containers keep running while you are in the Code tab: idle containers beyond five are unloaded to save memory and reload when needed. If you leave the app, iOS gives it a short grace period; tasks catch up when you come back, because Claude keeps writing on its servers.
 
 ## Set up
 
-1. **Claude tab → Accounts → Add account** for each Claude account (up to 12) and sign in on claude.ai.
+1. **Claude tab → Accounts → Add account** for each Claude account (as many as you like) and sign in on claude.ai.
 2. Make your Opus account the manager: **Actions → Account settings → Make it the manager**, or **Code → Claude team → Manager account**.
 3. **Code → Settings → GitHub**: paste a fine-grained token with **Contents: read and write** for your repository (or a classic token with `repo`). It is stored in the iOS Keychain.
 4. Pick a repository and branch from the chip under the message box, and describe what you want.

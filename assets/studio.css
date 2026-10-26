@@ -338,7 +338,33 @@ button.row:hover{background:var(--hover)}
 .mi .chk{color:var(--link)}
 .mi .chk svg.ic{color:var(--link);width:22px;height:22px;stroke-width:2}
 .mi .chev{color:var(--text-3)}
-body:not(.empty) #modeSeg,body:not(.empty) #modelLabel{display:none}
-body.empty #footModel{visibility:hidden}
 .status{display:none!important}
 body.empty #topText,body.empty #topTitle [data-icon]{visibility:hidden}
+
+/* Message box tools, a live containers dot, and the newer conversation pieces. */
+.plain.on{color:var(--accent);background:var(--accent-soft)}
+.plain.rec{color:#fff;background:#d64545;animation:recpulse 1.4s infinite}
+@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(214,69,69,.45)}50%{box-shadow:0 0 0 6px rgba(214,69,69,0)}}
+.plain.busy svg.ic{animation:rot 1s linear infinite;color:var(--accent)}
+.composer-row{gap:2px}
+.composer-row .mode{margin-left:4px}
+.foot button{display:inline-flex;align-items:center;gap:6px}
+.foot .live{width:7px;height:7px;border-radius:50%;background:var(--text-4)}
+.foot .live.on{background:#4caf6e;box-shadow:0 0 0 3px rgba(76,175,110,.18)}
+.foot small{color:var(--text-4);font-size:13px}
+.handover{border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.handover summary{display:flex;gap:8px;align-items:center;color:var(--text-3);font-size:14px;cursor:pointer;list-style:none}
+.handover summary::-webkit-details-marker{display:none}
+.handover .reply{margin-top:10px;font-size:14px}
+.qcard{display:flex;flex-direction:column;gap:16px;padding:4px 0}
+.qcard .q b{display:block;font-weight:500;margin-bottom:8px}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opt{border-radius:999px;padding:8px 15px;background:var(--surface-2);color:var(--text);font-size:14.5px;border:1px solid transparent}
+.opt.on{background:var(--accent-soft);border-color:var(--accent);color:var(--text)}
+.opt:disabled{opacity:1}
+.qcard.done .opt:not(.on){display:none}
+.own{border-radius:999px;padding:8px 14px;border:1px dashed var(--border-2);background:transparent;font-size:14.5px;min-width:110px;flex:1;max-width:220px;outline:0}
+.qact{display:flex;justify-content:flex-end;gap:8px}
+.send:hover:not(.ready):not(.stop){background:var(--send)}
+.send.ready:hover{background:var(--accent-2)}
+.toast{padding:7px 14px;border-radius:999px;font-size:13px;max-width:min(80vw,360px);line-height:1.35}

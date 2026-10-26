@@ -57,6 +57,29 @@ const ex=A.sourceExcerpt(big,'button',16000);
 assert.ok(ex.partial&&ex.text.length<=16000&&/\d+: the button lives here/.test(ex.text),'large files are excerpted around the task');
 assert.deepEqual(A.contextPaths(paths,'fix src/app.js please',{max:2}),['src/app.js','index.html']);
 
+// Shared memory: new lines from REMEMBER blocks, no duplicates, no secrets, size limit; hidden from the reply.
+const learned=A.parseMemory('Done.\n<<<REMEMBER\n- Prefers French\n- Uses tabs\nREMEMBER>>>');
+assert.deepEqual(learned,['Prefers French','Uses tabs']);
+let mem=A.mergeMemory('- Uses tabs',[...learned,'token ghp_abcdefghijklmnop'],4000);
+assert.deepEqual(mem.added,['Prefers French']);assert.equal(mem.next,'- Uses tabs\n- Prefers French');
+assert.equal(A.mergeMemory('x'.repeat(3995),['too long'],4000).added.length,0,'memory never passes its limit');
+assert.equal(A.stripEdits('Hi\n<<<REMEMBER\n- a\nREMEMBER>>>'),'Hi');
+assert.match(A.workerPrompt({task:'t',repo:'o/r',branch:'b',files:[]}),/<<<REMEMBER/,'every message asks for new memory');
+// Compression at a limit: the transcript, a compress request, and a handover with the last messages word for word.
+const log=[{k:'user',text:'Build a todo app'},{k:'reply',text:'Done.\n```\n@@@ FILE: a.js\n@@@ CONTENT\nx\n@@@ END\n```',applied:['a.js']},{k:'user',text:'Make it blue'},{k:'reply',text:'Blue now.'}];
+const tr=A.transcript(log);
+assert.match(tr,/ME: Build a todo app/);assert.match(tr,/\[edited: a\.js\]/);assert.doesNotMatch(tr,/@@@/,'no edit blocks in the transcript');
+assert.match(A.compressPrompt({transcript:tr,repo:'o/r',branch:'main'}),/## Goal[\s\S]*## Open problems/);
+const hand=A.handoverText('## Goal\nTodo app',log,2);
+assert.match(hand,/## Goal\nTodo app[\s\S]*Last messages, word for word:\nME: Make it blue\n\nCLAUDE: Blue now\./);
+assert.match(A.workerPrompt({task:'Next',repo:'o/r',branch:'b',single:true,handover:hand}),/reached its usage limit[\s\S]*Todo app/);
+assert.match(A.workerPrompt({task:'Next',followUp:true,files:[]}),/^\[AI Studio · follow-up\]\nNext/,'follow-ups in the same chat stay short');
+assert.ok(A.transcript([{k:'user',text:'x'.repeat(100000)}],1000).length<1100,'long sessions are cut in the middle');
+// Question mode and prompt fixer.
+assert.deepEqual(A.parseQuestions('```json\n{"questions":[{"q":"Color?","options":["Red","Blue",]}]}\n```'),[{q:'Color?',options:['Red','Blue']}]);
+assert.deepEqual(A.parseQuestions('no'),[]);
+assert.equal(A.parseFixed('Here:\n```text\nBetter prompt\n```'),'Better prompt');
+assert.match(A.fixPrompt('make it nice','short'),/Shorter/);
 // Diff, pool, quick questions.
 assert.deepEqual(A.diffStats('a\nb\nc','a\nB\nc\nd'),{add:2,del:1});
 assert.deepEqual(A.lineDiff('a\nb','a\nc').map(x=>x.t),[' ','-','+']);

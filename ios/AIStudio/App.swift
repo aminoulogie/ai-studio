@@ -34,6 +34,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
     private let updater = StudioUpdater.shared
     private var probeToken = 0
     private var probingVersion: Int?
+    private let dictation = StudioDictation()
     /// The same memory file the Claude accounts use. Set by StudioTabController.
     var memoryStore: ClaudeProfileStore?
     func selectStudioTab(_ mode: String) {
@@ -52,6 +53,12 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
         webView.evaluateJavaScript("window.onClaudeStream&&window.onClaudeStream(" + json + ")", completionHandler: nil)
+    }
+    /// Voice typing: the words so far, and whether listening has ended.
+    func emitDictation(_ text: String, _ final: Bool) {
+        guard let data = try? JSONSerialization.data(withJSONObject: ["text": text, "final": final]),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("window.onDictation&&window.onDictation(" + json + ")", completionHandler: nil)
     }
     /// Container list changed (status, limit, manager, busy). The page asks for the new list.
     func emitProfilesChanged() {
@@ -237,6 +244,20 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, W
             do { try host.setClaudeManager(raw.isEmpty ? nil : UUID(uuidString: raw)); replyHandler(true, nil) }
             catch { replyHandler(nil, error.localizedDescription) }
             return
+        case "claudeSetEnabled":
+            guard let raw = msg["profile"] as? String, let id = UUID(uuidString: raw), let enabled = msg["enabled"] as? Bool, let host = tabs else {
+                replyHandler(nil, "Unknown container"); return
+            }
+            do { try host.setClaudeEnabled(id, enabled); replyHandler(true, nil) } catch { replyHandler(nil, error.localizedDescription) }
+            return
+        case "dictateStart":
+            dictation.onText = { [weak self] text, final in self?.emitDictation(text, final) }
+            dictation.start(locale: msg["locale"] as? String) { error in
+                if let error = error { replyHandler(nil, error) } else { replyHandler(true, nil) }
+            }
+            return
+        case "dictateStop":
+            dictation.stop(); replyHandler(true, nil); return
         case "openClaude":
             tabs?.openClaude(profile: msg["profile"] as? String); replyHandler(true, nil); return
         case "studioUpdateStatus":

@@ -25,7 +25,11 @@ const nativeMock=`(()=>{
     if(o.role==='manager')return plan;
     if(/YOUR TASK:\\nAdd class big/.test(o.text))return 'I made the button bigger.\\n\\u0060\\u0060\\u0060\\n@@@ FILE: index.html\\n@@@ OLD\\n<button class="send">Send</button>\\n@@@ NEW\\n<button class="send big">Send</button>\\n@@@ END\\n\\u0060\\u0060\\u0060';
     if(/YOUR TASK:\\nChange size/.test(o.text))return 'Size is now 16.\\n\\u0060\\u0060\\u0060\\n@@@ FILE: app.js\\n@@@ OLD\\nconst size = 12;\\n@@@ NEW\\nconst size = 16;\\n@@@ END\\n\\u0060\\u0060\\u0060';
-    return 'This project is a small demo app.';
+    if(/AI Studio · compress/.test(o.text))return '## Goal\\nA demo app.\\n## Next step\\nKeep going.';
+    if(/AI Studio · questions/.test(o.text))return '\\u0060\\u0060\\u0060json\\n{"questions":[{"q":"Which color?","options":["Orange","Blue"]},{"q":"Rounded?","options":["Yes","No"]}]}\\n\\u0060\\u0060\\u0060';
+    if(/AI Studio · prompt fixer/.test(o.text))return '\\u0060\\u0060\\u0060text\\nMake the send button 20% larger in index.html and keep its color.\\n\\u0060\\u0060\\u0060';
+    if(/AI Studio · follow-up/.test(o.text))return 'Sure, still the same demo app.';
+    return 'This project is a small demo app.\\n<<<REMEMBER\\n- The user calls the project the demo\\nREMEMBER>>>';
   }
   const emit=p=>setTimeout(()=>window.onClaudeStream&&window.onClaudeStream(p),0);
   window.webkit={messageHandlers:{native:{postMessage:async o=>{
@@ -38,9 +42,14 @@ const nativeMock=`(()=>{
       case 'claudeProfiles':return profiles;
       case 'claudeStop':return true;
       case 'openClaude':return true;
+      case 'claudeSetEnabled':{const p=profiles.find(p=>p.id===o.profile);p.enabled=o.enabled;p.ready=o.enabled;return true;}
+      case 'dictateStart':setTimeout(()=>window.onDictation({text:'make it blue',final:true}),20);return true;
+      case 'dictateStop':return true;
       case 'claudeSetManager':profiles.forEach(p=>p.manager=p.id===o.profile);return true;
       case 'claudeSend':{
-        window.__sent.push({role:o.role,text:o.text});
+        window.__sent.push({role:o.role,text:o.text,profile:o.profile,moveOnLimit:o.moveOnLimit});
+        // A pinned container that has hit its limit hands the job back so the page can compress the chat.
+        if(o.profile&&window.__limited===o.profile){setTimeout(()=>emit({id:o.id,state:'limited',account:'Free 1',profile:o.profile,note:'Free 1 reached its limit.'}),20);return {account:'Free 1',profile:o.profile};}
         const who=o.role==='manager'?profiles[0]:profiles[1+(window.__sent.filter(s=>s.role!=='manager').length-1)%2];
         const text=reply(o),base={id:o.id,account:who.name,profile:who.id,role:o.role};
         setTimeout(()=>{
@@ -110,7 +119,8 @@ const nativeMock=`(()=>{
     await page.click('#branchList .row >> nth=0');
     await page.waitForFunction(()=>ls('repo')==='tester/demo'&&ls('branch')==='main');
     assert.match(await page.locator('.plan-pill').innerText(),/demo · main/);
-    assert.match(await page.locator('#modelLabel').innerText(),/Opus 5\.5[\s\S]*\+2/);
+    if(process.env.DEBUG)console.log(await page.evaluate(()=>({p:S.profiles.length,mode:teamMode(),html:document.getElementById('footModel').innerHTML})));
+    assert.match(await page.locator('#footModel').innerText(),/Opus 5\.5[\s\S]*\+2/);
     await page.emulateMedia({colorScheme:'dark'});
     await page.screenshot({path:path.join(root,'test-artifacts',name+'-home-dark.png')});
     await page.click('.composer .plain');
@@ -151,9 +161,47 @@ const nativeMock=`(()=>{
     if(process.env.DEBUG)console.log(name,'step 4');
     await page.fill('#task','What does this app do?');
     await page.click('#send');
-    await page.waitForFunction(()=>!S.busy&&sess().log.at(-1).k==='reply'&&sess().log.at(-1).state==='done');
+    await page.waitForFunction(()=>!S.busy&&sess().log.filter(e=>e.k==='reply').at(-1)?.state==='done');
     assert.equal((await page.evaluate(()=>window.__sent)).at(-1).role,'worker');
     assert.match(await page.locator('.reply').last().innerText(),/small demo app/);
+    // 6. Memory learned from the reply, with Undo; voice typing; prompt fixer; question mode; a limit hands the chat over compressed.
+    if(process.env.DEBUG)console.log(name,'step 6');
+    assert.match(await page.evaluate(()=>S.memory),/calls the project the demo/,'memory learned from a reply');
+    assert.ok(await page.locator('text=Memory updated').isVisible());
+    assert.doesNotMatch(await page.locator('.reply').last().innerText(),/REMEMBER/,'memory blocks are hidden');
+    await page.click('#micBtn');
+    await page.waitForFunction(()=>document.getElementById('task').value==='make it blue');
+    await page.click('#fixBtn');await page.click('.mi >> text=For coding');
+    await page.waitForFunction(()=>/20% larger/.test(document.getElementById('task').value));
+    await page.click('#fixBtn');await page.click('.mi >> text=Undo');
+    assert.equal(await page.inputValue('#task'),'make it blue','undo brings the draft back');
+    assert.ok((await page.evaluate(()=>window.__sent)).filter(x=>/follow-up/.test(x.text)).length===0);
+    // Same container keeps the conversation (pinned, fresh:false); then it hits its limit.
+    await page.fill('#task','And what about the colors?');await page.click('#send');
+    await page.waitForFunction(()=>!S.busy&&sess().log.filter(e=>e.k==='reply').at(-1).state==='done'&&sess().log.filter(e=>e.k==='reply').length>=2);
+    let sent2=await page.evaluate(()=>window.__sent);
+    assert.ok(sent2.at(-1).profile&&/follow-up/.test(sent2.at(-1).text),'follow-ups stay in the same container');
+    await page.evaluate(()=>{window.__limited=sess().thread.profile;setTeamMode('single',true);});
+    await page.fill('#task','Now make the header orange');await page.click('#send');
+    await page.waitForFunction(()=>!S.busy&&sess().log.some(e=>e.k==='handover'),null,{timeout:15000}).catch(async e=>{
+      console.log(JSON.stringify(await page.evaluate(()=>({log:sess().log.slice(-4).map(e=>({k:e.k,state:e.state,note:e.note})),sent:window.__sent.slice(-3).map(x=>({role:x.role,profile:x.profile,m:x.moveOnLimit,t:x.text.slice(0,40)})),thread:sess().thread,busy:S.busy}))));throw e;});
+    sent2=await page.evaluate(()=>window.__sent);
+    const compress=sent2.findIndex(x=>/\[AI Studio · compress\]/.test(x.text));
+    assert.ok(compress>0,'the conversation was compressed by a sub-agent');
+    assert.match(sent2[compress+1].text,/handover[\s\S]*## Goal[\s\S]*Last messages, word for word/,'the next container gets the summary and the last messages');
+    assert.match(sent2[compress+1].text,/Now make the header orange/);
+    await page.screenshot({path:path.join(root,'test-artifacts',name+'-handover.png')});
+    await page.evaluate(()=>{window.__limited=null;setTeamMode('team',true);});
+    await page.click('text=Undo');
+    assert.doesNotMatch(await page.evaluate(()=>S.memory),/calls the project/,'undo removes the learned line');
+    await page.click('#askBtn');
+    await page.fill('#task','Restyle the send button');await page.click('#send');
+    await page.waitForSelector('.qcard .opt');
+    await page.click('.opt >> text=Orange');
+    await page.screenshot({path:path.join(root,'test-artifacts',name+'-questions.png')});
+    await page.click('.qact >> text=Continue');
+    await page.waitForFunction(()=>!S.busy&&sess().log.filter(e=>e.k==='user').at(-1).text.includes('Which color? → Orange'));
+    await page.click('#askBtn');
     // 5. Sessions survive a reload; settings and team sheets open; dark mode.
     if(process.env.DEBUG)console.log(name,'step 5');
     await page.waitForTimeout(500);

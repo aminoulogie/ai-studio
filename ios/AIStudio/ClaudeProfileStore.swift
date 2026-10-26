@@ -64,8 +64,7 @@ final class ClaudeProfileStore {
     /// One shared memory for every Claude container. Stays on this device, never in the repository.
     private(set) var masterMemory = ""
     static let memoryLimit = 4000
-    /// Each container keeps its own web view and sign-in, so the cap protects memory on the phone.
-    static let maxProfiles = 12
+    // No cap on containers: idle ones are unloaded (ClaudeBrowserController.maxLiveBrowsers), so many accounts cost little memory.
     init(defaults: UserDefaults = .standard, directory: URL? = nil) throws {
         self.defaults = defaults
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -73,7 +72,7 @@ final class ClaudeProfileStore {
         try FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
         if let raw = defaults.data(forKey: stateKey) {
             self.state = try JSONDecoder().decode(State.self, from: raw)
-            guard state.profiles.count <= Self.maxProfiles, Set(state.profiles.map(\.id)).count == state.profiles.count else {
+            guard Set(state.profiles.map(\.id)).count == state.profiles.count else {
                 throw NSError(domain: "ClaudeProfiles", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid profile metadata"])
             }
         } else { self.state = State() }
@@ -100,7 +99,6 @@ final class ClaudeProfileStore {
     }
     private func save() throws { defaults.set(try JSONEncoder().encode(state), forKey: stateKey) }
     @discardableResult func add(name: String) throws -> ClaudeProfile {
-        guard state.profiles.count < Self.maxProfiles else { throw problem("You can store up to \(Self.maxProfiles) Claude accounts.") }
         let label = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
         guard !label.isEmpty else { throw problem("Enter an account name.") }
         let profile = ClaudeProfile(name: label)
