@@ -843,21 +843,68 @@ final class ClaudeBrowserController: UIViewController, WKNavigationDelegate, WKU
         web.load(URLRequest(url: URL(string: "https://claude.ai/settings/usage")!))
         pollUsage(id, web: web, attempts: 25, reply: reply)
     }
-    private func pollUsage(_ id: UUID, web: WKWebView, attempts: Int, reply: @escaping (Any?, String?) -> Void) {
+    /// claude.ai's own usage numbers, read the way its Usage page reads them (the signed-in account's usage endpoint),
+    /// so the percentage and the exact reset time are current. The page's text is the fallback.
+    private static let usageAPI = """
+    const get = async url => { const r = await fetch(url, {credentials: 'include', cache: 'no-store'}); return r.ok ? r.json() : null; };
+    const orgs = await get('/api/organizations');
+    if (!Array.isArray(orgs) || !orgs.length) return null;
+    const org = orgs.find(o => (o.capabilities || []).includes('chat')) || orgs[0];
+    const usage = await get('/api/organizations/' + org.uuid + '/usage');
+    return usage ? JSON.stringify(usage) : null;
+    """
+    private func pollUsage(_ id: UUID, web: WKWebView, attempts: Int, triedAPI: Bool = false, reply: @escaping (Any?, String?) -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self = self else { return }
+            let signedOut = web.url?.path.hasPrefix("/login") ?? false
+            let onClaude = web.url?.host == "claude.ai" && !web.isLoading
+            if onClaude && !signedOut && !triedAPI {
+                web.callAsyncJavaScript(Self.usageAPI, arguments: [:], in: nil, in: .page) { [weak self] result in
+                    guard let self = self else { return }
+                    if case .success(let value) = result, let json = value as? String, !json.isEmpty {
+                        self.finishUsage(id, web: web, payload: ["api": json, "text": "", "signedOut": false], reply: reply)
+                    } else {
+                        self.pollUsage(id, web: web, attempts: attempts - 1, triedAPI: true, reply: reply)
+                    }
+                }
+                return
+            }
             web.evaluateJavaScript("(document.body&&document.body.innerText||'').slice(0,8000)") { [weak self] result, _ in
                 guard let self = self else { return }
                 let text = (result as? String) ?? ""
-                let signedOut = web.url?.path.hasPrefix("/login") ?? false
                 if text.contains("% used") || signedOut || attempts <= 1 {
-                    web.stopLoading(); web.removeFromSuperview()
-                    self.usageReaders.removeValue(forKey: id)
-                    reply(["text": text, "signedOut": signedOut, "at": Date().timeIntervalSince1970 * 1000], nil)
+                    self.finishUsage(id, web: web, payload: ["text": text, "signedOut": signedOut], reply: reply)
                 } else {
-                    self.pollUsage(id, web: web, attempts: attempts - 1, reply: reply)
+                    self.pollUsage(id, web: web, attempts: attempts - 1, triedAPI: triedAPI, reply: reply)
                 }
             }
         }
+    }
+    private func finishUsage(_ id: UUID, web: WKWebView, payload: [String: Any], reply: @escaping (Any?, String?) -> Void) {
+        web.stopLoading(); web.removeFromSuperview()
+        usageReaders.removeValue(forKey: id)
+        if let json = payload["api"] as? String { applyOfficialLimit(id, json) }
+        var out = payload
+        out["at"] = Date().timeIntervalSince1970 * 1000
+        reply(out, nil)
+    }
+    /// The real numbers replace the 5-hour guess: limited until claude.ai's reset time, or ready again if it has room.
+    private func applyOfficialLimit(_ id: UUID, _ json: String) {
+        guard let data = json.data(using: .utf8), let usage = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        let iso = ISO8601DateFormatter(); iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        var blockedUntil: Date?
+        var known = false
+        // The 5-hour session and the all-models week block every message; per-model weeks do not.
+        for key in ["five_hour", "seven_day"] {
+            guard let window = usage[key] as? [String: Any], let used = (window["utilization"] as? NSNumber)?.doubleValue else { continue }
+            known = true
+            let reset = (window["resets_at"] as? String).flatMap { iso.date(from: $0) ?? plain.date(from: $0) }
+            if used >= 100, let reset = reset, reset > Date() { blockedUntil = max(blockedUntil ?? reset, reset) }
+        }
+        guard known else { return }
+        if let until = blockedUntil { change(id) { $0.status = .rateLimited; $0.limitedUntil = until } }
+        else if store.state.profiles.first(where: { $0.id == id })?.status == .rateLimited { change(id) { $0.status = .active; $0.limitedUntil = nil } }
     }
 
     /// Pause or resume a container from the Code tab's team sheet. A paused container is skipped for tasks.

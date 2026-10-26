@@ -34,4 +34,11 @@ assert.deepEqual(off.session,{pct:52,reset:'in 3 hr 39 min',resetAt:t0+219*min})
 assert.equal(off.weekly.pct,7);assert.equal(off.weekly.reset,'Mon 3:59 AM');
 assert.equal(U.parseOfficial('Settings\nProfile'),null);
 assert.equal(U.fmtTokens(576000),'576k');assert.equal(U.fmtTokens(1000000),'1M');assert.equal(U.fmtIn(219*min),'3 hr 39 min');
+// claude.ai's usage endpoint: exact percentage and reset time; a window whose reset has passed reads 0%.
+const api=U.parseApi(JSON.stringify({five_hour:{utilization:100,resets_at:new Date(t0+268*min).toISOString()},seven_day:{utilization:31.6,resets_at:null}}),t0);
+assert.equal(api.session.pct,100);assert.equal(api.session.resetAt,t0+268*min);assert.equal(api.weekly.pct,32);
+assert.match(U.resetWords(api.session,t0),/^Resets in 4 hr 28 min \(/);
+assert.equal(U.current(api.session,t0+300*min).pct,0,'after the reset the session is empty again');
+assert.equal(U.resetWords(U.current(api.session,t0+300*min),t0+300*min),'Reset since the last check');
+assert.equal(U.parseApi('nope'),null);assert.equal(U.parseApi('{}'),null);
 console.log('Usage checks passed: per-window tokens, follow-up cost, 12-limit calibration, run-out prediction, claude.ai usage page.');

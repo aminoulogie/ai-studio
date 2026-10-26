@@ -10,8 +10,18 @@
     /(?:limit|messages|usage)[\s\S]{0,100}(?:try again|resets? (?:at|in)|come back)/i.test(text);
   function resetDelay(text){
     const match=text.match(/(?:try again|resets?|come back) in\s+(?:(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)\s*)?(?:(\d+)\s*(?:minutes?|mins?))?/i);
-    if(!match||(!match[1]&&!match[2]))return null;
-    const seconds=(Number(match[1]||0)*3600)+(Number(match[2]||0)*60);
+    if(match&&(match[1]||match[2])){
+      const seconds=(Number(match[1]||0)*3600)+(Number(match[2]||0)*60);
+      return seconds>0&&seconds<=86400?seconds:null;
+    }
+    // "resets at 2:50 PM" / "try again at 14:50": the next time the clock shows that.
+    const at=text.match(/(?:try again|resets?|come back|available)\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([AaPp]\.?\s?[Mm]\.?)?/i);
+    if(!at||(!at[2]&&!at[3]))return null;
+    let h=Number(at[1])%24;const m=Number(at[2]||0),pm=at[3]&&/p/i.test(at[3]);
+    if(at[3])h=h%12+(pm?12:0);
+    const now=new Date(),then=new Date(now);then.setHours(h,m,0,0);
+    if(then<=now)then.setDate(then.getDate()+1);
+    const seconds=Math.round((then-now)/1000);
     return seconds>0&&seconds<=86400?seconds:null;
   }
   // A reply's text with code blocks kept exactly (fenced), so edits can be applied character for character.

@@ -354,7 +354,8 @@ function noteUsage(profile,meta,outChars){
   usageSave(d);setTimeout(renderUsageRing);return cost;
 }
 function noteLimit(profile){
-  const d=usageDB(),rec=usageRec(d,profile),tokens=U.recordLimit(rec);
+  const d=usageDB(),rec=usageRec(d,profile),tokens=U.recordLimit(rec);rec.limitAt=Date.now();
+  setTimeout(()=>refreshOfficial(profile,true),4000);
   const who=S.profiles.find(x=>x.id===profile);
   if(tokens){if(who?.manager||paid(who))rec.samples=[...rec.samples,tokens].slice(-12);else d.samples=[...d.samples,tokens].slice(-12);}
   usageSave(d);setTimeout(renderUsageRing);
@@ -371,7 +372,8 @@ async function refreshOfficial(id,quiet){
   if(!inApp())return;
   try{
     const r=await native({op:'claudeUsage',profile:id});
-    const off=U.parseOfficial(r?.text);
+    const off=(r?.api&&U.parseApi(r.api))||U.parseOfficial(r?.text);
+    await refreshProfiles();
     const d=usageDB(),rec=usageRec(d,id);
     rec.official=off?{...off}:{none:true,signedOut:!!r?.signedOut,at:Date.now()};usageSave(d);
     renderUsageRing();
@@ -924,7 +926,7 @@ function ringTarget(){
 }
 function sessionPct(p){
   if(p.status==='Rate-Limited'&&p.limitedUntil>Date.now())return 100;
-  const {rec,est}=usageOf(p);return rec.official&&!rec.official.none&&rec.official.session?rec.official.session.pct:est.pct;
+  const {rec,est}=usageOf(p),s=rec.official&&!rec.official.none?U.current(rec.official.session):null;return s?s.pct:est.pct;
 }
 function renderUsageRing(){
   const ring=$('usageRing');if(!ring)return;
@@ -1074,20 +1076,23 @@ function bar(pct){return '<div class="ubar"><i style="width:'+Math.max(0,Math.mi
 function ucard(title,pct,sub,extra=''){return '<div class="ucard"><div class="uh"><b>'+title+'</b><span>'+(pct==null?'':pct+'% used')+'</span></div>'+(pct==null?'':bar(pct))+'<small>'+sub+'</small>'+extra+'</div>';}
 /** One container: name, status and session bar; opens to the claude.ai-style usage cards. */
 function containerHTML(p,status){
-  const {rec,est}=usageOf(p),off=rec.official&&!rec.official.none?rec.official:null,now=Date.now();
-  const sess=off?.session,week=off?.weekly;
-  const sessPct=sess?sess.pct:est.pct;
-  const limited=p.status==='Rate-Limited'&&p.limitedUntil>now;
-  const resetWords=sess?.reset?'Resets '+sess.reset:limited?'Resets in '+U.fmtIn(p.limitedUntil-now):est.resetAt?'Resets in '+U.fmtIn(est.resetAt-now):'No messages in the last 5 hours';
+  const {rec,est}=usageOf(p),now=Date.now(),limited=p.status==='Rate-Limited'&&p.limitedUntil>now;
+  // claude.ai's numbers count only while they are newer than the last limit this app saw, and only until they reset.
+  const raw=rec.official&&!rec.official.none&&!(limited&&rec.limitAt&&rec.limitAt>rec.official.at)?rec.official:null;
+  const off=raw&&now-raw.at<8*24*3600e3?raw:null;
+  const sess=U.current(off?.session,now),week=U.current(off?.weekly,now);
+  const sessPct=sess?sess.pct:limited?100:est.pct;
+  const resetWords=sess?(U.resetWords(sess,now)||'Reset time not shown'):limited?'Resets in about '+U.fmtIn(p.limitedUntil-now)+' (estimated)':est.resetAt?'Resets in '+U.fmtIn(est.resetAt-now):'No messages in the last 5 hours';
+  const readAgo=off?' · from claude.ai '+ago(off.at):' · estimated';
   const predicted=!sess&&est.runsOutAt?'At this pace it runs out in about '+U.fmtIn(est.runsOutAt-now)+(est.messagesLeft!=null?' (≈'+est.messagesLeft+' more messages)':'')+'.':
     !sess&&est.messagesLeft!=null?'About '+est.messagesLeft+' more messages like the last ones.':'';
   const learning=!sess&&!p.manager?'<div class="learn">'+(est.calibrated?'Learned from 12 real limits':'Learning your free plan: '+est.calibration+' of 12 limits seen')+' · a session ≈ '+U.fmtTokens(est.cap)+' tokens'+(est.calibration?'':' (starting guess)')+'</div>':'';
   return '<details class="ctr"'+(openUsage.has(p.id)?' open':'')+' ontoggle="this.open?openUsage.add(\''+p.id+'\'):openUsage.delete(\''+p.id+'\')">'+
-    '<summary><span class="grow"><b>'+esc(p.name)+' '+planTag(p)+(p.manager?' <span class="pill star">Manager</span>':'')+' '+status+'</b><small>'+(sess?'':'≈ ')+sessPct+'% of session'+(week?' · '+week.pct+'% weekly':'')+'</small>'+bar(limited?100:sessPct)+'</span>'+icon('down','ic chev')+'</summary>'+
+    '<summary><span class="grow"><b>'+esc(p.name)+' '+planTag(p)+(p.manager?' <span class="pill star">Manager</span>':'')+' '+status+'</b><small>'+(sess?'':'≈ ')+sessPct+'% of session'+(week?' · '+week.pct+'% weekly':'')+'</small>'+bar(sessPct)+'</span>'+icon('down','ic chev')+'</summary>'+
     '<div class="ubody">'+
       '<h4>Context</h4>'+ucard('Context window',est.context.pct,U.fmtTokens(est.context.used)+' of '+U.fmtTokens(est.context.limit)+' tokens · this chat, estimated')+
-      '<h4>Plan usage</h4>'+ucard('Current session',limited?100:sessPct,esc(resetWords)+(sess?' · from claude.ai':' · estimated'),predicted?'<small>'+esc(predicted)+'</small>':'')+learning+
-      (week?'<h4>Weekly limits</h4>'+ucard('All models',week.pct,esc('Resets '+week.reset)+' · from claude.ai'):
+      '<h4>Plan usage</h4>'+ucard('Current session',sessPct,esc(resetWords)+(sess?readAgo:''),predicted?'<small>'+esc(predicted)+'</small>':'')+learning+
+      (week?'<h4>Weekly limits</h4>'+ucard('All models',week.pct,esc(U.resetWords(week,now)||'Reset time not shown')+readAgo):
         '<h4>Last 7 days</h4>'+ucard('Sent from this app',null,'≈'+U.fmtTokens(est.week)+' tokens'+(p.manager?'':' · free plans show no weekly numbers'))
       )+
       '<div class="uact"><button class="btn small" onclick="refreshOfficial(\''+p.id+'\')">'+icon('refresh')+'Refresh</button><button class="btn small" onclick="openClaude(\''+p.id+'\')">'+icon('out')+'Open</button><span class="grow"></span><span class="lbl">On</span>'+

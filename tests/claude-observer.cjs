@@ -26,6 +26,8 @@ assert.equal(run({host:'accounts.google.com',notice:"You've reached your limit"}
 assert.equal(run({loggedIn:true}).posted[0].event,'signedIn');
 assert.equal(run({notice:'Usage limit reached. Try again in 2 hours 15 minutes'}).posted[0].retryAfterSeconds,8100);
 assert.equal(run({notice:'Usage limit reached. Try again in 25 minutes'}).posted[0].retryAfterSeconds,1500);
+const atClock=run({notice:"You've reached your usage limit. Resets at 2:50 PM"}).posted[0].retryAfterSeconds;
+assert.ok(atClock>0&&atClock<=86400,'a clock time is read, not guessed as 5 hours');
 const {context}=run();
 assert.equal(context.claudeVisibleSnapshot().messages.map(x=>x.role).join(','),'user,assistant');
 const withBlock=run({reply:'Done.\n<<<STUDIO_MEMORY\n- Prefers French and English\n- Short answers\nSTUDIO_MEMORY>>>'}).context;

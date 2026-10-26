@@ -77,6 +77,35 @@ function parseOfficial(text,now=Date.now()){
   const session=section(/Current session/i),weekly=section(/All models/i);
   return session||weekly?{session,weekly,at:now}:null;
 }
+/** claude.ai's usage endpoint: {"five_hour":{"utilization":37,"resets_at":"…Z"},"seven_day":{…}}. Exact numbers and times. */
+function parseApi(json,now=Date.now()){
+  let u;try{u=typeof json==='string'?JSON.parse(json):json;}catch{return null;}
+  if(!u||typeof u!=='object')return null;
+  const win=w=>{
+    if(!w||typeof w!=='object'||!Number.isFinite(+w.utilization))return null;
+    const at=w.resets_at?Date.parse(w.resets_at):NaN;
+    return {pct:Math.max(0,Math.min(100,Math.round(+w.utilization))),reset:'',resetAt:Number.isFinite(at)?at:null};
+  };
+  const session=win(u.five_hour),weekly=win(u.seven_day);
+  return session||weekly?{session,weekly,at:now,exact:true}:null;
+}
+/** A window as claude.ai reads at this moment: once its reset time has passed it is back to 0%. */
+function current(w,now=Date.now()){
+  if(!w)return null;
+  if(w.resetAt&&w.resetAt<=now)return {...w,pct:0,reset:'',resetAt:null,wasReset:true};
+  return w;
+}
+/** "Resets in 4 hr 28 min (2:50 PM)", from the exact time when there is one. */
+function resetWords(w,now=Date.now()){
+  if(!w)return '';
+  if(w.wasReset)return 'Reset since the last check';
+  if(w.resetAt){
+    const d=new Date(w.resetAt),clock=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    const day=w.resetAt-now>20*HOUR?d.toLocaleDateString([],{weekday:'short'})+' ':'';
+    return 'Resets in '+fmtIn(w.resetAt-now)+' ('+day+clock+')';
+  }
+  return w.reset?'Resets '+w.reset:'';
+}
 /** "in 3 hr 39 min" → a time; a weekday and clock time is left as words. */
 function resetTime(words,now){
   const m=String(words).match(/in\s+(?:(\d+)\s*(?:hr|hour)s?)?\s*(?:(\d+)\s*min)?/i);
@@ -85,7 +114,7 @@ function resetTime(words,now){
 }
 function fmtTokens(n){return n>=1e6?(n/1e6).toFixed(1).replace(/\.0$/,'')+'M':n>=1000?Math.round(n/1000)+'k':String(Math.round(n));}
 function fmtIn(ms){if(ms<=0)return 'now';const m=Math.round(ms/60e3);return m<60?m+' min':Math.floor(m/60)+' hr '+(m%60)+' min';}
-const api={tokensOf,record,recordLimit,capacity,estimate,predict,parseOfficial,fmtTokens,fmtIn,blank,PRIOR_SESSION,CALIBRATION,WINDOW,CONTEXT};
+const api={tokensOf,record,recordLimit,capacity,estimate,predict,parseOfficial,parseApi,current,resetWords,fmtTokens,fmtIn,blank,PRIOR_SESSION,CALIBRATION,WINDOW,CONTEXT};
 root.StudioUsage=api;
 if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
