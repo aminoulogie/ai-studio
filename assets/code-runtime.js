@@ -3,7 +3,7 @@ const CODE_NATIVE_HOSTS=new Set(['api.openai.com','apikey.vnaipro.app','openrout
 function codeMessagesForRequest(messages,limit=64000){
   if(messages.length<2)return messages;
   const groups=[];
-  for(const original of messages.slice(1)){
+  for(const original of messages.slice(1)){ 
     const m={...original};
     // Old tool results can be re-read from the repository; preserve recent exact snippets.
     if(m.role==='tool'&&typeof m.content==='string'&&groups.length){
